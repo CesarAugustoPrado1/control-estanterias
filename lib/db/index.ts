@@ -53,7 +53,10 @@ function conectar(): Db {
     );
   }
 
-  if (!connectionString.includes("-pooler")) {
+  // Los scripts de linea de comandos pisan DATABASE_URL con DIRECT_URL a
+  // proposito (ver scripts/_db.ts): ahi el aviso sobra.
+  const directaAdrede = connectionString === process.env.DIRECT_URL;
+  if (!connectionString.includes("-pooler") && !directaAdrede) {
     // No es un error fatal -anda igual-, pero conviene enterarse: la cadena
     // directa en runtime desperdicia el pooler y se nota con varias instancias.
     console.warn(
