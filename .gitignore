@@ -1,0 +1,18 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Variables de entorno. .env.example SI se versiona; el resto NUNCA:
+# tienen la contrasena de la base y el secreto de sesion.
+.env
+.env.local
+.env*.local
+
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+
+.DS_Store
+Thumbs.db
