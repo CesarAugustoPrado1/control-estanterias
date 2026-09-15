@@ -136,7 +136,7 @@ function elegirPesado<T extends { peso: number }>(items: T[]): T {
 /* Maestros                                                                   */
 /* -------------------------------------------------------------------------- */
 
-async function maestros() {
+async function cargarMaestros() {
   // Una consulta por tabla y un insert masivo por tabla. La version anterior
   // consultaba fila por fila -unos 80 viajes- y la conexion se cortaba a mitad
   // de camino con `Connection terminated unexpectedly`.
@@ -249,7 +249,9 @@ type Paso = {
 
 const DIAS = 14;
 
-async function simular(maestros: Awaited<ReturnType<typeof maestros>>) {
+type Maestros = Awaited<ReturnType<typeof cargarMaestros>>;
+
+async function simular(maestros: Maestros) {
   const users = await db.select().from(usuarios);
   const porRol = (r: Rol) => {
     const c = users.filter((u) => u.rol === r);
@@ -490,7 +492,7 @@ async function main() {
   const soloMaestros = process.argv.includes("--solo-maestros");
 
   console.log("\nCargando maestros...");
-  const m = await maestros();
+  const m = await cargarMaestros();
   console.log(
     `  ${FAMILIAS.length} familias, ${MODELOS.length} modelos, ` +
       `${PRODUCTOS.length} productos, ${m.estanterias.length} estanterias, ` +

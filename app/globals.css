@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+/*
+  Pantallas de piso de planta. Tres decisiones que no son esteticas:
+
+  - Los blancos de verdad encandilan bajo el sol del patio; el fondo es un gris
+    muy claro.
+  - Los controles tienen 48 px minimos: es lo que se puede tocar con guantes.
+  - Nada de animaciones largas. Con WiFi irregular, una transicion de 300 ms
+    parece que la app se colgo.
+*/
+
+@theme {
+  --color-fondo: oklch(0.975 0.002 250);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-fondo);
+  color: oklch(0.21 0.02 255);
+  overscroll-behavior-y: contain;
+}
+
+/* Evita el zoom automatico de iOS al enfocar un input: pasa si la fuente
+   declarada es menor a 16 px, y en planta ese zoom desacomoda la pantalla. */
+input,
+select,
+textarea,
+button {
+  font-size: max(16px, 1rem);
+}
+
+/* Numeros tabulares en todo lo que sea cantidad: las columnas de cifras se
+   leen mal si cada digito tiene ancho distinto. */
+.cifra {
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  .no-imprimir {
+    display: none !important;
+  }
+}
