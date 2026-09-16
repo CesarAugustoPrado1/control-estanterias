@@ -19,26 +19,86 @@ function refrescar(...rutas: string[]) {
 }
 
 const esquemaLlenado = z.object({
-  productoId: z.number().int().positive("Elegí un producto."),
+  estanteriaId: z.number().int().positive("Elegí la estantería por su placa."),
+  productoId: z.number().int().positive("Elegí el tono."),
   trompo: z.enum(["a", "b"], { message: "Elegí el trompo." }),
   moldesLlenados: z
     .number()
     .int("Los moldes se cuentan de a uno.")
     .positive("Cargá cuántos moldes llenaste.")
     .nullable(),
+  confirmoLavado: z.boolean(),
 });
 
-export async function accionLlenar(fd: FormData): Promise<Resultado<{ codigo: string; estanteria: string; moldes: number }>> {
+export async function accionLlenar(
+  fd: FormData,
+): Promise<Resultado<Awaited<ReturnType<typeof motor.llenar>>>> {
   return ejecutar(async () => {
     const sesion = await autorizar("trompo");
     const datos = esquemaLlenado.parse({
+      estanteriaId: Number(fd.get("estanteriaId")),
       productoId: Number(fd.get("productoId")),
       trompo: String(fd.get("trompo") ?? ""),
       moldesLlenados: numeroOpcional(fd.get("moldesLlenados")),
+      confirmoLavado: fd.get("confirmoLavado") === "on" || fd.get("confirmoLavado") === "true",
     });
     const r = await motor.llenar(sesion, datos);
-    refrescar("/trompo", "/horno");
+    refrescar("/trompo", "/horno", "/recorrida");
     return r;
+  });
+}
+
+export async function accionTarjetaNoEncontrada(
+  fd: FormData,
+): Promise<Resultado<Awaited<ReturnType<typeof motor.tarjetaNoEncontrada>>>> {
+  return ejecutar(async () => {
+    const sesion = await autorizar("trompo");
+    const r = await motor.tarjetaNoEncontrada(sesion, Number(fd.get("tandaId")));
+    refrescar("/trompo", "/horno", "/recorrida");
+    return r;
+  });
+}
+
+export async function accionNoCoincide(fd: FormData): Promise<Resultado<string>> {
+  return ejecutar(async () => {
+    const sesion = await autorizar("desmolde", "horno", "empaque");
+    const r = await motor.informarNoCoincide(
+      sesion,
+      Number(fd.get("tandaId")),
+      String(fd.get("placaVista") ?? ""),
+    );
+    refrescar("/desmolde", "/recorrida");
+    return r;
+  });
+}
+
+export async function accionResolverAviso(fd: FormData): Promise<Resultado<void>> {
+  return ejecutar(async () => {
+    const sesion = await autorizar();
+    await motor.resolverAviso(sesion, Number(fd.get("avisoId")), String(fd.get("resolucion") ?? ""));
+    refrescar("/recorrida");
+  });
+}
+
+export async function accionTarjetaEncontrada(fd: FormData): Promise<Resultado<string>> {
+  return ejecutar(async () => {
+    await autorizar();
+    const r = await motor.tarjetaEncontrada(Number(fd.get("tarjetaId")));
+    refrescar("/recorrida", "/admin/tarjetas");
+    return r;
+  });
+}
+
+export async function accionGuardarFabricadas(fd: FormData): Promise<Resultado<void>> {
+  return ejecutar(async () => {
+    await autorizar();
+    const valores: Record<string, number> = {};
+    for (const l of ["A", "B", "C", "D", "E", "F", "G"]) {
+      const v = numeroOpcional(fd.get(`fabricadas_${l}`));
+      if (v !== null) valores[l] = v;
+    }
+    await motor.guardarFabricadas(valores);
+    refrescar("/admin/tarjetas", "/trompo");
   });
 }
 
@@ -90,14 +150,14 @@ export async function accionDesmoldar(fd: FormData): Promise<Resultado<number>> 
   return ejecutar(async () => {
     const sesion = await autorizar("desmolde");
     const n = await motor.desmoldar(sesion, ids(fd.getAll("tandas")));
-    refrescar("/desmolde", "/empaque", "/trompo");
+    refrescar("/desmolde", "/empaque", "/trompo", "/recorrida");
     return n;
   });
 }
 
 export async function accionEmpaquetar(
   fd: FormData,
-): Promise<Resultado<{ paquetes: number; esperados: number; rotos: number }>> {
+): Promise<Resultado<Awaited<ReturnType<typeof motor.empaquetar>>>> {
   return ejecutar(async () => {
     const sesion = await autorizar("empaque");
     const tandaId = Number(fd.get("tandaId"));
@@ -122,7 +182,7 @@ export async function accionEmpaquetar(
       motivoRoturaNombre: motivoNombre,
       nota: String(fd.get("nota") ?? "").trim() || null,
     });
-    refrescar("/empaque");
+    refrescar("/empaque", "/recorrida");
     return r;
   });
 }

@@ -89,6 +89,7 @@ export const ETIQUETA_MOVIMIENTO: Record<TipoMovimiento, string> = {
   desmolde: "Desmolde",
   empaquetado: "Empaque",
   correccion: "Corrección",
+  cambio_tarjeta: "Cambio de tarjeta",
 };
 
 export const ETIQUETA_MOTIVO_FRAGUADO: Record<MotivoFraguado, string> = {

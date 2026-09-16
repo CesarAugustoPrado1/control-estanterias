@@ -16,7 +16,7 @@ import {
   tandas,
   usuarios,
 } from "../db/schema";
-import { RETIENEN } from "./motor";
+import * as motor from "./motor";
 import { ejecutar, fallar, numeroOpcional, type Resultado } from "./comun";
 
 /**
@@ -105,6 +105,7 @@ const esquemaProducto = z.object({
     .min(1, "Tiene que ser 1 o más.")
     .max(20, "¿Tantas piezas por paquete? Revisá el número."),
   requiereTunel: z.boolean(),
+  cemento: z.enum(["gris", "blanco"], { message: "Elegí el cemento." }),
   m2PorPaquete: z.string().nullable(),
 });
 
@@ -125,6 +126,7 @@ export async function guardarProducto(fd: FormData): Promise<Resultado<void>> {
       piezasPorMolde: Number(fd.get("piezasPorMolde")),
       piezasPorPaquete: Number(fd.get("piezasPorPaquete")),
       requiereTunel: fd.get("requiereTunel") === "on" || fd.get("requiereTunel") === "true",
+      cemento: String(fd.get("cemento") ?? "gris"),
       m2PorPaquete: m2 === "" ? null : m2,
     });
     const activo = fd.get("activo") === "on" || fd.get("activo") === "true";
@@ -147,50 +149,32 @@ export async function guardarProducto(fd: FormData): Promise<Resultado<void>> {
 
 export async function guardarEstanteria(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
-    await autorizar();
-    const id = numeroOpcional(fd.get("id"));
-    const codigo = texto().parse(fd.get("codigo"));
-    const modeloId = z.number().int().positive("Elegí el modelo.").parse(Number(fd.get("modeloId")));
-    const familiaId = z.number().int().positive("Elegí la familia.").parse(Number(fd.get("familiaId")));
-    const moldes = z
-      .number()
-      .int("Los moldes se cuentan de a uno.")
-      .min(1, "Tiene que tener al menos un molde.")
-      .parse(Number(fd.get("moldes")));
-    const activa = fd.get("activa") === "on" || fd.get("activa") === "true";
-
-    const repetida = await db
-      .select()
-      .from(estanterias)
-      .where(
-        id
-          ? and(eq(estanterias.codigo, codigo), ne(estanterias.id, id))
-          : eq(estanterias.codigo, codigo),
-      );
-    if (repetida.length) fallar(`Ya existe una estantería con el código "${codigo}".`);
-
-    if (id) {
-      if (!activa) {
-        // Dar de baja una estanteria con una tanda abierta dejaria esa tanda
-        // sin moldes asignados y el conteo de libres mintiendo.
-        const abiertas = await db
-          .select({ codigo: tandas.codigo })
-          .from(tandas)
-          .where(and(eq(tandas.estanteriaId, id), inArray(tandas.estado, RETIENEN)));
-        if (abiertas.length) {
-          fallar(
-            `No podés dar de baja esta estantería: la tanda ${abiertas[0].codigo} ` +
-              `todavía la está usando. Desmoldala primero.`,
-          );
-        }
-      }
-      await db
-        .update(estanterias)
-        .set({ codigo, modeloId, familiaId, moldes, activa })
-        .where(eq(estanterias.id, id));
-    } else {
-      await db.insert(estanterias).values({ codigo, modeloId, familiaId, moldes });
-    }
+    const sesion = await autorizar();
+    const numero = z
+      .number({ invalid_type_error: "Cargá el número de la placa." })
+      .int("El número de placa es un entero.")
+      .min(1, "El número de placa empieza en 1.")
+      .max(999, "¿Un número de placa tan grande? Revisalo.")
+      .parse(numeroOpcional(fd.get("numero")));
+    await motor.guardarEstanteria(sesion, {
+      id: numeroOpcional(fd.get("id")),
+      codigo: String(fd.get("codigo") ?? "").trim() || null,
+      modeloId: z.number().int().positive("Elegí el modelo.").parse(Number(fd.get("modeloId"))),
+      familiaId: z.number().int().positive("Elegí la familia.").parse(Number(fd.get("familiaId"))),
+      cemento: z
+        .enum(["gris", "blanco"], { message: "Elegí el cemento." })
+        .parse(String(fd.get("cemento") ?? "")),
+      numero,
+      moldes: z
+        .number()
+        .int("Los moldes se cuentan de a uno.")
+        .min(1, "Tiene que tener al menos un molde.")
+        .parse(Number(fd.get("moldes"))),
+      // Un checkbox destildado no viaja en el formulario: ausente es "no". Al
+      // crear no se usa -la estanteria nace activa-.
+      activa: fd.get("activa") === "on" || fd.get("activa") === "true",
+      motivo: String(fd.get("motivo") ?? "").trim() || null,
+    });
     refrescarAdmin();
   });
 }
