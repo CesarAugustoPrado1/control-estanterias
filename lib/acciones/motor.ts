@@ -252,15 +252,22 @@ export async function llenar(
   return db.transaction(async (tx) => {
     // Bloquear la estanteria primero: dos llenados simultaneos sobre la misma
     // esperan uno al otro y el segundo encuentra que ya esta llena.
-    const [est] = await tx
-      .select({ e: estanterias, modelo: modelos.nombre, familia: familias.nombre })
+    //
+    // El bloqueo va sobre la tabla sola y los nombres se leen aparte: un
+    // `FOR UPDATE OF` con join y esquema propio lo rechaza Postgres ("must specify
+    // unqualified relation names").
+    const [bloqueada] = await tx
+      .select()
       .from(estanterias)
-      .innerJoin(modelos, eq(modelos.id, estanterias.modeloId))
-      .innerJoin(familias, eq(familias.id, estanterias.familiaId))
       .where(eq(estanterias.id, datos.estanteriaId))
-      .for("update", { of: estanterias });
-
-    if (!est) fallar("Esa estantería no existe.");
+      .for("update");
+    if (!bloqueada) fallar("Esa estantería no existe.");
+    const [nombres] = await tx
+      .select({ modelo: modelos.nombre, familia: familias.nombre })
+      .from(modelos)
+      .innerJoin(familias, eq(familias.id, bloqueada.familiaId))
+      .where(eq(modelos.id, bloqueada.modeloId));
+    const est = { e: bloqueada, modelo: nombres.modelo, familia: nombres.familia };
     const etiqueta = etiquetaPlaca(est.modelo, est.familia, est.e.numero);
     if (!est.e.activa) fallar(`La estantería ${etiqueta} está dada de baja.`);
 
@@ -403,7 +410,7 @@ export async function tarjetaNoEncontrada(sesion: Sesion, tandaId: number) {
           "Si se perdió después, avisale al administrador.",
       );
     }
-    const vieja = t.tarjetaPalabra ?? "";
+    const vieja = (t.tarjetaPalabra ?? "").toUpperCase();
     const ahora = new Date();
 
     await tx.update(tarjetas).set({ perdidaDesde: ahora }).where(eq(tarjetas.id, t.tarjetaId));
@@ -432,7 +439,7 @@ export async function tarjetaNoEncontrada(sesion: Sesion, tandaId: number) {
       conservarInicioDeEstado: true,
       sinDuracion: true,
       nota: nueva
-        ? `${vieja} no estaba en el tablero; se usó ${nueva.palabra}.`
+        ? `${vieja} no estaba en el tablero; se usó ${nueva.palabra.toUpperCase()}.`
         : `${vieja} no estaba en el tablero y no quedan tarjetas libres: la tanda sigue con su código.`,
       parche,
     });
@@ -775,13 +782,15 @@ export async function guardarEstanteria(
       return etiqueta;
     }
 
-    const [actual] = await tx
-      .select({ e: estanterias, familia: familias.nombre })
+    // Bloqueo sobre la tabla sola: ver el comentario en `llenar`.
+    const [fila] = await tx
+      .select()
       .from(estanterias)
-      .innerJoin(familias, eq(familias.id, estanterias.familiaId))
       .where(eq(estanterias.id, datos.id))
-      .for("update", { of: estanterias });
-    if (!actual) fallar("Esa estantería no existe.");
+      .for("update");
+    if (!fila) fallar("Esa estantería no existe.");
+    const [famActual] = await tx.select().from(familias).where(eq(familias.id, fila.familiaId));
+    const actual = { e: fila, familia: famActual.nombre };
 
     if (actual.e.modeloId !== datos.modeloId) {
       fallar(

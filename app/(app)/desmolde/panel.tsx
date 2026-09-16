@@ -10,7 +10,7 @@ import {
 import type { Tanda } from "@/lib/db/schema";
 import { duracion, desde } from "@/lib/formato";
 import { SelectorTandas } from "@/components/selector-tandas";
-import { ChipCemento, NombreTanda, Placa } from "@/components/tanda";
+import { ChipCemento, NombreTanda, Placa, Relativo } from "@/components/tanda";
 import { usarAccion } from "@/components/usar-accion";
 import { Aviso, Boton, Campo, DetalleTecnico, Entrada, Seccion } from "@/components/ui";
 
@@ -93,7 +93,7 @@ export function PanelDesmolde({ aDesmoldar }: { aDesmoldar: Tanda[] }) {
           vacio="No hay nada esperando desmolde."
           detalle={(t) => (
             <div className="mt-1 text-xs font-medium text-amber-700">
-              esperando {duracion(desde(t.estadoDesde))}
+              esperando <Relativo>{duracion(desde(t.estadoDesde))}</Relativo>
             </div>
           )}
           acciones={(ids, limpiar) => (

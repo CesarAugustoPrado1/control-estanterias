@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Cemento } from "@/lib/db/schema";
 import { DIA_DE_LETRA, HORAS_SOSPECHOSAS, type Letra } from "@/lib/tarjetas";
 
@@ -134,4 +135,17 @@ export function MarcaSospechosa() {
       ¿FALTA REGISTRAR?
     </span>
   );
+}
+
+/**
+ * Texto que depende de la hora actual ("hace 2 min", "3 h adentro").
+ *
+ * En un componente de cliente, el servidor lo calcula en un instante y el
+ * navegador lo vuelve a calcular al hidratar: si en el medio cambio el minuto,
+ * React ve textos distintos y tira un error de hidratacion. La diferencia es
+ * esperable y el valor del navegador es el correcto, asi que se le avisa a React
+ * que no la trate como error.
+ */
+export function Relativo({ children }: { children: ReactNode }) {
+  return <span suppressHydrationWarning>{children}</span>;
 }

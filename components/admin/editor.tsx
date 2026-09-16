@@ -175,7 +175,17 @@ function Formulario({
   });
 
   return (
-    <form action={enviar} className="space-y-3">
+    <form
+      // onSubmit y no `action`: con `action`, React 19 vacia los campos no
+      // controlados despues de CADA envio, tambien cuando el servidor lo rechaza.
+      // Un error de validacion le borraba al administrador todo lo que habia
+      // cargado, y el reintento se guardaba con los valores viejos sin avisar.
+      onSubmit={(e) => {
+        e.preventDefault();
+        enviar(new FormData(e.currentTarget));
+      }}
+      className="space-y-3"
+    >
       {valores.id !== undefined && (
         <input type="hidden" name="id" value={String(valores.id)} />
       )}

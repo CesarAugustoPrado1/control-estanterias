@@ -67,7 +67,8 @@ eso son un solo registro y no dos entidades.
 ```bash
 npm install
 cp .env.example .env.local   # completar con las cadenas de Neon
-npm run db:push              # crea el esquema y las tablas
+npm run db:migrar            # crea el esquema y las tablas (nunca db:push: ver ARQUITECTURA §9.5)
+npm run db:palabras          # carga las tarjetas desde datos/palabras.json
 npm run db:seed              # maestros + producción simulada
 npm run dev
 ```
@@ -81,14 +82,18 @@ el panel apenas entres.
 | --- | --- |
 | `npm run dev` | Servidor de desarrollo |
 | `npm run build` | Build de producción |
-| `npm run db:push` | Sincroniza el esquema con la base |
+| `npm run db:migrar` | Aplica las migraciones SQL pendientes de `migraciones/` |
+| `npm run db:migrar -- --ver` | Muestra cuáles están pendientes, sin aplicar |
+| `npm run db:palabras` | Carga o actualiza las tarjetas desde `datos/palabras.json`. Nunca borra |
+| `python scripts/verificar-palabras.py` | Verifica las reglas de la lista de palabras |
+| `npx tsx scripts/palabras-excel.ts` | Genera la planilla de revisión de palabras |
 | `npm run db:studio` | Explorador de datos |
 | `npm run db:seed` | Maestros inventados + 14 días de producción simulada |
 | `npm run db:seed -- --solo-maestros` | Sin tandas |
 | `npm run db:limpiar` | Muestra qué hay en cada tabla. **No toca nada** |
 | `npm run db:limpiar -- --movimientos` | Borra tandas e historial |
 | `npm run db:limpiar -- --todo` | Además borra los maestros |
-| `npm run db:limpiar -- --todo --conservar-usuarios` | Igual, sin tocar usuarios |
+| `npm run db:limpiar -- --todo --conservar-usuarios` | Igual, sin tocar usuarios. Las tarjetas no se borran nunca |
 | `npx tsx scripts/plantilla.ts` | Genera `plantilla-datos.xlsx` para la carga masiva |
 
 El borrado usa `TRUNCATE ... RESTART IDENTITY`: arrancar de cero es de cero

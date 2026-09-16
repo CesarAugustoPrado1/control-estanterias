@@ -16,3 +16,6 @@ next-env.d.ts
 
 .DS_Store
 Thumbs.db
+
+# Salida de drizzle-kit generate: se lee y se copia a migraciones/, no se versiona.
+drizzle/

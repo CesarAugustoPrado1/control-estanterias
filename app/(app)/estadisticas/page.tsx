@@ -10,6 +10,9 @@ import {
   roturaPorResponsable,
   roturaPorTrompo,
   roturaSegunHorno,
+  roturaPorCemento,
+  costoDeReasignaciones,
+  TANDAS_DESPUES_DE_REASIGNAR,
   tiempoDeHorno,
   tiemposPorEtapa,
   type Rango,
@@ -108,6 +111,8 @@ export default async function Estadisticas({
     fraguado,
     sinLlenar,
     diaria,
+    porCemento,
+    reasignaciones,
   ] = await Promise.all([
     tiemposPorEtapa(dias),
     tiempoDeHorno(dias),
@@ -120,6 +125,8 @@ export default async function Estadisticas({
     fraguadoNaturalPorMotivo(dias),
     moldesSinLlenar(dias),
     produccionDiaria(dias),
+    roturaPorCemento(dias),
+    costoDeReasignaciones(),
   ]);
 
   const conDevolucion = devolucion.find((d) => d.volvio);
@@ -317,6 +324,68 @@ export default async function Estadisticas({
 
       <Seccion titulo="Rotura con horno y sin horno">
         <TablaRotura filas={segunHorno} encabezado="Camino" />
+      </Seccion>
+
+      <Seccion titulo="Rotura por cemento">
+        <TablaRotura filas={porCemento} encabezado="Cemento" />
+      </Seccion>
+
+      <Seccion
+        titulo="Costo de las reasignaciones"
+        cantidad={reasignaciones.length}
+        ayuda={`Cuando una estantería cambia de familia o de cemento, las primeras tandas salen manchadas. Acá se mide cuánto: la rotura de las primeras ${TANDAS_DESPUES_DE_REASIGNAR} tandas contadas después del cambio contra la habitual de ese modelo, familia y cemento. No depende del rango de días elegido arriba.`}
+      >
+        {reasignaciones.length === 0 ? (
+          <Vacio>No hubo reasignaciones.</Vacio>
+        ) : (
+          <Tarjeta className="overflow-x-auto p-0">
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-200 text-left text-slate-600">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Cambio</th>
+                  <th className="px-4 py-2 font-medium">Motivo</th>
+                  <th className="px-4 py-2 text-right font-medium">Tandas medidas</th>
+                  <th className="px-4 py-2 text-right font-medium">Rotura después</th>
+                  <th className="px-4 py-2 text-right font-medium">Habitual</th>
+                  <th className="px-4 py-2 text-right font-medium">m² perdidos</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {reasignaciones.map((r) => {
+                  const pct = r.pct === null ? null : Number(r.pct);
+                  const habitual = r.pct_habitual === null ? null : Number(r.pct_habitual);
+                  return (
+                    <tr key={r.id} className="align-top">
+                      <td className="px-4 py-2">
+                        <div className="font-semibold text-slate-800">{r.etiqueta_despues}</div>
+                        <div className="text-xs text-slate-500">
+                          {r.familia_antes} · cemento {r.cemento_antes} → {r.familia_despues} · cemento{" "}
+                          {r.cemento_despues} ·{" "}
+                          {soloFecha(r.creado_en)} · {r.usuario_nombre}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-slate-700">{r.motivo}</td>
+                      <td className="cifra px-4 py-2 text-right">
+                        {r.tandas} de {TANDAS_DESPUES_DE_REASIGNAR}
+                      </td>
+                      <td
+                        className={`cifra px-4 py-2 text-right font-semibold ${
+                          pct !== null && habitual !== null && pct > habitual ? "text-red-700" : ""
+                        }`}
+                      >
+                        {porcentaje(pct, 2)}
+                      </td>
+                      <td className="cifra px-4 py-2 text-right text-slate-600">{porcentaje(habitual, 2)}</td>
+                      <td className="cifra px-4 py-2 text-right">
+                        {r.m2_perdidos ? numero(Number(r.m2_perdidos), 1) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Tarjeta>
+        )}
       </Seccion>
 
       <div className="grid gap-6 lg:grid-cols-2">

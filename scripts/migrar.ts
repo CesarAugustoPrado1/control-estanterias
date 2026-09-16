@@ -1,8 +1,14 @@
 /**
  * Aplica las migraciones SQL de `migraciones/` que todavia no se aplicaron.
  *
- *   npm run db:migrar            aplica las pendientes
- *   npm run db:migrar -- --ver   solo muestra cuales estan pendientes
+ *   npm run db:migrar                          aplica las pendientes
+ *   npm run db:migrar -- --ver                 solo muestra cuales estan pendientes
+ *   npm run db:migrar -- --marcar ARCHIVO.sql  la registra como aplicada SIN correrla
+ *
+ * `--marcar` es para una sola situacion: una base que ya tiene lo que hace esa
+ * migracion porque se creo por otro camino (la de prueba, creada con `push`
+ * antes de que existieran estas migraciones). Marcar algo que NO esta aplicado
+ * deja la base sin esas tablas y sin que nadie se entere.
  *
  * Por que SQL explicito y no `drizzle-kit push` (ARQUITECTURA.md §9.5): con
  * Postgres 18, drizzle-kit no reconoce las restricciones NOT NULL con nombre que
@@ -23,11 +29,16 @@ const CARPETA = "migraciones";
 
 async function main() {
   const soloVer = process.argv.includes("--ver");
+  const iMarcar = process.argv.indexOf("--marcar");
+  const aMarcar = iMarcar >= 0 ? process.argv[iMarcar + 1] : null;
   const host = (process.env.DATABASE_URL ?? "").split("@")[1]?.split("/")[0];
   console.log(`\nBase: ${host ?? "(sin DATABASE_URL)"}\n`);
 
   await despertar();
 
+  // Sobre una base nueva el esquema todavia no existe: la tabla de control
+  // tiene que poder crearse antes de la primera migracion.
+  await db.execute(sql`create schema if not exists estanterias`);
   await db.execute(sql`
     create table if not exists estanterias.migraciones (
       nombre      text primary key,
@@ -43,6 +54,14 @@ async function main() {
   const archivos = readdirSync(CARPETA)
     .filter((f) => f.endsWith(".sql"))
     .sort();
+  if (aMarcar) {
+    if (!archivos.includes(aMarcar)) throw new Error(`No existe migraciones/${aMarcar}`);
+    await db.execute(sql`insert into estanterias.migraciones (nombre) values (${aMarcar}) on conflict do nothing`);
+    aplicadas.add(aMarcar);
+    console.log(`Marcada como aplicada (sin correrla): ${aMarcar}
+`);
+  }
+
   const pendientes = archivos.filter((f) => !aplicadas.has(f));
 
   for (const f of archivos) {

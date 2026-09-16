@@ -7,7 +7,7 @@ import type { MotivoRotura, Tanda } from "@/lib/db/schema";
 import { convertir } from "@/lib/estados";
 import { haceCuanto, numero } from "@/lib/formato";
 import { usarAccion } from "@/components/usar-accion";
-import { LetraDia, NombreTanda } from "@/components/tanda";
+import { LetraDia, NombreTanda, Relativo } from "@/components/tanda";
 import { DIA_DE_LETRA, type Letra } from "@/lib/tarjetas";
 import {
   Aviso,
@@ -181,7 +181,7 @@ function Fila({
           </div>
           <div className="mt-0.5 text-xs text-slate-500">
             {numero(tanda.moldesLlenados)} moldes · esperando{" "}
-            {haceCuanto(tanda.estadoDesde)}
+            <Relativo>{haceCuanto(tanda.estadoDesde)}</Relativo>
           </div>
         </div>
         <div className="shrink-0 text-right">

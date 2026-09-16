@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { Tanda } from "@/lib/db/schema";
 import { haceCuanto, numero } from "@/lib/formato";
 import { MarcaRehornear } from "./ui";
-import { ChipCemento, MarcaSospechosa, NombreTanda, Placa, esSospechosa } from "./tanda";
+import { ChipCemento, MarcaSospechosa, NombreTanda, Placa, Relativo, esSospechosa } from "./tanda";
 
 /**
  * Lista de tandas con seleccion multiple.
@@ -106,7 +106,7 @@ export function SelectorTandas({
                     <span className="truncate">{t.productoNombre}</span>
                   </div>
                   <div className="mt-0.5 text-xs text-slate-500">
-                    {numero(t.moldesLlenados)} moldes · {haceCuanto(t.estadoDesde)}
+                    {numero(t.moldesLlenados)} moldes · <Relativo>{haceCuanto(t.estadoDesde)}</Relativo>
                     {t.moldesNominal && t.moldesLlenados < t.moldesNominal && (
                       <> · faltaron {t.moldesNominal - t.moldesLlenados}</>
                     )}

@@ -231,20 +231,35 @@ respuesta a dónde se va la mayor pérdida, sin agregar un campo de carga.
 usuarios         usuario, nombre, pin_hash, rol, activo,
                  intentos_fallidos, bloqueado_hasta
 modelos          nombre, activo, orden                      -- la forma
-familias         nombre, activa, orden                      -- compatibilidad de molde
-productos        modelo_id, familia_id, nombre, piezas_por_molde,
+familias         nombre, activa, orden                      -- el color
+productos        modelo_id, familia_id, cemento, nombre, piezas_por_molde,
                  piezas_por_paquete, requiere_tunel, m2_por_paquete, activo
-estanterias      codigo, modelo_id, familia_id, moldes, activa
+estanterias      codigo, modelo_id, familia_id, cemento, numero (placa),
+                 moldes, activa
+tarjetas         letra, orden, palabra, activa, perdida_desde?      (§10.3)
 tandas           codigo, estanteria_id?, producto_id + snapshots,
+                 cemento y etiqueta de placa (snapshot),
+                 tarjeta_id? + palabra, letra y orden (snapshot),
                  factores de conversión (snapshot), trompo, moldes_nominal,
                  moldes_llenados, paquetes?, motivo_rotura, estado,
                  estado_desde, estanteria_liberada_en, rehornear
-movimientos      tanda_id + snapshots, tipo, estado_desde, estado_hasta,
-                 usuario_id + nombre, duracion_min, trompo?, moldes_llenados?,
-                 paquetes?, motivo_fraguado?, nota, creado_en
+movimientos      tanda_id + codigo y palabra (snapshot), tipo, estado_desde,
+                 estado_hasta, usuario_id + nombre, duracion_min, trompo?,
+                 moldes_llenados?, paquetes?, motivo_fraguado?, nota, creado_en
+avisos           tipo, tanda_id?, tarjeta_id?, texto, usuario, creado_en,
+                 resuelto_en?, resuelto_por?, resolucion?            (§10.8)
+reasignaciones   estanteria_id, etiqueta, familia y cemento antes/después,
+                 motivo, usuario, creado_en                          (§10.6)
 motivos_rotura   nombre, activo
 config           clave (PK), valor (text)
+migraciones      nombre (PK), aplicada_en                            (§9.5)
 ```
+
+**Dos reglas físicas las garantiza la base, no solo el código**, con índices únicos
+parciales sobre `tandas`: una estantería no puede tener dos tandas sin desmoldar, y
+una tarjeta no puede estar colgada en dos tandas vivas. Si un bug o una corrección
+lo intentara, la base lo rechaza, y `ejecutar()` traduce el rechazo a un mensaje de
+planta.
 
 Fijate que **no hay tabla de contenido ni líneas de movimiento**. Control-Secaderos
 las necesitaba porque un secadero llevaba varios modelos a la vez; acá una
@@ -408,7 +423,8 @@ En runtime se usa la cadena **pooled** (host con `-pooler`); drizzle-kit usa la
 
 Todo sigue viviendo en el esquema `estanterias` y no en `public`, aunque ahora la
 base sea exclusiva. Ya no hace falta para evitar choques de nombres: queda como
-red de seguridad. `drizzle-kit push` propone **borrar todo lo que no reconoce**,
+red de seguridad. `drizzle-kit push` propone **borrar todo lo que no reconoce**
+(y ademas ya no se usa, §9.5),
 asi que si alguien alguna vez copia el `DATABASE_URL` equivocado y apunta esta
 app a la base de Secaderos, el `schemaFilter: ["estanterias"]` hace que igual no
 pueda tocar una sola tabla de la otra app.
@@ -460,14 +476,66 @@ Dos advertencias:
   días sin actividad en el repositorio. Si la app queda estable mucho tiempo sin
   cambios, hay que entrar a *Actions* y reactivarlo.
 
-### 9.5 Trampas heredadas que siguen aplicando
+### 9.5 Migraciones: SQL explícito, nunca `drizzle-kit push`
+
+**`drizzle-kit push` está prohibido en este proyecto.** Con Postgres 18 —el de
+Neon— las restricciones NOT NULL pasaron a ser restricciones con nombre, y la
+versión de drizzle-kit que usamos no las reconoce: propone **borrarlas de todas las
+tablas**. Además aplica sentencia por sentencia, sin transacción.
+
+Pasó de verdad, en la migración de la §10: el primer `push` creó las tablas y los
+tipos nuevos y falló antes de agregar las columnas, así que dejó la base **a
+medias**. Lo único que evitó que borrara las NOT NULL fue que la primera que intentó
+tocar era la de una clave primaria, que Postgres no deja modificar. Se verificó
+contra el catálogo que no se había perdido ninguna.
+
+Desde entonces:
+
+- Los cambios de esquema van como **archivos SQL en `migraciones/`**, numerados
+  (`0001_...sql`), y se aplican con `npm run db:migrar`.
+- Cada migración corre **entera en una transacción** y queda registrada en
+  `estanterias.migraciones`: si falla, no queda nada aplicado a medias.
+- Las migraciones se escriben **idempotentes** (`IF NOT EXISTS`, bloques `DO` que
+  ignoran `duplicate_object`), para poder correr sobre una base con una parte ya
+  hecha.
+- `drizzle.config.ts` queda para `db:studio` y `db:generate` (que genera SQL para
+  leer, no lo aplica), con un aviso arriba.
+- `lib/db/schema.ts` y las migraciones se mantienen a mano en sincronía. Es el
+  precio de no usar `push`, y es menor que el riesgo.
+
+### 9.6 Trampas que aparecieron en esta app
+
+Cada una costó un rato encontrarla. Quedan anotadas para no volver a pagarlas:
+
+- **`FOR UPDATE OF` con esquema propio.** Drizzle arma `FOR UPDATE OF
+  "estanterias"."estanterias"`, y Postgres lo rechaza (*must specify unqualified
+  relation names*). Solución: bloquear la tabla sola, sin join, y leer lo demás en
+  otra consulta.
+- **React 19 vacía los formularios con `action`.** Un `<form action={...}>` resetea
+  los campos no controlados después de cada envío, **también cuando el servidor lo
+  rechaza**. Un error de validación le borraba al administrador lo que había
+  cargado, y el reintento se guardaba con los valores viejos sin avisar. Los
+  formularios con campos no controlados usan `onSubmit` + `preventDefault`.
+- **Textos relativos en componentes de cliente** ("hace 2 min"). El servidor y el
+  navegador los calculan en instantes distintos; si cambia el minuto en el medio,
+  React tira un error de hidratación. Van envueltos en `<Relativo>`
+  (`suppressHydrationWarning`).
+- **`floor()` de un entero devuelve `double precision`**, y `round(x, 2)` solo existe
+  para `numeric`. Hay que castear antes de redondear.
+- **Checkbox destildado = campo ausente.** Un casillero sin tildar no viaja en el
+  `FormData`. Leer `fd.get(...) === null` como "sí" deja imposible dar de baja nada.
+- **El driver WebSocket de Neon a veces corta** (en desarrollo se vio un error
+  genérico `[object Object]` después de una consulta de 30 s). Es transitorio: la
+  pantalla de error con reintento lo cubre en lectura, y `usar-accion` en escritura.
+
+### 9.7 Trampas heredadas que siguen aplicando
 
 Documentadas en el `ARQUITECTURA.md` de Control-Secaderos y validas igual aca:
 
-- **`push` no rellena filas.** Sincroniza el esquema, no los datos: una columna
-  nueva queda en `null` para todo lo existente. Despues de cada migracion hay que
+- **Ninguna migración rellena filas sola.** Una columna nueva queda en `null` (o en
+  su default) para todo lo existente. Despues de cada migracion hay que
   preguntarse explicitamente *que filas ya existentes quedan con el valor
-  equivocado*.
+  equivocado*, y rellenarlas en la misma migración o en un script.
 - **Orden de despliegue para cambios aditivos:** primero migrar la base, despues
   desplegar el codigo. Al reves hay una ventana en la que el codigo nuevo
   consulta algo que no existe.
@@ -475,7 +543,7 @@ Documentadas en el `ARQUITECTURA.md` de Control-Secaderos y validas igual aca:
   cambiar la semantica de datos existentes, no.
 - **Un script de verificacion de deploy no debe poder tumbar produccion.**
 
-### 9.6 Nota sobre el scale-to-zero
+### 9.8 Nota sobre el scale-to-zero
 
 El compute de Neon se apaga a los 5 minutos sin uso, asi que **la primera carga
 del dia tiene un arranque en frio perceptible**. Con un turno diario de ~10 horas
@@ -486,10 +554,15 @@ cuota sobra; lo unico que se nota es ese primer request.
 
 ## 10. Identificación en planta: tarjetas de tanda y placas de grupo
 
-> **Estado:** decidido con planta en septiembre de 2026. **El código todavía no
-> lo implementa.** Hoy la app muestra códigos `E-00042`, el trompo elige por
-> producto y el cemento no existe como dato. Esta sección es el diseño a construir,
-> y las razones de cada decisión.
+> **Estado:** decidido con planta e **implementado** en septiembre de 2026, y
+> probado de punta a punta en el navegador con cada rol. Lo que sigue pendiente es
+> físico, no de software: fabricar tarjetas y placas, pintar laterales y probar
+> materiales en el horno (§10.9). Mientras tanto la app ya funciona: si no hay
+> tarjeta libre, la tanda sigue con su código.
+>
+> **Datos de prueba:** la base de prueba se adaptó con
+> `scripts/migrar-datos-prueba.ts` sin perder las tandas cargadas a mano. Con datos
+> reales ese script no se usa.
 
 ### 10.1 El problema
 

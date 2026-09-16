@@ -11,6 +11,7 @@ import type { Tanda } from "@/lib/db/schema";
 import { ETIQUETA_MOTIVO_FRAGUADO } from "@/lib/estados";
 import { duracion, desde } from "@/lib/formato";
 import { SelectorTandas } from "@/components/selector-tandas";
+import { Relativo } from "@/components/tanda";
 import { usarAccion } from "@/components/usar-accion";
 import { Aviso, Boton, Campo, Entrada, Seccion, Selector , DetalleTecnico } from "@/components/ui";
 
@@ -72,7 +73,7 @@ export function PanelHorno({
           vacio="El horno está vacío."
           detalle={(t) => (
             <div className="mt-1 text-xs font-medium text-orange-700">
-              {duracion(desde(t.estadoDesde))} adentro
+              <Relativo>{duracion(desde(t.estadoDesde))}</Relativo> adentro
             </div>
           )}
           acciones={(ids, limpiar) => (

@@ -177,6 +177,94 @@ export async function roturaSegunHorno(dias: Rango) {
   return r.rows as FilaRotura[];
 }
 
+export async function roturaPorCemento(dias: Rango) {
+  const r = await db.execute(sql`
+    ${roturaPor(sql`'Cemento ' || cemento::text`)}
+      and estado_desde >= ${desdeSql(dias)}
+    group by 1 order by 1
+  `);
+  return r.rows as FilaRotura[];
+}
+
+/**
+ * Cuanto costo cada reasignacion de familia o cemento (ARQUITECTURA.md §10.6).
+ *
+ * Es la razon por la que las reasignaciones se registran con motivo: las primeras
+ * tandas despues de un cambio salen manchadas aunque se laven los moldes, y ese
+ * costo "medido y aceptado" solo existe si alguien lo mide.
+ *
+ * Toma las primeras N tandas ya contadas de esa estanteria despues del cambio y
+ * las compara con la rotura habitual del mismo modelo, familia y cemento en otras
+ * estanterias (ultimos 90 dias).
+ */
+export const TANDAS_DESPUES_DE_REASIGNAR = 5;
+
+export async function costoDeReasignaciones() {
+  const n = TANDAS_DESPUES_DE_REASIGNAR;
+  const r = await db.execute(sql`
+    with post as (
+      select r.id as rid, t.*,
+             row_number() over (partition by r.id order by t.creada_en) as orden
+      from estanterias.reasignaciones r
+      join estanterias.tandas t
+        on t.estanteria_id = r.estanteria_id
+       and t.creada_en >= r.creado_en
+       and t.paquetes is not null
+    ),
+    agregado as (
+      select rid,
+             count(*)::int as tandas,
+             sum(floor(moldes_llenados * piezas_por_molde / piezas_por_paquete))::int as esperados,
+             sum(paquetes)::int as reales,
+             sum((floor(moldes_llenados * piezas_por_molde / piezas_por_paquete) - paquetes)::numeric
+                 * coalesce(m2_por_paquete, 0))::numeric as m2_perdidos
+      from post where orden <= ${n}
+      group by rid
+    )
+    select r.id, r.etiqueta_antes, r.etiqueta_despues, r.familia_antes, r.familia_despues,
+           r.cemento_antes::text as cemento_antes, r.cemento_despues::text as cemento_despues,
+           r.motivo, r.usuario_nombre, r.creado_en,
+           coalesce(a.tandas, 0) as tandas, a.esperados, a.reales,
+           round(a.m2_perdidos, 1) as m2_perdidos,
+           round((100.0 * (a.esperados - a.reales) / nullif(a.esperados, 0))::numeric, 2) as pct,
+           (
+             -- floor() de un entero devuelve double precision, y round(x, 2) solo
+             -- existe para numeric: sin el cast Postgres no encuentra la funcion.
+             select round((100.0 * sum(floor(t.moldes_llenados * t.piezas_por_molde / t.piezas_por_paquete) - t.paquetes)
+                    / nullif(sum(floor(t.moldes_llenados * t.piezas_por_molde / t.piezas_por_paquete)), 0))::numeric, 2)
+             from estanterias.tandas t
+             join estanterias.estanterias e on e.id = t.estanteria_id
+             join estanterias.estanterias yo on yo.id = r.estanteria_id
+             where t.paquetes is not null
+               and t.estanteria_id <> r.estanteria_id
+               and e.modelo_id = yo.modelo_id and e.familia_id = yo.familia_id
+               and t.cemento = yo.cemento
+               and t.creada_en >= now() - interval '90 days'
+           ) as pct_habitual
+    from estanterias.reasignaciones r
+    left join agregado a on a.rid = r.id
+    order by r.creado_en desc
+  `);
+  return r.rows as {
+    id: number;
+    etiqueta_antes: string;
+    etiqueta_despues: string;
+    familia_antes: string;
+    familia_despues: string;
+    cemento_antes: string;
+    cemento_despues: string;
+    motivo: string;
+    usuario_nombre: string;
+    creado_en: string;
+    tandas: number;
+    esperados: number | null;
+    reales: number | null;
+    m2_perdidos: string | null;
+    pct: string | null;
+    pct_habitual: string | null;
+  }[];
+}
+
 /* -------------------------------------------------------------------------- */
 /* Capacidad perdida y dosificacion                                           */
 /* -------------------------------------------------------------------------- */
