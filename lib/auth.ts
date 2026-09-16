@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "./db";
 import { usuarios, type Rol } from "./db/schema";
 import { sesionDelToken, type Sesion } from "./session";
+import { ErrorDeAutorizacion } from "./acciones/comun";
 
 /**
  * Dos capas de seguridad, y la de arriba NO alcanza sola.
@@ -43,8 +44,6 @@ export async function requerirRol(...roles: Rol[]): Promise<Sesion> {
   if (s.rol !== "admin" && !roles.includes(s.rol)) redirect("/sin-permiso");
   return s;
 }
-
-export class ErrorDeAutorizacion extends Error {}
 
 /** Para server actions. Falla con mensaje, no redirige. */
 export async function autorizar(...roles: Rol[]): Promise<Sesion> {

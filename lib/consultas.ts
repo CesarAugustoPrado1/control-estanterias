@@ -34,6 +34,24 @@ export async function cola(estado: Estado): Promise<TandaEnCola[]> {
     .orderBy(desc(tandas.rehornear), asc(tandas.estadoDesde));
 }
 
+/**
+ * Cola de empaque, con si el producto pasa o no por el tunel.
+ *
+ * `requiereTunel` NO se copia a la tanda como los factores de conversion, y la
+ * diferencia es deliberada: los factores entran en el calculo de la rotura, asi
+ * que cambiarlos reescribiria el pasado. El tunel solo cambia lo que dice el
+ * boton, asi que se lee del producto en vivo y listo.
+ */
+export async function colaEmpaque() {
+  const filas = await db
+    .select({ t: tandas, requiereTunel: productos.requiereTunel })
+    .from(tandas)
+    .innerJoin(productos, eq(productos.id, tandas.productoId))
+    .where(eq(tandas.estado, "a_empaquetar"))
+    .orderBy(desc(tandas.rehornear), asc(tandas.estadoDesde));
+  return filas.map((f) => ({ ...f.t, requiereTunel: f.requiereTunel }));
+}
+
 export async function tandaPorId(id: number) {
   const [t] = await db.select().from(tandas).where(eq(tandas.id, id));
   if (!t) return null;

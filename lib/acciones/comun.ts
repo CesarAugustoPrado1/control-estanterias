@@ -1,6 +1,13 @@
 import "server-only";
 import { ZodError } from "zod";
-import { ErrorDeAutorizacion } from "../auth";
+
+/**
+ * Vive aca y no en auth.ts a proposito: auth.ts importa `next/navigation` para
+ * poder redirigir, y si el motor necesitara esta clase desde alla arrastraria
+ * todo el router de Next -React incluido- a un modulo que solo escribe en la
+ * base. Las clases de error son del vocabulario de negocio, no del framework.
+ */
+export class ErrorDeAutorizacion extends Error {}
 
 /**
  * Resultado uniforme de toda server action.

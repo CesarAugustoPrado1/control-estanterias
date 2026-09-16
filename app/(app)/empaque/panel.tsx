@@ -17,11 +17,14 @@ import {
   Vacio,
 } from "@/components/ui";
 
+/** El tunel se lee del producto en vivo: no entra en el calculo de rotura. */
+type TandaEmpaque = Tanda & { requiereTunel: boolean };
+
 export function PanelEmpaque({
   tandas,
   motivos,
 }: {
-  tandas: Tanda[];
+  tandas: TandaEmpaque[];
   motivos: MotivoRotura[];
 }) {
   const [abierta, setAbierta] = useState<number | null>(null);
@@ -54,7 +57,7 @@ function Fila({
   alAbrir,
   alCerrar,
 }: {
-  tanda: Tanda;
+  tanda: TandaEmpaque;
   motivos: MotivoRotura[];
   abierta: boolean;
   alAbrir: () => void;
@@ -241,7 +244,11 @@ function Fila({
               type="submit"
               disabled={cargando || !valido || (rotos > 0 && !motivoId)}
             >
-              {cargando ? "Guardando…" : "Cerrar tanda"}
+              {cargando
+                ? "Guardando…"
+                : tanda.requiereTunel
+                  ? "Empaquetar y cerrar"
+                  : "Contar y cerrar"}
             </Boton>
             <Boton type="button" tono="fantasma" onClick={alCerrar}>
               Cancelar

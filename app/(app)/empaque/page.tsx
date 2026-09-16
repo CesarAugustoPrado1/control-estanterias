@@ -1,5 +1,5 @@
 import { requerirRol } from "@/lib/auth";
-import { cola, listarMotivos } from "@/lib/consultas";
+import { colaEmpaque, listarMotivos } from "@/lib/consultas";
 import { Aviso, Pantalla, Seccion } from "@/components/ui";
 import { PanelEmpaque } from "./panel";
 
@@ -9,11 +9,11 @@ export const dynamic = "force-dynamic";
 export default async function Empaque() {
   await requerirRol("empaque");
   const [tandas, motivos] = await Promise.all([
-    cola("a_empaquetar"),
+    colaEmpaque(),
     listarMotivos(),
   ]);
 
-  const sinTunel = tandas.filter((t) => t.piezasPorMolde > 1).length;
+  const sinTunel = tandas.filter((t) => !t.requiereTunel).length;
 
   return (
     <Pantalla
