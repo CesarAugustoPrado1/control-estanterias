@@ -288,10 +288,10 @@ empaquetado    → cuánto esperó para empaquetarse   ← el agujero que motiv�
 
 **e) El código de tanda es correlativo y no se reusa nunca.** Es una mejora
 deliberada sobre Control-Secaderos, donde el historial tiene "secadero 42" mil
-veces y hay que mirar la fecha para saber de cuál se habla. Acá un reclamo de
-calidad de hace tres meses se resuelve con un número — y ese número es el que va
-escrito en **la tarjeta colgada del soporte**, que es lo que permite distinguir
-dos tandas del mismo producto en el patio.
+veces y hay que mirar la fecha para saber de cuál se habla. Ese código sigue
+siendo **la identidad interna** de la tanda para siempre, pero **no es lo que lee
+la gente en el piso**: en planta cada tanda se nombra con una palabra del
+diccionario escrita en su tarjeta (ver §10). La palabra se reutiliza; el código no.
 
 **f) Nada se borra.** Productos y estanterías se suspenden. Los errores se
 arreglan con una **corrección de admin**, que queda registrada como movimiento
@@ -299,16 +299,15 @@ con nota obligatoria.
 
 ### 6.2 Por qué `tandas.estanteria_id` es nullable
 
-Hoy las estanterías de un mismo producto no se distinguen entre sí en el piso: si
-hay 3 de Uhma beige, nadie sabe cuál agarró. El sistema cuenta cuántas hay libres
-de cada modelo+familia, que es la pregunta operativa real, pero **no pretende
-saber cuál es cuál**.
+Cuando se escribió el esquema, las estanterías de un mismo producto no se
+distinguían entre sí en el piso: si había 3 de Uhma beige, nadie sabía cuál
+agarró. El sistema contaba cuántas había libres, pero **no pretendía saber cuál
+era cuál**.
 
-El día que se marquen los grupos, la columna se empieza a llenar y aparecen las
-estadísticas de desgaste por estantería — que son información real, porque los
-moldes de un grupo envejecen juntos, que es justamente por qué no se mezclan.
-Dejarla nullable desde el día uno hace que ese cambio no sea una migración de
-datos.
+Eso cambia con las **placas de grupo** (§10.4): cada grupo de moldes va a tener
+su identificación fija, el trompo va a elegir la estantería concreta y la columna
+se va a llenar siempre. Se deja nullable igual, para las tandas históricas y para
+las cargadas antes de tener placas: así el cambio no obliga a inventar datos.
 
 ---
 
@@ -446,7 +445,297 @@ del dia tiene un arranque en frio perceptible**. Con un turno diario de ~10 hora
 el consumo ronda las 55 CU-horas mensuales sobre las 100 disponibles, asi que la
 cuota sobra; lo unico que se nota es ese primer request.
 
-## 10. Supuestos pendientes de confirmar
+---
+
+## 10. Identificación en planta: tarjetas de tanda y placas de grupo
+
+> **Estado:** decidido con planta en septiembre de 2026. **El código todavía no
+> lo implementa.** Hoy la app muestra códigos `E-00042`, el trompo elige por
+> producto y el cemento no existe como dato. Esta sección es el diseño a construir,
+> y las razones de cada decisión.
+
+### 10.1 El problema
+
+En el piso la gente lee, dice en voz alta y a veces escribe el identificador de
+cada tanda, cientos de veces por semana. Un código como `E-00283` está pensado
+para la base de datos, no para personas: los dígitos se confunden entre sí y nadie
+grita en el patio "¿salió la cero cero dos ocho tres?".
+
+Y hay un segundo problema: **con los moldes llenos el dibujo queda tapado** por la
+mezcla. Una estantería llena de Kamba gris y una de Uhma beige se ven iguales.
+
+El objetivo, dicho por planta: **que un error de identificación pase una vez por
+mes, no tres veces por día.** Cuando algo se repite cien veces por día, pedir
+atención no alcanza, porque la atención se gasta. El diseño sigue tres principios:
+
+1. **Que el error no se pueda cometer**, en vez de pedir cuidado.
+2. **Menos decisiones humanas**: cada elección es una oportunidad de equivocarse.
+3. **Lo que no se pueda evitar, que se detecte en el paso siguiente**, antes de que
+   la información mala se propague.
+
+### 10.2 Dos identificaciones con papeles que no se cruzan
+
+| | Placa de grupo | Tarjeta de tanda |
+|---|---|---|
+| Dice | **Qué es:** modelo, familia y número (`UHMA · BEIGE · 03`) | **Qué tanda y qué día:** `ABEJA`, lunes |
+| Dura | Para siempre | Un ciclo |
+| Sujeción | Fija a un contramolde, no se saca | Colgada, se mueve |
+| En el desmolde | **Se queda con los moldes** | **Se va con las piezas** al palet |
+| Color | Todas iguales, neutras | Un color por día |
+
+La consecuencia más útil para el piso: **una estantería sin tarjeta está
+disponible.** No hace falta ningún otro cartel para decirlo.
+
+Y como la placa no se puede sacar, **hay una sola cosa suelta por estantería**: la
+tarjeta. Las dos identificaciones no se pueden intercambiar por error.
+
+### 10.3 La tarjeta de tanda: una palabra
+
+**Una palabra del diccionario en vez de un código.** Sustantivos concretos y
+conocidos —cosas que se pueden imaginar—, porque se leen, se dicen y se recuerdan
+mucho mejor que un número. La lista está en `datos/palabras.json` (fuente de
+verdad) y `scripts/palabras-excel.ts` genera una planilla para revisarla.
+
+**La letra dice el día del llenado:**
+
+| Día | Letra | Color de la tarjeta |
+|---|---|---|
+| Lunes | A | amarillo |
+| Martes | B | azul |
+| Miércoles | C | rojo |
+| Jueves | D | verde |
+| Viernes | E | naranja |
+| Sábado | F | violeta |
+| Domingo | G | rosa |
+
+Así una tarjeta amarilla en el patio un miércoles dice, sin mirar ninguna
+pantalla, que esa tanda es del lunes y viene demorada. Los colores son una
+propuesta a confirmar; lo que sí es regla es qué colores **no** pueden usarse:
+
+- **Blanco**, reservado en toda la planta para el cemento blanco (§10.5).
+- **Los colores de las familias** (beige, gris, negro, terracota, habano), para que
+  el color de una tarjeta nunca parezca decir algo sobre el producto.
+
+**Regla de sonido: cada día es un sonido, y ningún par de días comparte sonido.**
+Salió de una observación de planta sobre la C, y se generalizó:
+
+- La C solo como *ca, co, cu*. *Cebolla* suena a S y alguien que la escucha no sabe
+  que es miércoles.
+- La G solo como *ga, go, gu*. *Girasol* suena a J.
+- Ninguna palabra empieza con H muda: *hoja* se escucha "oja".
+- Ningún día usa V, K ni Q, porque comparten sonido con B y con C.
+
+**Curación de la lista** (el script la verifica sola):
+
+- 70 palabras por letra. Sobran a propósito: cubren el caso raro de estanterías
+  olvidadas en el patio, y no molestan.
+- Ningún par del mismo día difiere en una sola letra (*búho/buzo*,
+  *bandera/bañera*). Entre las primeras 25, tampoco en dos (*bombo/bolso*).
+- Ninguna palabra se repite entre días.
+- Afuera: palabras del proceso (trompo, horno, palet, gancho, balde…), colores y
+  tonos (arena, perla, almendra…), materiales de planta (cemento, cal, piedra,
+  baldosa…), objetos de seguridad o alarma (fuego, gas, casco, guante…) y las que
+  en planta se prestan a chiste o sirven de insulto (burro, foca, gato…).
+
+**Siempre se usa la primera palabra libre, de arriba para abajo.** Tres
+consecuencias que no son obvias:
+
+1. **El orden de la lista importa más que el largo.** Con ~16 llenados por día, las
+   primeras 20 salen todos los días y las del fondo casi nunca. Arriba van las más
+   claras; abajo pueden ir las regulares.
+2. **Las palabras se vuelven familiares.** "La ABEJA" pasa a ser tan natural como
+   "la primera del lunes".
+3. **Una palabra viva es única en la planta.** Si la ABEJA del lunes pasado siguiera
+   en el circuito, ABEJA no estaría libre y hoy se usaría la siguiente. Así que **no
+   existe la duda de "¿es de este lunes o del anterior?"**. La ambigüedad queda solo
+   en el historial de meses atrás, y ahí la resuelven la fecha y el código interno.
+
+**Tablero de ganchos, uno por día**, con la palabra escrita debajo de cada gancho
+en el orden de la lista. El primer gancho con tarjeta es la palabra que indica la
+app, así que el operario no busca: agarra la primera. **Un gancho vacío es una
+tanda viva de ese día.**
+
+**Fabricación gradual.** No hacen falta las 490 tarjetas (7 × 70) de entrada: con
+las primeras 25 o 30 de cada día hábil alcanza para arrancar. La app tiene que saber
+cuántas tarjetas existen físicamente por letra, para no mandar a buscar una que no
+se hizo.
+
+### 10.4 La placa de grupo
+
+**Una placa por grupo de moldes, fija a uno de sus contramoldes** (ABS o madera).
+Confirmado en planta: cuando un grupo cambia de soporte, **los moldes se pasan
+todos juntos**. Por eso alcanza con que uno de ellos lleve la placa: viaja con el
+grupo sin que nadie tenga que acordarse. No hay moldes de silicona sola, así que
+todos los grupos tienen dónde fijarla.
+
+**No se rotula molde por molde.** Se evaluó y se descartó: son miles de moldes, es
+inviable como trabajo, y con el uso cualquier marca se pierde o deja de verse.
+
+La placa dice **modelo, familia y número**. **No dice el cemento**, porque el
+cemento se reasigna más seguido que la familia y se marca de otra forma (§10.5).
+Todas las placas son del mismo color: como son iguales entre sí, el color no dice
+nada y no compite con el color de la tarjeta.
+
+Lo que habilita:
+
+- El trompo elige **la estantería concreta** que tiene adelante, no un producto.
+- `tandas.estanteria_id` se llena siempre (§6.2), y aparece la historia de cada
+  grupo: cuántos ciclos lleva y si rompe más que otros del mismo producto. Es
+  información real, porque los moldes de un grupo envejecen juntos.
+
+### 10.5 El cemento como dato propio
+
+**La compatibilidad de un grupo de moldes es modelo + familia + cemento.** Caso
+real: había tres estanterías de Uhma beige para cemento gris; al incorporar el
+cemento blanco se separó una, porque los moldes no se pueden mezclar. Quedaron dos
+de gris y una de blanco, que se vende a pedido. Y la situación se repite en otros
+modelos.
+
+El cemento es una columna propia, y no parte del nombre de la familia
+("Beige — cemento blanco"), por tres razones:
+
+- **Es lo que prohíbe físicamente mezclar**: la regla más importante del sistema
+  tiene que ser explícita.
+- **Es una diferencia comercial** (el blanco se hace a pedido): se va a querer medir
+  por cemento sin separar nombres a mano.
+- **Se repite en muchos modelos**: meterlo en la familia duplicaría todas las
+  familias.
+
+**El error más caro del sistema es llenar una estantería de cemento blanco con
+mezcla de cemento gris.** No es un error de registro que se corrige: contamina los
+moldes y el producto sale sucio. Las defensas:
+
+1. **Verificación antes de volcar.** El trompo identifica la estantería **antes** de
+   llenar, y la app muestra en grande modelo, familia y cemento. Una verificación
+   que llega después de lo irreversible no sirve.
+2. **Laterales pintados de blanco.** Las estanterías de cemento blanco llevan los
+   cuatro laterales del contramolde pintados con aerosol blanco, sin tocar el molde.
+   Se reconocen a veinte metros. La pintura se repasa cuando haga falta (del orden de
+   una vez por mes); cualquier aerosol sirve.
+3. **Blanco reservado.** Ninguna tarjeta, placa ni cartel usa blanco para otra cosa.
+
+**Los dos trompos hacen los dos cementos**, así que la app no puede bloquear por
+trompo. Lo que sí puede hacer, sin pedir ningún dato nuevo: sabe qué cemento fue la
+última tanda de cada trompo, y **si cambia, avisa**: *"El trompo A viene de cemento
+gris. ¿Se lavó?"*. Solo aparece cuando hay cambio de cemento, que es poco
+frecuente, para que no se vuelva un cartel que se acepta sin leer. Por eso el
+trompo se elige al principio del llenado, junto con la estantería.
+
+### 10.6 Reasignaciones de familia o de cemento
+
+Cambiar un grupo de familia de color **es una decisión de empresa, rara y con
+costo aceptado**: las primeras tandas después del cambio salen manchadas aunque se
+laven los moldes. Por eso hay estanterías fijas por color. El cambio de cemento es
+más frecuente, pero también deliberado.
+
+- **Solo con la estantería vacía**, sin tanda abierta. Si no, una tanda cambiaría
+  de cemento en mitad del circuito.
+- **Registrado con fecha y motivo**, como acto de un rol con permiso.
+- **El historial no cambia**: cada tanda guarda qué era al llenarse.
+- **Cambio de familia → placa nueva.** Cambio de cemento → pintar o despintar.
+- **La app mide el costo.** La rotura de las primeras tandas posteriores al cambio
+  *es* el costo que se aceptó: cuántos ciclos tarda en dejar de manchar y cuántos
+  paquetes se perdieron. La próxima vez que se discuta un cambio, hay un número real
+  sobre la mesa.
+
+### 10.7 El circuito visto desde el piso
+
+1. **Trompo.** Elige una estantería **sin tarjeta** y la identifica por su placa
+   *antes de volcar*. La app muestra modelo, familia y cemento en grande y, si el
+   trompo cambió de cemento, pregunta por el lavado. El operario llena, carga
+   cuántos moldes llenó y la app indica la tarjeta: *"ABEJA — colgala en la
+   estantería"*. Toma la primera del tablero del día y la cuelga.
+2. **Patio.** Nadie registra nada. El color de la tarjeta dice el día.
+3. **Entrada al horno.** El hornero ve el patio por palabra y antigüedad, marca las
+   que entran y confirma. Las tarjetas entran con las estanterías.
+4. **Salida del horno.** Igual. Las tarjetas siguen puestas.
+5. **Desmolde.** Separa piezas y moldes, **pasa la tarjeta al palet** y registra. La
+   app muestra *"ABEJA → UHMA · BEIGE · 03"* para verificar a ojo que la placa
+   coincide, con un botón para cuando no coincide. La estantería, ahora sin
+   tarjeta, vuelve al trompo. Si **no fraguó**: la tarjeta se queda en la estantería,
+   que vuelve a la cola del horno con una **pinza roja** en la tarjeta, además de la
+   marca REHORNEAR de la app.
+6. **Espera del túnel.** El palet espera con su tarjeta. Es el tramo que hoy no se
+   ve, y ahora se ve solo: un palet con tarjeta amarilla un jueves es un lunes sin
+   empaquetar.
+7. **Empaque.** Cuenta los paquetes y cierra la tanda. La app indica *"devolvé
+   ABEJA al gancho del lunes"*. Los paquetes quedan listos sin tarjeta.
+
+**El piso de un vistazo:**
+
+| Se ve | Significa |
+|---|---|
+| Estantería sin tarjeta | Moldes vacíos, lista para el trompo |
+| Estantería con tarjeta | Llena: patio, horno o esperando desmolde |
+| Laterales blancos | Cemento blanco |
+| Tarjeta con pinza roja | No fraguó, vuelve al horno primero |
+| Palet con tarjeta | Desmoldado, esperando empaque |
+| Paquetes sin tarjeta | Listos |
+| Gancho vacío en el tablero | Una tanda de ese día sigue en la planta |
+
+### 10.8 Escaneo con QR o NFC: descartado por ahora
+
+- **QR:** el ambiente es muy sucio; cualquier código se tapa y la cámara no lo lee.
+- **NFC:** técnicamente viable —todos los teléfonos son Android, y Chrome en
+  Android lee NFC desde el navegador—, pero el costo de chips industriales para ~490
+  tarjetas y todas las placas no está evaluado, y también tendrían que resistir el
+  horno. Se reevalúa cuando planta ponga dispositivos propios, que van a ser Android.
+
+**Consecuencia de diseño:** la identificación es por lectura y por selección en
+listas. Las defensas contra el error pasan a ser:
+
+- Listas **cortas y filtradas por estado**: el desmoldador solo ve lo que está
+  esperando desmolde.
+- **Palabras elegidas para no confundirse** dentro de un mismo día (§10.3).
+- **Verificación cruzada tarjeta ↔ placa en el desmolde**, que es el traspaso crítico.
+- **Conciliación tablero ↔ app.** Un gancho vacío que la app cree libre es una
+  tarjeta que no volvió. Un gancho con tarjeta que la app cree en uso es un
+  movimiento que no se registró.
+- **Recorrida diaria:** la app lista lo que *debería* haber en patio y horno, y un
+  supervisor lo compara con lo que ve.
+- **Tiempos imposibles en rojo:** 60 horas de horno o una semana en el patio casi
+  siempre es un movimiento sin registrar.
+
+Nunca van a ser cero errores. El objetivo es que sean raros **y que nadie los
+descubra un mes después.**
+
+### 10.9 Materiales: a probar en el horno real
+
+Ambiente: ~70 °C normal, hasta 80 °C, **100 % de humedad** y salpicaduras de
+**cemento fresco, que es muy alcalino**.
+
+- **Descartados:** papel plastificado (se despega), PVC común de credencial (se
+  deforma), etiquetas autoadhesivas y texto impreso en superficie (se despegan o se
+  borran al raspar el cemento), aluminio (el cemento lo ataca).
+- **Acero inoxidable: no se da por bueno.** En planta se lo vio pudrirse dentro de
+  cámaras de fraguado. Solo si pasa la prueba.
+- **Candidato principal, para tarjetas y placas: plástico rígido industrial**
+  (polipropileno o polietileno de alta densidad) **con el color en toda la masa** y
+  el texto **grabado**, no impreso. Si el color es del material y la letra está
+  hundida, raspar el cemento no les hace nada.
+- **Sujeción de placas y ganchos:** a definir en la prueba, por el mismo problema
+  del inoxidable.
+- **Pintura blanca:** cualquier aerosol; se prueban distintas calidades.
+
+**Antes de encargar nada:** dos o tres muestras de cada opción, un par de semanas
+de uso real en el horno, con cemento incluido.
+
+### 10.10 Cambios de datos previstos
+
+- `productos`, `estanterias` y el snapshot de `tandas`: columna **cemento**
+  (gris / blanco), y la compatibilidad pasa a exigir modelo + familia + cemento.
+- `estanterias`: número de grupo para la placa, e historial de reasignaciones con
+  fecha, motivo y quién.
+- Tabla nueva **`tarjetas`**: letra, orden, palabra, si existe físicamente, y si
+  está perdida.
+- `tandas`: tarjeta asignada, con la palabra como snapshot, y el trompo elegido al
+  inicio del llenado.
+- En pantalla, **la palabra reemplaza al código** en todas las listas. El código
+  correlativo queda para el historial, los exports y las búsquedas.
+
+---
+
+## 11. Supuestos pendientes de confirmar
 
 Marcados para no olvidarlos:
 
@@ -464,3 +753,14 @@ Marcados para no olvidarlos:
 - **Sin receta de pastón**: por ahora alcanza con saber qué trompo y quién fue el
   responsable. La receta queda para el final.
 - **Alcance hasta `listo`**: no hay stock ni despacho a cliente.
+- **Cantidad real de estanterías.** Planta duda entre ~80 y ~200. Define cuántas
+  placas hay que fabricar; las tarjetas no dependen de eso, sino de cuántos
+  llenados hay por día.
+- **Colores de los días.** La tabla de §10.3 es una propuesta: falta confirmarla
+  con lo que se consiga en plástico de color en masa.
+- **Lista de palabras.** Generada y verificada, pendiente de revisión de planta en
+  `datos/palabras-tarjetas.xlsx`; en particular, sacar cualquier palabra que
+  coincida con el nombre comercial de un tono.
+- **Prueba de materiales** en el horno real antes de encargar tarjetas, placas,
+  sujeciones y pintura (§10.9).
+- **Rastreo de paquetes después de "listo"**: postergado a pedido de planta.
