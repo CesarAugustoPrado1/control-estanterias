@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
 import * as schema from "./schema";
+import { ErrorDeConfiguracion } from "../errores";
 
 type Db = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -44,7 +45,7 @@ function conectar(): Db {
 
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error(
+    throw new ErrorDeConfiguracion(
       "Falta la variable DATABASE_URL. En local: copiá .env.example a .env.local " +
         "y completala con la cadena POOLED de Neon (la que tiene '-pooler' en el " +
         "host). En Vercel: cargala en Settings > Environment Variables marcando " +

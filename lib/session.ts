@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import type { Rol } from "./db/schema";
+import { ErrorDeConfiguracion } from "./errores";
 
 /**
  * Sesion en un JWT firmado, dentro de una cookie httpOnly. Sin tabla de
@@ -21,9 +22,11 @@ export type Sesion = { id: number; usuario: string; nombre: string; rol: Rol };
 function clave(): Uint8Array {
   const s = process.env.SESSION_SECRET;
   if (!s) {
-    throw new Error(
-      "Falta SESSION_SECRET. Genera una con: " +
-        `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`,
+    throw new ErrorDeConfiguracion(
+      "El servidor no tiene configurada la variable SESSION_SECRET, así que no " +
+        "puede firmar la sesión. Hay que cargarla en Vercel (Settings > " +
+        "Environment Variables, marcando Production) y volver a desplegar: las " +
+        "variables nuevas no se aplican al deploy que ya estaba hecho.",
     );
   }
   return new TextEncoder().encode(s);

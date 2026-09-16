@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "./db";
 import { usuarios, type Rol } from "./db/schema";
 import { sesionDelToken, type Sesion } from "./session";
-import { ErrorDeAutorizacion } from "./acciones/comun";
+import { ErrorDeAutorizacion } from "./errores";
 
 /**
  * Dos capas de seguridad, y la de arriba NO alcanza sola.

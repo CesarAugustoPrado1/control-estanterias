@@ -1,13 +1,13 @@
 import "server-only";
 import { ZodError } from "zod";
+import {
+  ErrorDeAutorizacion,
+  ErrorDeConfiguracion,
+  ErrorDeNegocio,
+} from "../errores";
 
-/**
- * Vive aca y no en auth.ts a proposito: auth.ts importa `next/navigation` para
- * poder redirigir, y si el motor necesitara esta clase desde alla arrastraria
- * todo el router de Next -React incluido- a un modulo que solo escribe en la
- * base. Las clases de error son del vocabulario de negocio, no del framework.
- */
-export class ErrorDeAutorizacion extends Error {}
+// Se reexportan para que las acciones importen todo de un solo lugar.
+export { ErrorDeAutorizacion, ErrorDeConfiguracion, ErrorDeNegocio, fallar } from "../errores";
 
 /**
  * Resultado uniforme de toda server action.
@@ -22,13 +22,6 @@ export type Resultado<T = void> =
   | { ok: true; datos: T }
   | { ok: false; error: string };
 
-/** Error esperable, que se le muestra al usuario tal cual. Aborta la transaccion. */
-export class ErrorDeNegocio extends Error {}
-
-export function fallar(mensaje: string): never {
-  throw new ErrorDeNegocio(mensaje);
-}
-
 /**
  * Envuelve una action: traduce lo esperable a mensaje y loguea lo inesperado.
  */
@@ -37,6 +30,10 @@ export async function ejecutar<T>(fn: () => Promise<T>): Promise<Resultado<T>> {
     return { ok: true, datos: await fn() };
   } catch (e) {
     if (e instanceof ErrorDeNegocio || e instanceof ErrorDeAutorizacion) {
+      return { ok: false, error: e.message };
+    }
+    if (e instanceof ErrorDeConfiguracion) {
+      console.error("[config]", e.message);
       return { ok: false, error: e.message };
     }
     if (e instanceof ZodError) {
