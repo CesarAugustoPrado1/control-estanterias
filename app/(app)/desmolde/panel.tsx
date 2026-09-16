@@ -7,7 +7,7 @@ import type { Tanda } from "@/lib/db/schema";
 import { duracion, desde } from "@/lib/formato";
 import { SelectorTandas } from "@/components/selector-tandas";
 import { usarAccion } from "@/components/usar-accion";
-import { Aviso, Boton, Campo, Entrada, Seccion } from "@/components/ui";
+import { Aviso, Boton, Campo, Entrada, Seccion , DetalleTecnico } from "@/components/ui";
 
 function conIds(ids: number[]): FormData {
   const fd = new FormData();
@@ -31,6 +31,7 @@ export function PanelDesmolde({ aDesmoldar }: { aDesmoldar: Tanda[] }) {
   });
 
   const error = desmoldar.error ?? devolver.error;
+  const detalle = desmoldar.detalle ?? devolver.detalle;
   const cargando = desmoldar.cargando || devolver.cargando;
 
   return (
@@ -38,6 +39,7 @@ export function PanelDesmolde({ aDesmoldar }: { aDesmoldar: Tanda[] }) {
       {error && (
         <div className="mb-4">
           <Aviso tono="error">{error}</Aviso>
+          <DetalleTecnico texto={detalle} />
         </div>
       )}
       {desmoldar.ok !== null && desmoldar.ok > 0 && (

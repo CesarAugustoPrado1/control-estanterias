@@ -32,10 +32,18 @@ export function usarAccion<T>(
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<T | null>(null);
   const [reintentando, setReintentando] = useState(0);
+  /**
+   * Texto crudo del ultimo fallo de transporte. No se muestra en grande -al
+   * operario no le sirve- pero queda a mano en letra chica: sin esto, un
+   * "no se pudo conectar" en planta es indistinguible de un deploy roto, y el
+   * unico camino para saberlo es que alguien abra los logs del hosting.
+   */
+  const [detalle, setDetalle] = useState<string | null>(null);
 
   const limpiar = useCallback(() => {
     setError(null);
     setOk(null);
+    setDetalle(null);
   }, []);
 
   const enviar = useCallback(
@@ -55,9 +63,12 @@ export function usarAccion<T>(
               setError(r.error);
             }
             return;
-          } catch {
+          } catch (e) {
             // Fallo de red o de servidor: puede andar en el proximo intento.
+            const texto = e instanceof Error ? e.message : String(e);
+            console.error("[accion] fallo de transporte:", e);
             if (intento === REINTENTOS) {
+              setDetalle(texto);
               setReintentando(0);
               setError(
                 "No se pudo conectar. EL MOVIMIENTO NO SE GUARDÓ. " +
@@ -74,5 +85,5 @@ export function usarAccion<T>(
     [accion, opciones],
   );
 
-  return { enviar, cargando: pendiente, error, ok, reintentando, limpiar };
+  return { enviar, cargando: pendiente, error, ok, reintentando, detalle, limpiar };
 }

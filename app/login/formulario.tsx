@@ -4,12 +4,12 @@ import { useRouter } from "next/navigation";
 import { useRef } from "react";
 import { accionEntrar } from "@/lib/acciones/sesion";
 import { usarAccion } from "@/components/usar-accion";
-import { Aviso, Boton, Campo, Entrada } from "@/components/ui";
+import { Aviso, Boton, Campo, DetalleTecnico, Entrada } from "@/components/ui";
 
 export function Formulario({ volver }: { volver?: string }) {
   const router = useRouter();
   const form = useRef<HTMLFormElement>(null);
-  const { enviar, cargando, error, reintentando } = usarAccion(accionEntrar, {
+  const { enviar, cargando, error, reintentando, detalle } = usarAccion(accionEntrar, {
     alTerminar: (inicio) => {
       router.replace(volver && volver.startsWith("/") ? volver : inicio);
       router.refresh();
@@ -46,7 +46,12 @@ export function Formulario({ volver }: { volver?: string }) {
         />
       </Campo>
 
-      {error && <Aviso tono="error">{error}</Aviso>}
+      {error && (
+            <>
+              <Aviso tono="error">{error}</Aviso>
+              <DetalleTecnico texto={detalle} />
+            </>
+          )}
       {reintentando > 0 && (
         <Aviso tono="atencion">
           Sin respuesta, reintentando ({reintentando}/3)…

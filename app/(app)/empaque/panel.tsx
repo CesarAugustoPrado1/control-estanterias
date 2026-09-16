@@ -15,6 +15,7 @@ import {
   MarcaRehornear,
   Selector,
   Vacio,
+  DetalleTecnico,
 } from "@/components/ui";
 
 /** El tunel se lee del producto en vivo: no entra en el calculo de rotura. */
@@ -73,7 +74,7 @@ function Fila({
   const [motivoId, setMotivoId] = useState("");
   const [nota, setNota] = useState("");
 
-  const { enviar, cargando, error, reintentando } = usarAccion(
+  const { enviar, cargando, error, reintentando, detalle } = usarAccion(
     accionEmpaquetar,
     {
       alTerminar: () => {
@@ -232,7 +233,12 @@ function Fila({
               {previsto.paquetes} paquetes.
             </Aviso>
           )}
-          {error && <Aviso tono="error">{error}</Aviso>}
+          {error && (
+            <>
+              <Aviso tono="error">{error}</Aviso>
+              <DetalleTecnico texto={detalle} />
+            </>
+          )}
           {reintentando > 0 && (
             <Aviso tono="atencion">
               Sin respuesta, reintentando ({reintentando}/3)…

@@ -12,7 +12,7 @@ import { ETIQUETA_MOTIVO_FRAGUADO } from "@/lib/estados";
 import { duracion, desde } from "@/lib/formato";
 import { SelectorTandas } from "@/components/selector-tandas";
 import { usarAccion } from "@/components/usar-accion";
-import { Aviso, Boton, Campo, Entrada, Seccion, Selector } from "@/components/ui";
+import { Aviso, Boton, Campo, Entrada, Seccion, Selector , DetalleTecnico } from "@/components/ui";
 
 function conIds(ids: number[]): FormData {
   const fd = new FormData();
@@ -50,6 +50,7 @@ export function PanelHorno({
   });
 
   const error = entrar.error ?? salir.error ?? fraguar.error;
+  const detalle = entrar.detalle ?? salir.detalle ?? fraguar.detalle;
   const cargando = entrar.cargando || salir.cargando || fraguar.cargando;
 
   return (
@@ -57,6 +58,7 @@ export function PanelHorno({
       {error && (
         <div className="mb-4">
           <Aviso tono="error">{error}</Aviso>
+          <DetalleTecnico texto={detalle} />
         </div>
       )}
 

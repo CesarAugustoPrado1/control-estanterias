@@ -226,3 +226,26 @@ export function Contador({
     </Link>
   );
 }
+
+/**
+ * Texto crudo de un fallo de transporte, plegado.
+ *
+ * Va en un `<details>` cerrado y no en el mensaje principal porque son dos
+ * publicos distintos: al operario le importa "no se guardo, volve a intentar";
+ * al que tiene que arreglarlo le importa el mensaje del framework. Sin esto,
+ * diagnosticar un fallo en planta obliga a alguien a abrir los logs del hosting
+ * desde una computadora.
+ */
+export function DetalleTecnico({ texto }: { texto: string | null }) {
+  if (!texto) return null;
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-700">
+        Detalle técnico
+      </summary>
+      <pre className="mt-1 overflow-x-auto rounded bg-slate-100 p-2 text-xs text-slate-700">
+        {texto}
+      </pre>
+    </details>
+  );
+}

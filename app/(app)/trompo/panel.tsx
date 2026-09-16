@@ -6,7 +6,15 @@ import { accionLlenar } from "@/lib/acciones/flujo";
 import { convertir } from "@/lib/estados";
 import { numero } from "@/lib/formato";
 import { usarAccion } from "@/components/usar-accion";
-import { Aviso, Boton, Campo, Entrada, Selector, Tarjeta } from "@/components/ui";
+import {
+  Aviso,
+  Boton,
+  Campo,
+  DetalleTecnico,
+  Entrada,
+  Selector,
+  Tarjeta,
+} from "@/components/ui";
 
 type Producto = {
   id: number;
@@ -39,7 +47,7 @@ export function PanelTrompo({ productos }: { productos: Producto[] }) {
     if (prod?.moldesTipicos) setMoldes(String(prod.moldesTipicos));
   }, [prod]);
 
-  const { enviar, cargando, error, ok, reintentando, limpiar } = usarAccion(
+  const { enviar, cargando, error, ok, reintentando, detalle, limpiar } = usarAccion(
     accionLlenar,
     {
       alTerminar: () => {
@@ -191,7 +199,12 @@ export function PanelTrompo({ productos }: { productos: Producto[] }) {
             </div>
           )}
 
-          {error && <Aviso tono="error">{error}</Aviso>}
+          {error && (
+            <>
+              <Aviso tono="error">{error}</Aviso>
+              <DetalleTecnico texto={detalle} />
+            </>
+          )}
           {reintentando > 0 && (
             <Aviso tono="atencion">
               Sin respuesta, reintentando ({reintentando}/3)…
