@@ -31,6 +31,19 @@ function uso(orden: number): string {
 
 const ARGB = (hex: string) => "FF" + hex.replace("#", "").toUpperCase();
 
+/**
+ * Mismo criterio que scripts/verificar-palabras.py: consonantes iniciales mas la
+ * primera vocal (BArco, BRUjula, GUitarra), o las dos primeras letras si empieza
+ * con vocal (ABeja). Por letras, no por sonido.
+ */
+function comienzo(palabra: string): string {
+  const s = palabra.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if ("aeiou".includes(s[0])) return s.slice(0, 2);
+  let i = 0;
+  while (i < s.length && !"aeiou".includes(s[i])) i++;
+  return s.slice(0, i + 1);
+}
+
 async function main() {
   const datos = JSON.parse(
     readFileSync("datos/palabras.json", "utf-8"),
@@ -55,8 +68,11 @@ async function main() {
     ["", false],
     ["REGLAS CON LAS QUE SE ARMARON", true],
     ["Sustantivos concretos y conocidos: cosas que se pueden imaginar.", false],
-    ["Cada día es un sonido: la C solo como CA, CO, CU; la G solo como GA, GO, GU;", false],
+    ["Cada día es un sonido: la C solo como CA, CO, CU, CL, CR; la G como GA, GO, GU, GL, GR;", false],
     ["ninguna empieza con H muda; ningún día usa V, K ni Q.", false],
+    ["Rondas: dentro de cada ronda, cada palabra empieza distinto (BArco, BIcicleta, BOta,", false],
+    ["BUho, BRUjula...). Recién cuando se usan todos los comienzos, arranca otra ronda.", false],
+    ["Así las palabras que conviven el mismo día se distinguen desde la primera sílaba.", false],
     ["Ningún par del mismo día difiere en una sola letra (búho/buzo, bandera/bañera).", false],
     ["Entre las primeras 25 de cada día, tampoco en dos letras (bombo/bolso, funda/falda).", false],
     ["Ninguna palabra se repite entre días.", false],
@@ -84,6 +100,8 @@ async function main() {
     hoja.columns = [
       { header: "Orden", key: "orden", width: 8 },
       { header: "Palabra", key: "palabra", width: 22 },
+      { header: "Comienzo", key: "comienzo", width: 11 },
+      { header: "Ronda", key: "ronda", width: 8 },
       { header: "Uso esperado", key: "uso", width: 26 },
       { header: "¿Sacar?", key: "sacar", width: 10 },
       { header: "Comentario", key: "comentario", width: 44 },
@@ -94,11 +112,17 @@ async function main() {
     enc.height = 22;
     hoja.views = [{ state: "frozen", ySplit: 1 }];
 
+    const vistos = new Map<string, number>();
     d.palabras.forEach((p, i) => {
       const orden = i + 1;
+      const c = comienzo(p);
+      const ronda = (vistos.get(c) ?? 0) + 1;
+      vistos.set(c, ronda);
       const fila = hoja.addRow({
         orden,
         palabra: p.toUpperCase(),
+        comienzo: c.toUpperCase(),
+        ronda,
         uso: uso(orden),
         sacar: "",
         comentario: "",

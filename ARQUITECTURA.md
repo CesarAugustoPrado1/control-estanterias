@@ -519,9 +519,9 @@ propuesta a confirmar; lo que sí es regla es qué colores **no** pueden usarse:
 **Regla de sonido: cada día es un sonido, y ningún par de días comparte sonido.**
 Salió de una observación de planta sobre la C, y se generalizó:
 
-- La C solo como *ca, co, cu*. *Cebolla* suena a S y alguien que la escucha no sabe
-  que es miércoles.
-- La G solo como *ga, go, gu*. *Girasol* suena a J.
+- La C solo como *ca, co, cu, cl, cr*. *Cebolla* suena a S y alguien que la
+  escucha no sabe que es miércoles.
+- La G solo como *ga, go, gu, gl, gr*. *Girasol* suena a J.
 - Ninguna palabra empieza con H muda: *hoja* se escucha "oja".
 - Ningún día usa V, K ni Q, porque comparten sonido con B y con C.
 
@@ -529,6 +529,20 @@ Salió de una observación de planta sobre la C, y se generalizó:
 
 - 70 palabras por letra. Sobran a propósito: cubren el caso raro de estanterías
   olvidadas en el patio, y no molestan.
+- **Rondas: las palabras que conviven empiezan distinto.** El comienzo de una
+  palabra son sus consonantes iniciales más la primera vocal (*BA*rco, *BRÚ*jula,
+  *GU*itarra) o, si empieza con vocal, sus dos primeras letras (*AB*eja). Dentro de
+  cada ronda cada comienzo aparece una sola vez, y un comienzo solo aparece en la
+  ronda N si apareció en la N−1. Se cuenta por letras y no por sonido, a
+  propósito: *cuaderno* y *cuchillo* cuentan igual. Es más estricto.
+  - Hay entre 7 y 15 comienzos con sustantivos conocidos por letra, y un día normal
+    tiene 16 a 20 llenados: algunos días conviven dos palabras con el mismo
+    comienzo. Para eso, la segunda palabra de cada comienzo no sigue con la misma
+    letra que la primera (*barco* y *ballena*, no *barco* y *barril*).
+  - **No se fuerzan palabras raras.** Un comienzo sin un sustantivo común se
+    saltea, aunque la ronda quede más chica: es peor tener una palabra que nadie
+    conoce entre las más usadas que repetir un comienzo.
+  - Por esta regla la C y la G admiten también *cl, cr, gl, gr*, que suenan duras.
 - Ningún par del mismo día difiere en una sola letra (*búho/buzo*,
   *bandera/bañera*). Entre las primeras 25, tampoco en dos (*bombo/bolso*).
 - Ninguna palabra se repite entre días.

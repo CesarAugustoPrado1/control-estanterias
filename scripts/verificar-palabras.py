@@ -1,6 +1,13 @@
 """
 Verifica datos/palabras.json contra las reglas de ARQUITECTURA.md §10.3.
 
+Regla de rondas: cada palabra "empieza" con sus consonantes iniciales mas la
+primera vocal (BArco, BRUjula, CLAvel, GUitarra) o, si empieza con vocal, con
+sus dos primeras letras (ABeja, ANcla). La lista se arma en rondas: dentro de
+una ronda cada comienzo aparece una sola vez, y un comienzo solo puede aparecer
+en la ronda N si ya aparecio en la N-1. Asi las palabras que se usan juntas un
+mismo dia empiezan distinto.
+
     python scripts/verificar-palabras.py
 
 Correrlo cada vez que se edita la lista. Sale con codigo 1 si hay problemas
@@ -43,11 +50,27 @@ def sonido(letra: str, palabra: str):
     s = sin_tildes(palabra).lower()
     if not s.startswith(letra.lower()):
         return "no empieza con la letra del dia"
-    if letra == "C" and not s.startswith(("ca", "co", "cu")):
-        return "la C tiene que sonar dura (ca, co, cu)"
+    if letra == "C" and not s.startswith(("ca", "co", "cu", "cl", "cr")):
+        return "la C tiene que sonar dura (ca, co, cu, cl, cr)"
     if letra == "G" and not s.startswith(("ga", "go", "gu", "gl", "gr")):
         return "la G tiene que sonar dura (ga, go, gu)"
     return None
+
+
+VOCALES = "aeiou"
+
+
+def comienzo(palabra: str) -> str:
+    """BArco, BRUjula, GUitarra (la u cuenta: gui y gua son el mismo comienzo),
+    ABeja. Se toma por letras y no por sonido, a proposito: cuaderno y cuchillo
+    suenan distinto pero cuentan igual. Es mas estricto y mas seguro."""
+    s = sin_tildes(palabra).lower()
+    if s[0] in VOCALES:
+        return s[:2]
+    i = 0
+    while i < len(s) and s[i] not in VOCALES:
+        i += 1
+    return s[: i + 1]
 
 
 def main() -> int:
@@ -77,6 +100,31 @@ def main() -> int:
                 print(f"[{L}] {i} {p}: repetida (ya esta en {vistas[k]})")
                 bloqueantes += 1
             vistas[k] = L
+        # Rondas: el numero de ronda de cada palabra es cuantas veces aparecio
+        # su comienzo hasta ahi. Tiene que ir creciendo o mantenerse.
+        vistos: dict[str, list[str]] = {}
+        ronda_anterior = 1
+        tam_ronda1 = 0
+        for i, p in enumerate(pal, 1):
+            c = comienzo(p)
+            vistos.setdefault(c, []).append(p)
+            ronda = len(vistos[c])
+            if ronda == 1:
+                tam_ronda1 += 1
+            if ronda < ronda_anterior:
+                print(f"[{L}] {i} {p}: el comienzo '{c}' aparece por primera vez en la ronda {ronda_anterior}; "
+                      f"tenia que estar en la ronda 1")
+                bloqueantes += 1
+            ronda_anterior = max(ronda_anterior, ronda)
+            # La segunda palabra de un comienzo no deberia seguir igual que la
+            # primera (barco / barril), porque conviven casi todos los dias.
+            if ronda == 2:
+                a, b = sin_tildes(vistos[c][0]).lower(), sin_tildes(p).lower()
+                n = len(c)
+                if a[: n + 1] == b[: n + 1]:
+                    print(f"[{L}] revisar, ronda 2 sigue igual que la ronda 1: {vistos[c][0]} / {p}")
+        print(f"[{L}] ronda 1: {tam_ronda1} comienzos distintos; rondas en total: {ronda_anterior}")
+
         norm = [sin_tildes(p).lower() for p in pal]
         for (i, a), (j, b) in itertools.combinations(enumerate(norm, 1), 2):
             dist = distancia(a, b)
