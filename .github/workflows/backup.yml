@@ -1,0 +1,101 @@
+# Backup diario de la base, cifrado.
+#
+# Por que asi (ver ARQUITECTURA.md §9.4):
+# - El plan gratuito de Neon no tiene backups.
+# - pg_dump corre en un contenedor postgres:18 porque tiene que ser de la MISMA
+#   version mayor que el servidor o mas nueva: un pg_dump viejo se niega a
+#   volcar un servidor nuevo, y el que trae Ubuntu no es 18.
+# - El repo es PUBLICO. Los artefactos de un repo publico los puede descargar
+#   cualquiera con cuenta de GitHub, asi que el volcado se cifra ANTES de subirse
+#   y el archivo sin cifrar nunca sale de la maquina efimera del runner.
+#
+# Secretos que hay que cargar en GitHub (Settings > Secrets and variables >
+# Actions > New repository secret):
+#   NEON_DIRECT_URL  la cadena DIRECTA de Neon, la que NO tiene "-pooler".
+#                    pg_dump a traves del pooler falla a mitad de camino.
+#   BACKUP_CLAVE     una frase larga para cifrar. Guardala fuera de GitHub:
+#                    sin ella los backups no se pueden abrir.
+
+name: Backup de la base
+
+on:
+  schedule:
+    # 09:00 UTC = 06:00 en Argentina, antes de que arranque el turno.
+    - cron: "0 9 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verificar secretos
+        env:
+          NEON_DIRECT_URL: ${{ secrets.NEON_DIRECT_URL }}
+          BACKUP_CLAVE: ${{ secrets.BACKUP_CLAVE }}
+        run: |
+          faltan=""
+          [ -z "$NEON_DIRECT_URL" ] && faltan="$faltan NEON_DIRECT_URL"
+          [ -z "$BACKUP_CLAVE" ] && faltan="$faltan BACKUP_CLAVE"
+          if [ -n "$faltan" ]; then
+            echo "::error::Faltan secretos del repositorio:$faltan. Ver el encabezado de este archivo."
+            exit 1
+          fi
+          case "$NEON_DIRECT_URL" in
+            *-pooler*)
+              echo "::error::NEON_DIRECT_URL tiene '-pooler'. Usá la cadena directa: pg_dump sobre el pooler se corta."
+              exit 1 ;;
+          esac
+
+      - name: Volcar el esquema estanterias
+        env:
+          NEON_DIRECT_URL: ${{ secrets.NEON_DIRECT_URL }}
+        run: |
+          # --format=custom: comprimido, y se restaura por tabla con pg_restore.
+          # Solo el esquema propio: la base puede tener otras cosas que no son
+          # de esta app.
+          docker run --rm -e URL="$NEON_DIRECT_URL" postgres:18 \
+            sh -c 'pg_dump "$URL" --schema=estanterias --no-owner --no-privileges --format=custom' \
+            > backup.dump
+          tam=$(stat -c %s backup.dump)
+          echo "Tamaño del volcado: $tam bytes"
+          if [ "$tam" -lt 1000 ]; then
+            echo "::error::El volcado salió casi vacío ($tam bytes). No se guarda."
+            exit 1
+          fi
+
+      - name: Comprobar que el volcado se puede leer
+        run: |
+          # Un backup que no se puede restaurar no es un backup. pg_restore --list
+          # lee el indice entero: si el archivo esta cortado, falla aca.
+          docker run --rm -i postgres:18 pg_restore --list < backup.dump > indice.txt
+          tablas=$(grep -c " TABLE DATA " indice.txt || true)
+          echo "Tablas con datos en el volcado: $tablas"
+          if [ "$tablas" -lt 5 ]; then
+            echo "::error::El volcado tiene $tablas tablas con datos; se esperaban al menos 5."
+            exit 1
+          fi
+
+      - name: Cifrar
+        env:
+          BACKUP_CLAVE: ${{ secrets.BACKUP_CLAVE }}
+        run: |
+          fecha=$(TZ=America/Argentina/Buenos_Aires date +%Y-%m-%d_%H%M)
+          echo "FECHA=$fecha" >> "$GITHUB_ENV"
+          gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
+            --passphrase "$BACKUP_CLAVE" \
+            --output "estanterias_$fecha.dump.gpg" backup.dump
+          # El volcado sin cifrar no se sube ni queda en ningun lado.
+          shred -u backup.dump
+          ls -l estanterias_*.dump.gpg
+
+      - name: Guardar
+        uses: actions/upload-artifact@v4
+        with:
+          name: estanterias_${{ env.FECHA }}
+          path: estanterias_*.dump.gpg
+          retention-days: 30
+          if-no-files-found: error

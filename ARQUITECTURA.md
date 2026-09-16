@@ -413,15 +413,52 @@ asi que si alguien alguna vez copia el `DATABASE_URL` equivocado y apunta esta
 app a la base de Secaderos, el `schemaFilter: ["estanterias"]` hace que igual no
 pueda tocar una sola tabla de la otra app.
 
-### 9.4 Lo que el plan gratuito NO da: backups
+### 9.4 Backups: el plan gratuito no los da
 
-Ni Neon ni Supabase incluyen backups automaticos en sus planes gratuitos. Neon da
-6 horas de *instant restore* y un snapshot manual, que no es lo mismo.
+Ni Neon ni Supabase incluyen backups automáticos en sus planes gratuitos. Neon da
+6 horas de *instant restore* y un snapshot manual, que no es lo mismo. El export a
+Excel de la app (§7) **no cumple esa función**: no se puede restaurar desde ahí.
 
-Para produccion hace falta un **`pg_dump` programado** a una maquina propia o a
-Drive. Es lo que convierte "gratis" en "aceptable para una fabrica", y vale mas
-que la eleccion de proveedor. El export a Excel de la app (§7) **no cumple esa
-funcion**.
+**Solución: `.github/workflows/backup.yml`**, un `pg_dump` diario que corre en
+GitHub Actions a las 06:00 de Argentina (y a mano desde la pestaña *Actions*).
+
+- **pg_dump corre en un contenedor `postgres:18`.** Tiene que ser de la misma
+  versión mayor que el servidor o más nueva: un `pg_dump` viejo se niega a volcar
+  un servidor nuevo, y el que trae Ubuntu no es 18.
+- **Usa la cadena directa, nunca la del pooler**: sobre el pooler un volcado largo
+  se corta a mitad de camino.
+- **Comprueba que el volcado se puede leer** (`pg_restore --list`) antes de
+  guardarlo. Un backup que no se puede restaurar no es un backup, y el momento de
+  enterarse no es el día que hace falta.
+- **Se cifra antes de subirse.** El repo es **público**, y los artefactos de un
+  repo público los puede descargar cualquiera con cuenta de GitHub. El volcado sin
+  cifrar nunca sale de la máquina efímera del runner.
+- Se guardan **30 días** de copias.
+
+**Configuración (una sola vez):** en GitHub, *Settings → Secrets and variables →
+Actions*, cargar dos secretos:
+
+| Secreto | Valor |
+|---|---|
+| `NEON_DIRECT_URL` | la cadena **directa** de Neon (sin `-pooler`) |
+| `BACKUP_CLAVE` | una frase larga, **guardada también fuera de GitHub**: sin ella los backups no se pueden abrir |
+
+**Restaurar** (con Docker, para no instalar herramientas de Postgres):
+
+```bash
+# 1. Descargar el artefacto desde la pestaña Actions y descomprimirlo
+gpg --decrypt estanterias_AAAA-MM-DD_HHMM.dump.gpg > backup.dump
+
+# 2. Restaurar. --clean BORRA lo que hay en el esquema antes de cargar el backup.
+docker run --rm -i postgres:18 pg_restore --clean --if-exists --no-owner   -d "CADENA_DIRECTA_DE_NEON" < backup.dump
+```
+
+Dos advertencias:
+- **Probar la restauración en una rama de Neon, no sobre producción.** Neon permite
+  crear una rama de la base en segundos; se restaura ahí y se compara.
+- **GitHub desactiva los workflows programados** de un repo público después de 60
+  días sin actividad en el repositorio. Si la app queda estable mucho tiempo sin
+  cambios, hay que entrar a *Actions* y reactivarlo.
 
 ### 9.5 Trampas heredadas que siguen aplicando
 
