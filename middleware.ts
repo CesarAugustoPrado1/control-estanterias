@@ -10,7 +10,12 @@ import { COOKIE, verificar } from "./lib/session";
  * no haya cambiado- la hace cada page y cada action contra la base. Ver auth.ts.
  */
 
-const PUBLICAS = ["/login", "/sin-permiso"];
+/**
+ * `/api/estado` va aca porque su razon de ser es diagnosticar por que alguien
+ * NO puede entrar: si exigiera sesion seria inservible justo cuando hace falta.
+ * Solo devuelve booleanos y conteos, nunca valores de configuracion.
+ */
+const PUBLICAS = ["/login", "/sin-permiso", "/api/estado"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
