@@ -9,7 +9,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 /* -------------------------------------------------------------------------- */
 /* Esquema propio                                                             */
@@ -97,6 +97,35 @@ export const tipoMovimientoEnum = esq.enum("tipo_movimiento", [
   "desmolde",
   "empaquetado",
   "correccion",
+  /**
+   * El trompo no encontro la tarjeta que indico la app y se le asigno otra. No
+   * cambia de estado ni mide nada: queda para que el historial explique por que
+   * una tanda cambio de palabra.
+   */
+  "cambio_tarjeta",
+]);
+
+/**
+ * Cemento de un grupo de moldes y de un producto.
+ *
+ * Es la segunda regla de compatibilidad, independiente del color: Uhma beige con
+ * cemento gris y Uhma beige con cemento blanco usan el mismo modelo y la misma
+ * familia, pero sus moldes no se mezclan. Vive como dato propio y no dentro del
+ * nombre de la familia porque es lo que PROHIBE fisicamente mezclar, porque es
+ * una diferencia comercial (el blanco se hace a pedido) y porque se repite en
+ * muchos modelos. Ver ARQUITECTURA.md 10.5.
+ */
+export const cementoEnum = esq.enum("cemento", ["gris", "blanco"]);
+
+/**
+ * Cosas que alguien en el piso vio que no cierran. No bloquean la operacion:
+ * quedan abiertas para que el supervisor las resuelva en la recorrida.
+ */
+export const tipoAvisoEnum = esq.enum("tipo_aviso", [
+  /** En el desmolde, la placa de la estanteria no es la que la app esperaba. */
+  "tarjeta_no_coincide",
+  /** El trompo no encontro en el tablero la tarjeta que indico la app. */
+  "tarjeta_perdida",
 ]);
 
 /**
@@ -205,6 +234,8 @@ export const productos = esq.table(
      * bandera solo cambia lo que dice la pantalla.
      */
     requiereTunel: boolean("requiere_tunel").notNull().default(true),
+    /** Ver `cementoEnum`. Un producto de cemento blanco es otro producto. */
+    cemento: cementoEnum("cemento").notNull().default("gris"),
     /** Unidad comercial. Es lo que convierte todo a m2. */
     m2PorPaquete: numeric("m2_por_paquete", { precision: 8, scale: 4 }),
     activo: boolean("activo").notNull().default(true),
@@ -212,7 +243,9 @@ export const productos = esq.table(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("productos_modelo_familia_idx").on(t.modeloId, t.familiaId)],
+  (t) => [
+    index("productos_modelo_familia_idx").on(t.modeloId, t.familiaId, t.cemento),
+  ],
 );
 
 /**
@@ -243,6 +276,22 @@ export const estanterias = esq.table(
       .notNull()
       .references(() => familias.id),
     moldes: integer("moldes").notNull(),
+    /**
+     * Compatibilidad = modelo + familia + cemento. Se marca en planta pintando
+     * de blanco los laterales del contramolde, no en la placa: cambia mas seguido
+     * que la familia. Solo se reasigna con la estanteria vacia (ver
+     * `reasignaciones`).
+     */
+    cemento: cementoEnum("cemento").notNull().default("gris"),
+    /**
+     * Numero grabado en la placa: la placa dice MODELO · FAMILIA · NUMERO.
+     *
+     * Nullable solo por las filas cargadas antes de que existieran las placas; la
+     * app lo exige al crear. Es unico dentro de modelo + familia, y no del
+     * cemento, porque el cemento no esta en la placa: dos placas iguales en el
+     * piso serian indistinguibles aunque una tenga los laterales pintados.
+     */
+    numero: integer("numero"),
     activa: boolean("activa").notNull().default(true),
     creadaEn: timestamp("creada_en", { withTimezone: true })
       .notNull()
@@ -250,7 +299,44 @@ export const estanterias = esq.table(
   },
   (t) => [
     uniqueIndex("estanterias_codigo_idx").on(t.codigo),
-    index("estanterias_modelo_familia_idx").on(t.modeloId, t.familiaId),
+    uniqueIndex("estanterias_placa_idx").on(t.modeloId, t.familiaId, t.numero),
+    index("estanterias_modelo_familia_idx").on(t.modeloId, t.familiaId, t.cemento),
+  ],
+);
+
+/**
+ * Tarjetas de tanda: una palabra por tarjeta fisica. Ver ARQUITECTURA.md 10.3.
+ *
+ * `letra` es el dia del llenado (A lunes ... G domingo) y `orden` es la posicion
+ * en la lista y en el tablero de ganchos. Siempre se asigna la primera libre de
+ * arriba para abajo, asi que el orden importa mas que cualquier otra cosa: las
+ * primeras salen todos los dias.
+ *
+ * Una tarjeta esta EN USO cuando hay una tanda suya que todavia no esta
+ * `listo`: vuelve al gancho en el empaque. Igual que con las estanterias, "en
+ * uso" es una consulta y no un campo, para no tener dos verdades.
+ *
+ * Cuantas existen fisicamente por letra no vive aca sino en `config`
+ * (`tarjetas_fabricadas_A`...): se fabrican de a tandas, las primeras 25 o 30
+ * primero, y la app no puede mandar a buscar una que no se hizo.
+ */
+export const tarjetas = esq.table(
+  "tarjetas",
+  {
+    id: serial("id").primaryKey(),
+    letra: text("letra").notNull(),
+    orden: integer("orden").notNull(),
+    palabra: text("palabra").notNull(),
+    activa: boolean("activa").notNull().default(true),
+    /**
+     * Se marco como no encontrada en el tablero. No se asigna hasta que alguien
+     * la encuentre y la destilde, y mientras tanto se usa la siguiente.
+     */
+    perdidaDesde: timestamp("perdida_desde", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("tarjetas_letra_orden_idx").on(t.letra, t.orden),
+    uniqueIndex("tarjetas_palabra_idx").on(t.palabra),
   ],
 );
 
@@ -355,6 +441,24 @@ export const tandas = esq.table(
      */
     rehornear: boolean("rehornear").notNull().default(false),
 
+    /** Snapshot del cemento del producto al llenarse. */
+    cemento: cementoEnum("cemento").notNull().default("gris"),
+    /** Snapshot de lo que dice la placa: "UHMA · BEIGE · 03". */
+    estanteriaEtiqueta: text("estanteria_etiqueta"),
+
+    /**
+     * Tarjeta colgada en la estanteria y despues en el palet. Nullable: las
+     * tandas de antes de las tarjetas no tienen, y si un dia no queda ninguna
+     * libre el llenado no se frena por eso (se usa el codigo).
+     *
+     * Palabra, letra y orden van como snapshot: el historial tiene que seguir
+     * diciendo ABEJA aunque despues se cambie la palabra de esa tarjeta.
+     */
+    tarjetaId: integer("tarjeta_id").references(() => tarjetas.id),
+    tarjetaPalabra: text("tarjeta_palabra"),
+    tarjetaLetra: text("tarjeta_letra"),
+    tarjetaOrden: integer("tarjeta_orden"),
+
     creadaEn: timestamp("creada_en", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -364,6 +468,19 @@ export const tandas = esq.table(
     index("tandas_estado_idx").on(t.estado),
     index("tandas_producto_idx").on(t.productoId),
     index("tandas_creada_idx").on(t.creadaEn),
+    /**
+     * Las dos reglas fisicas del circuito, garantizadas por la base y no solo por
+     * el codigo: una estanteria no puede tener dos tandas sin desmoldar, y una
+     * tarjeta no puede estar colgada en dos tandas vivas. Si algun dia un bug o
+     * una correccion lo intentara, la base lo rechaza en vez de dejar el piso y
+     * el sistema diciendo cosas distintas.
+     */
+    uniqueIndex("tandas_estanteria_retenida_idx")
+      .on(t.estanteriaId)
+      .where(sql`estado in ('patio', 'horno', 'a_desmoldar')`),
+    uniqueIndex("tandas_tarjeta_en_uso_idx")
+      .on(t.tarjetaId)
+      .where(sql`estado <> 'listo'`),
   ],
 );
 
@@ -387,6 +504,8 @@ export const movimientos = esq.table(
       .notNull()
       .references(() => tandas.id),
     tandaCodigo: text("tanda_codigo").notNull(),
+    /** Snapshot de la palabra de la tarjeta, para leer el historial como en el piso. */
+    tandaPalabra: text("tanda_palabra"),
     productoNombre: text("producto_nombre").notNull(),
 
     tipo: tipoMovimientoEnum("tipo").notNull(),
@@ -423,6 +542,68 @@ export const movimientos = esq.table(
     index("movimientos_creado_idx").on(t.creadoEn),
     index("movimientos_tipo_idx").on(t.tipo),
   ],
+);
+
+/**
+ * Discrepancias entre el piso y el sistema, informadas por quien las vio.
+ *
+ * Existen porque la identificacion es por lectura y no por escaneo (10.8): la
+ * defensa contra un error que se escapa es que no pase en silencio. Se muestran
+ * en la recorrida hasta que alguien las resuelve con una nota.
+ */
+export const avisos = esq.table(
+  "avisos",
+  {
+    id: serial("id").primaryKey(),
+    tipo: tipoAvisoEnum("tipo").notNull(),
+    tandaId: integer("tanda_id").references(() => tandas.id),
+    tarjetaId: integer("tarjeta_id").references(() => tarjetas.id),
+    texto: text("texto").notNull(),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id),
+    usuarioNombre: text("usuario_nombre").notNull(),
+    creadoEn: timestamp("creado_en", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    resueltoEn: timestamp("resuelto_en", { withTimezone: true }),
+    resueltoPor: text("resuelto_por"),
+    resolucion: text("resolucion"),
+  },
+  (t) => [index("avisos_abiertos_idx").on(t.resueltoEn)],
+);
+
+/**
+ * Cambios de familia o de cemento de un grupo de moldes.
+ *
+ * Son decisiones de empresa, raras y con costo aceptado: las primeras tandas
+ * despues del cambio salen manchadas. Se registran con motivo para poder MEDIR
+ * ese costo (la rotura de las primeras tandas posteriores) y que la proxima vez
+ * que se discuta un cambio haya un numero real. Ver ARQUITECTURA.md 10.6.
+ */
+export const reasignaciones = esq.table(
+  "reasignaciones",
+  {
+    id: serial("id").primaryKey(),
+    estanteriaId: integer("estanteria_id")
+      .notNull()
+      .references(() => estanterias.id),
+    etiquetaAntes: text("etiqueta_antes").notNull(),
+    etiquetaDespues: text("etiqueta_despues").notNull(),
+    familiaAntes: text("familia_antes").notNull(),
+    familiaDespues: text("familia_despues").notNull(),
+    cementoAntes: cementoEnum("cemento_antes").notNull(),
+    cementoDespues: cementoEnum("cemento_despues").notNull(),
+    motivo: text("motivo").notNull(),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id),
+    usuarioNombre: text("usuario_nombre").notNull(),
+    creadoEn: timestamp("creado_en", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("reasignaciones_estanteria_idx").on(t.estanteriaId)],
 );
 
 /** Parametros editables por el admin. `capacidad_horno` = 18. */
@@ -499,3 +680,8 @@ export type Estanteria = typeof estanterias.$inferSelect;
 export type Tanda = typeof tandas.$inferSelect;
 export type Movimiento = typeof movimientos.$inferSelect;
 export type MotivoRotura = typeof motivosRotura.$inferSelect;
+export type Cemento = (typeof cementoEnum.enumValues)[number];
+export type TipoAviso = (typeof tipoAvisoEnum.enumValues)[number];
+export type Tarjeta = typeof tarjetas.$inferSelect;
+export type Aviso = typeof avisos.$inferSelect;
+export type Reasignacion = typeof reasignaciones.$inferSelect;

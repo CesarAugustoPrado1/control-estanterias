@@ -7,11 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:push": "drizzle-kit push",
+    "db:migrar": "tsx scripts/migrar.ts",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/seed.ts",
-    "db:limpiar": "tsx scripts/limpiar.ts"
+    "db:limpiar": "tsx scripts/limpiar.ts",
+    "db:palabras": "tsx scripts/palabras.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

@@ -1,3 +1,16 @@
+/**
+ * NO USAR `drizzle-kit push` EN ESTE PROYECTO.
+ *
+ * Con Postgres 18 (el de Neon), esta version de drizzle-kit no reconoce las
+ * restricciones NOT NULL con nombre y propone borrarlas de TODAS las tablas.
+ * Ademas aplica sentencia por sentencia sin transaccion: la unica vez que se uso
+ * despues de la migracion a Postgres 18 dejo la base a medias. Ver
+ * ARQUITECTURA.md §9.5.
+ *
+ * Los cambios de esquema van como SQL en `migraciones/` y se aplican con
+ * `npm run db:migrar`. Este archivo queda para `db:studio` y `db:generate`
+ * (que genera SQL para leer, no lo aplica).
+ */
 import { config as cargarEnv } from "dotenv";
 import { defineConfig } from "drizzle-kit";
 
