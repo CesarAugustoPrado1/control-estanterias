@@ -17,6 +17,7 @@ export const NAVEGACION: Entrada[] = [
   { href: "/horno", etiqueta: "Horno", roles: ["admin", "horno"] },
   { href: "/desmolde", etiqueta: "Desmolde", roles: ["admin", "desmolde"] },
   { href: "/empaque", etiqueta: "Empaque", roles: ["admin", "empaque"] },
+  { href: "/recorrida", etiqueta: "Recorrida", roles: ["admin", "oficina", "auditor"] },
   { href: "/movimientos", etiqueta: "Movimientos", roles: ["admin", "oficina", "auditor"] },
   { href: "/estadisticas", etiqueta: "Estadísticas", roles: ["admin", "oficina", "auditor"] },
   { href: "/admin", etiqueta: "Admin", roles: ["admin"] },

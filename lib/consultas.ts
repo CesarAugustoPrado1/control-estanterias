@@ -1,19 +1,32 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { db } from "./db";
 import {
+  avisos,
+  config,
   estanterias,
   familias,
   modelos,
   motivosRotura,
   movimientos,
   productos,
+  reasignaciones,
   tandas,
+  tarjetas,
   usuarios,
+  type Cemento,
   type Estado,
   type TipoMovimiento,
+  type Trompo,
 } from "./db/schema";
 import { RETIENEN, capacidadHorno } from "./acciones/motor";
+import {
+  FABRICADAS_POR_DEFECTO,
+  LETRAS,
+  claveFabricadas,
+  etiquetaPlaca,
+  type Letra,
+} from "./tarjetas";
 
 /** TODAS las lecturas de pantalla viven aca. */
 
@@ -137,6 +150,7 @@ export async function disponibilidadDeMoldes() {
       modelo: modelos.nombre,
       familiaId: familias.id,
       familia: familias.nombre,
+      cemento: estanterias.cemento,
       total: sql<number>`count(*)::int`,
       libres: sql<number>`count(*) filter (where not exists (
         select 1 from ${tandas} t
@@ -148,41 +162,87 @@ export async function disponibilidadDeMoldes() {
     .innerJoin(modelos, eq(modelos.id, estanterias.modeloId))
     .innerJoin(familias, eq(familias.id, estanterias.familiaId))
     .where(eq(estanterias.activa, true))
-    .groupBy(modelos.id, modelos.nombre, familias.id, familias.nombre)
-    .orderBy(asc(modelos.orden), asc(modelos.nombre), asc(familias.orden));
+    .groupBy(modelos.id, modelos.nombre, familias.id, familias.nombre, estanterias.cemento)
+    .orderBy(asc(modelos.orden), asc(modelos.nombre), asc(familias.orden), asc(estanterias.cemento));
 }
 
-/** Productos que se pueden llenar ahora, con cuantas estanterias libres tienen. */
-export async function productosParaLlenar() {
-  const prods = await db
-    .select({
-      p: productos,
-      modelo: modelos.nombre,
-      modeloOrden: modelos.orden,
-      familia: familias.nombre,
-    })
-    .from(productos)
-    .innerJoin(modelos, eq(modelos.id, productos.modeloId))
-    .innerJoin(familias, eq(familias.id, productos.familiaId))
-    .where(eq(productos.activo, true))
-    .orderBy(asc(modelos.orden), asc(productos.nombre));
+/**
+ * Lo que necesita la pantalla del trompo: todas las estanterias activas, si
+ * estan libres, y para cada una los tonos que se pueden llenar en ella.
+ *
+ * "Se pueden llenar" es exactamente la regla del motor: mismo modelo, misma
+ * familia y MISMO CEMENTO. Se calcula aca con el mismo criterio para que la
+ * pantalla nunca ofrezca algo que el motor despues rechaza.
+ */
+export async function estanteriasParaTrompo() {
+  const [ests, prods] = await Promise.all([
+    db
+      .select({
+        e: estanterias,
+        modelo: modelos.nombre,
+        modeloOrden: modelos.orden,
+        familia: familias.nombre,
+        familiaOrden: familias.orden,
+        ocupadaPor: sql<string | null>`(
+          select coalesce(upper(t.tarjeta_palabra), t.codigo) from ${tandas} t
+          where t.estanteria_id = ${estanterias.id}
+            and t.estado in ('patio','horno','a_desmoldar')
+          limit 1)`,
+      })
+      .from(estanterias)
+      .innerJoin(modelos, eq(modelos.id, estanterias.modeloId))
+      .innerJoin(familias, eq(familias.id, estanterias.familiaId))
+      .where(eq(estanterias.activa, true))
+      .orderBy(
+        asc(modelos.orden),
+        asc(modelos.nombre),
+        asc(familias.orden),
+        asc(familias.nombre),
+        asc(estanterias.numero),
+      ),
+    db.select().from(productos).where(eq(productos.activo, true)).orderBy(asc(productos.nombre)),
+  ]);
 
-  const disp = await disponibilidadDeMoldes();
-  const clave = (m: number, f: number) => `${m}:${f}`;
-  const porGrupo = new Map(disp.map((d) => [clave(d.modeloId, d.familiaId), d]));
+  return ests.map((x) => ({
+    id: x.e.id,
+    etiqueta: etiquetaPlaca(x.modelo, x.familia, x.e.numero),
+    modelo: x.modelo,
+    familia: x.familia,
+    cemento: x.e.cemento,
+    numero: x.e.numero,
+    moldes: x.e.moldes,
+    ocupadaPor: x.ocupadaPor,
+    productos: prods
+      .filter(
+        (p) =>
+          p.modeloId === x.e.modeloId &&
+          p.familiaId === x.e.familiaId &&
+          p.cemento === x.e.cemento,
+      )
+      .map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        piezasPorMolde: p.piezasPorMolde,
+        piezasPorPaquete: p.piezasPorPaquete,
+        m2PorPaquete: p.m2PorPaquete,
+      })),
+  }));
+}
 
-  return prods.map((x) => {
-    const g = porGrupo.get(clave(x.p.modeloId, x.p.familiaId));
-    return {
-      ...x.p,
-      modelo: x.modelo,
-      familia: x.familia,
-      libres: g?.libres ?? 0,
-      total: g?.total ?? 0,
-      // Nominal representativo del grupo, para prellenar el formulario.
-      moldesTipicos: g && g.total ? Math.round(g.moldes / g.total) : null,
-    };
-  });
+/**
+ * Cemento de la ultima tanda de cada trompo: con eso la pantalla sabe cuando
+ * preguntar por el lavado. El motor lo vuelve a verificar al guardar.
+ */
+export async function ultimoCementoPorTrompo(): Promise<Record<Trompo, Cemento | null>> {
+  const r = await db.execute(sql`
+    select distinct on (trompo) trompo, cemento
+    from ${tandas}
+    order by trompo, creada_en desc`);
+  const filas = r.rows as { trompo: Trompo; cemento: Cemento }[];
+  return {
+    a: filas.find((f) => f.trompo === "a")?.cemento ?? null,
+    b: filas.find((f) => f.trompo === "b")?.cemento ?? null,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -219,7 +279,7 @@ export function condicionesMovimientos(f: FiltroMovimientos): SQL[] {
   if (f.texto?.trim()) {
     const t = `%${f.texto.trim()}%`;
     w.push(
-      sql`(${movimientos.tandaCodigo} ilike ${t} or ${movimientos.productoNombre} ilike ${t})`,
+      sql`(${movimientos.tandaCodigo} ilike ${t} or ${movimientos.tandaPalabra} ilike ${t} or ${movimientos.productoNombre} ilike ${t})`,
     );
   }
   return w;
@@ -290,16 +350,25 @@ export async function listarEstanterias() {
       modelo: modelos.nombre,
       familia: familias.nombre,
       ocupadaPor: sql<string | null>`(
-        select t.codigo from ${tandas} t
+        select coalesce(upper(t.tarjeta_palabra), t.codigo) from ${tandas} t
         where t.estanteria_id = ${estanterias.id}
           and t.estado in ('patio','horno','a_desmoldar')
         order by t.creada_en desc limit 1)`,
+      reasignaciones: sql<number>`(
+        select count(*)::int from ${reasignaciones} r where r.estanteria_id = ${estanterias.id})`,
     })
     .from(estanterias)
     .innerJoin(modelos, eq(modelos.id, estanterias.modeloId))
     .innerJoin(familias, eq(familias.id, estanterias.familiaId))
-    .orderBy(asc(estanterias.codigo));
-  return filas.map((f) => ({ ...f.e, modelo: f.modelo, familia: f.familia, ocupadaPor: f.ocupadaPor }));
+    .orderBy(asc(modelos.orden), asc(modelos.nombre), asc(familias.orden), asc(estanterias.numero));
+  return filas.map((f) => ({
+    ...f.e,
+    modelo: f.modelo,
+    familia: f.familia,
+    etiqueta: etiquetaPlaca(f.modelo, f.familia, f.e.numero),
+    ocupadaPor: f.ocupadaPor,
+    reasignaciones: Number(f.reasignaciones),
+  }));
 }
 
 /** Tandas abiertas de una lista de estanterias: para avisar antes de dar de baja. */
@@ -314,4 +383,79 @@ export async function tandasAbiertasDe(estanteriaIds: number[]) {
         inArray(tandas.estado, RETIENEN),
       ),
     );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Recorrida y tarjetas                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Lo que DEBERIA verse en el piso ahora, para compararlo caminando.
+ *
+ * Es la defensa contra lo que se escapa: la identificacion es por lectura y no
+ * por escaneo (§10.8), asi que los errores no se pueden prevenir todos, pero si
+ * se pueden encontrar rapido. Una vez por dia, cinco minutos.
+ */
+export async function datosRecorrida() {
+  const [vivas, abiertos, perdidas] = await Promise.all([
+    db
+      .select()
+      .from(tandas)
+      .where(sql`${tandas.estado} <> 'listo'`)
+      .orderBy(asc(tandas.estadoDesde)),
+    db
+      .select({ a: avisos, palabra: tandas.tarjetaPalabra, codigo: tandas.codigo })
+      .from(avisos)
+      .leftJoin(tandas, eq(tandas.id, avisos.tandaId))
+      .where(isNull(avisos.resueltoEn))
+      .orderBy(desc(avisos.creadoEn)),
+    db
+      .select()
+      .from(tarjetas)
+      .where(isNotNull(tarjetas.perdidaDesde))
+      .orderBy(asc(tarjetas.letra), asc(tarjetas.orden)),
+  ]);
+  return { vivas, avisos: abiertos, perdidas };
+}
+
+/**
+ * Estado de todas las tarjetas, por letra: la vista del tablero de ganchos.
+ *
+ * Para cada tarjeta dice si deberia estar en su gancho (libre), colgada en una
+ * tanda (en uso), perdida, o si todavia no se fabrico. Es lo que hay que
+ * comparar con el tablero fisico para encontrar tarjetas que no volvieron.
+ */
+export async function estadoDeTarjetas() {
+  const [todas, enUso, cfg] = await Promise.all([
+    db.select().from(tarjetas).orderBy(asc(tarjetas.letra), asc(tarjetas.orden)),
+    db
+      .select({
+        tarjetaId: tandas.tarjetaId,
+        codigo: tandas.codigo,
+        estado: tandas.estado,
+        estadoDesde: tandas.estadoDesde,
+        producto: tandas.productoNombre,
+      })
+      .from(tandas)
+      .where(and(isNotNull(tandas.tarjetaId), sql`${tandas.estado} <> 'listo'`)),
+    db.select().from(config),
+  ]);
+
+  const usoPorTarjeta = new Map(enUso.map((u) => [u.tarjetaId, u]));
+  const fabricadas = Object.fromEntries(
+    LETRAS.map((l) => {
+      const c = cfg.find((x) => x.clave === claveFabricadas(l));
+      const n = c ? Number(c.valor) : NaN;
+      return [l, Number.isInteger(n) ? n : FABRICADAS_POR_DEFECTO[l]];
+    }),
+  ) as Record<Letra, number>;
+
+  return {
+    fabricadas,
+    tarjetas: todas.map((t) => ({
+      ...t,
+      fabricada: t.orden <= fabricadas[t.letra as Letra],
+      uso: usoPorTarjeta.get(t.id) ?? null,
+    })),
+  };
 }

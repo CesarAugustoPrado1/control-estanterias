@@ -13,6 +13,7 @@ import {
   Tarjeta,
 } from "@/components/ui";
 import { FormularioCorreccion } from "./correccion";
+import { ChipCemento, LetraDia, Placa } from "@/components/tanda";
 
 export const dynamic = "force-dynamic";
 
@@ -46,11 +47,17 @@ export default async function DetalleTanda({
 
   return (
     <Pantalla
-      titulo={t.codigo}
+      titulo={t.tarjetaPalabra ? t.tarjetaPalabra.toUpperCase() : t.codigo}
       bajada={
-        <>
-          {t.productoNombre} · {t.modeloNombre} · {t.familiaNombre}
-        </>
+        <span className="flex flex-wrap items-center gap-2">
+          {t.tarjetaPalabra && <LetraDia letra={t.tarjetaLetra} />}
+          {t.tarjetaPalabra && <span className="cifra">{t.codigo}</span>}
+          <span>
+            {t.productoNombre} · {t.modeloNombre} · {t.familiaNombre}
+          </span>
+          <Placa etiqueta={t.estanteriaEtiqueta} />
+          <ChipCemento cemento={t.cemento} />
+        </span>
       }
       acciones={<ChipEstado estado={t.estado} />}
     >
@@ -111,7 +118,8 @@ export default async function DetalleTanda({
         </div>
         <p className="mt-2 text-xs text-slate-500">
           {ETIQUETA_TROMPO[t.trompo]}
-          {estanteria && <> · estantería {estanteria.codigo}</>} · en este estado{" "}
+          {estanteria && <> · estantería {t.estanteriaEtiqueta ?? estanteria.codigo}</>}
+          {t.tarjetaPalabra && t.tarjetaOrden && <> · gancho {t.tarjetaOrden}</>} · en este estado{" "}
           {haceCuanto(t.estadoDesde)}
           {total > 0 && <> · ciclo acumulado {duracion(total)}</>}
         </p>

@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { autorizar } from "../auth";
 import { db } from "../db";
-import { estanterias, familias, modelos, productos } from "../db/schema";
+import { estanterias, familias, modelos, productos, type Cemento } from "../db/schema";
+import { codigoEstanteria, etiquetaPlaca } from "../tarjetas";
 import { ejecutar, fallar, type Resultado } from "./comun";
 
 /**
@@ -81,6 +82,12 @@ const ALIAS: Record<string, string> = {
   "metros por paquete": "m2PorPaquete",
   activo: "activo",
   activa: "activo",
+  cemento: "cemento",
+  "tipo de cemento": "cemento",
+  numero: "numero",
+  nro: "numero",
+  placa: "numero",
+  "numero de placa": "numero",
 };
 
 type Fila = { n: number; datos: Record<string, string> };
@@ -146,6 +153,14 @@ function aDecimal(v: string, campo: string, fila: number, hoja: string): string 
   return s;
 }
 
+/** Vacio es gris: es el caso normal, y el blanco se hace a pedido. */
+function aCemento(v: string, fila: number, hoja: string): Cemento {
+  const n = normalizar(v);
+  if (n === "" || n === "gris" || n === "g" || n === "cemento gris") return "gris";
+  if (n === "blanco" || n === "b" || n === "cemento blanco") return "blanco";
+  fallar(`${hoja}, fila ${fila}: "cemento" tiene que ser gris o blanco, y dice "${v}".`);
+}
+
 function aBooleano(v: string, pordefecto: boolean): boolean {
   const n = normalizar(v);
   if (n === "") return pordefecto;
@@ -166,6 +181,7 @@ type Plan = {
     piezasPorMolde: number;
     piezasPorPaquete: number;
     requiereTunel: boolean;
+    cemento: Cemento;
     m2PorPaquete: string | null;
     activo: boolean;
     idExistente: number | null;
@@ -175,6 +191,8 @@ type Plan = {
     codigo: string;
     modelo: string;
     familia: string;
+    cemento: Cemento;
+    numero: number;
     moldes: number;
     activa: boolean;
     idExistente: number | null;
@@ -273,12 +291,14 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
     }
     const m2 = aDecimal(p.datos.m2PorPaquete ?? "", "m2 por paquete", p.n, H);
     const tunel = aBooleano(p.datos.requiereTunel ?? "", true);
+    const cemento = aCemento(p.datos.cemento ?? "", p.n, H);
     const activo = aBooleano(p.datos.activo ?? "", true);
 
     const ya = prodPorNombre.get(normalizar(nombre));
     const cambia =
       !!ya &&
       (ya.piezasPorMolde !== ppm ||
+        ya.cemento !== cemento ||
         ya.piezasPorPaquete !== ppp ||
         ya.requiereTunel !== tunel ||
         ya.activo !== activo ||
@@ -291,6 +311,7 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
       piezasPorMolde: ppm,
       piezasPorPaquete: ppp,
       requiereTunel: tunel,
+      cemento,
       m2PorPaquete: m2,
       activo,
       idExistente: ya?.id ?? null,
@@ -301,16 +322,36 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
       fila: p.n,
       accion: !ya ? "crear" : cambia ? "actualizar" : "sin cambios",
       descripcion: nombre,
-      detalle: `${ppm} pieza(s)/molde · ${ppp} pieza(s)/paquete · ${tunel ? "con túnel" : "sin túnel"}${m2 ? ` · ${m2} m²` : ""}`,
+      detalle: `cemento ${cemento} · ${ppm} pieza(s)/molde · ${ppp} pieza(s)/paquete · ${tunel ? "con túnel" : "sin túnel"}${m2 ? ` · ${m2} m²` : ""}`,
     });
   }
 
   // --- Estanterias
+  //
+  // Se identifican por la placa (modelo + familia + numero), o por codigo si la
+  // planilla lo trae. Sin numero, se asigna el siguiente libre de ese modelo y
+  // familia: la planilla es tolerante con lo que falta y estricta con lo que
+  // esta mal.
+  //
+  // Lo que NO se hace desde la planilla: cambiar la familia o el cemento de una
+  // estanteria que ya existe. Es una reasignacion (§10.6): exige motivo y la
+  // estanteria vacia, y una planilla no puede dar ninguna de las dos cosas.
+  const nombreModelo = new Map(modBase.map((m) => [m.id, normalizar(m.nombre)]));
+  const nombreFamilia = new Map(famBase.map((f) => [f.id, normalizar(f.nombre)]));
+  const claveGrupo = (modelo: string, familia: string) => `${normalizar(modelo)}|${normalizar(familia)}`;
+  const placasUsadas = new Map<string, number>(); // "grupo|numero" -> id existente (0 = nueva)
+  const maxNumero = new Map<string, number>();
+  for (const e of estBase) {
+    const g = `${nombreModelo.get(e.modeloId)}|${nombreFamilia.get(e.familiaId)}`;
+    if (e.numero !== null) {
+      placasUsadas.set(`${g}|${e.numero}`, e.id);
+      maxNumero.set(g, Math.max(maxNumero.get(g) ?? 0, e.numero));
+    }
+  }
+
   const hojaEst = leerHoja(libro, ["Estanterias", "Estantería", "Estanterías"]) ?? [];
   for (const e of hojaEst) {
     const H = "Estanterias";
-    const codigo = e.datos.codigo?.trim() || e.datos.nombre?.trim() || "";
-    if (!codigo) fallar(`${H}, fila ${e.n}: falta el código.`);
     const modelo = e.datos.modelo?.trim() ?? "";
     const familia = e.datos.familia?.trim() ?? "";
     if (!conoceModelo(modelo)) fallar(`${H}, fila ${e.n}: el modelo "${modelo}" no existe.`);
@@ -319,15 +360,55 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
     if (moldes === null || moldes < 1) {
       fallar(`${H}, fila ${e.n}: cargá cuántos moldes tiene la estantería.`);
     }
+    const cemento = aCemento(e.datos.cemento ?? "", e.n, H);
     const activa = aBooleano(e.datos.activo ?? "", true);
+    const g = claveGrupo(modelo, familia);
 
-    const ya = estPorCodigo.get(normalizar(codigo));
-    const cambia = !!ya && (ya.moldes !== moldes || ya.activa !== activa);
+    let numero = aEntero(e.datos.numero ?? "", "numero", e.n, H);
+    const numeroAsignado = numero === null;
+    if (numero !== null && numero < 1) fallar(`${H}, fila ${e.n}: el número de placa empieza en 1.`);
+
+    const codigoPlanilla = e.datos.codigo?.trim() || null;
+    let ya = codigoPlanilla ? estPorCodigo.get(normalizar(codigoPlanilla)) : undefined;
+    if (!ya && numero !== null) {
+      const id = placasUsadas.get(`${g}|${numero}`);
+      ya = id ? estBase.find((x) => x.id === id) : undefined;
+    }
+    if (numero === null) {
+      numero = ya?.numero ?? (maxNumero.get(g) ?? 0) + 1;
+    }
+
+    if (ya) {
+      const g0 = `${nombreModelo.get(ya.modeloId)}|${nombreFamilia.get(ya.familiaId)}`;
+      if (g0 !== g || ya.cemento !== cemento) {
+        fallar(
+          `${H}, fila ${e.n}: la estantería ${ya.codigo} cambiaría de ${g0 !== g ? "modelo o familia" : "cemento"}. ` +
+            `Eso es una reasignación: se hace desde Admin → Estanterías, con motivo y con la estantería vacía.`,
+        );
+      }
+    }
+
+    const clavePlaca = `${g}|${numero}`;
+    const duenio = placasUsadas.get(clavePlaca);
+    if (duenio !== undefined && duenio !== (ya?.id ?? -1)) {
+      fallar(
+        `${H}, fila ${e.n}: ya hay otra estantería ${modelo.toUpperCase()} · ${familia.toUpperCase()} · ` +
+          `${String(numero).padStart(2, "0")}. El número de placa no se puede repetir.`,
+      );
+    }
+    placasUsadas.set(clavePlaca, ya?.id ?? 0);
+    maxNumero.set(g, Math.max(maxNumero.get(g) ?? 0, numero));
+
+    const codigo = codigoPlanilla ?? ya?.codigo ?? codigoEstanteria(modelo, familia, numero);
+    const cambia =
+      !!ya && (ya.moldes !== moldes || ya.activa !== activa || ya.numero !== numero || ya.codigo !== codigo);
 
     plan.estanterias.push({
       codigo,
       modelo,
       familia,
+      cemento,
+      numero,
       moldes,
       activa,
       idExistente: ya?.id ?? null,
@@ -337,8 +418,9 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
       hoja: H,
       fila: e.n,
       accion: !ya ? "crear" : cambia ? "actualizar" : "sin cambios",
-      descripcion: codigo,
-      detalle: `${modelo} · ${familia} · ${moldes} moldes`,
+      descripcion: etiquetaPlaca(modelo, familia, numero),
+      detalle:
+        `${moldes} moldes · cemento ${cemento}` + (numeroAsignado && !ya ? " · número asignado automáticamente" : ""),
     });
   }
 
@@ -428,6 +510,7 @@ export async function importarPlanilla(fd: FormData): Promise<Resultado<Analisis
           piezasPorMolde: p.piezasPorMolde,
           piezasPorPaquete: p.piezasPorPaquete,
           requiereTunel: p.requiereTunel,
+          cemento: p.cemento,
           m2PorPaquete: p.m2PorPaquete,
           activo: p.activo,
         };
@@ -443,6 +526,8 @@ export async function importarPlanilla(fd: FormData): Promise<Resultado<Analisis
           codigo: e.codigo,
           modeloId: mod.get(normalizar(e.modelo))!,
           familiaId: fam.get(normalizar(e.familia))!,
+          cemento: e.cemento,
+          numero: e.numero,
           moldes: e.moldes,
           activa: e.activa,
         };

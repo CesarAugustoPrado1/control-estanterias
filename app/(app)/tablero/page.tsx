@@ -13,6 +13,7 @@ import {
 } from "@/lib/estados";
 import { haceCuanto, numero } from "@/lib/formato";
 import type { Estado } from "@/lib/db/schema";
+import { ChipCemento } from "@/components/tanda";
 import {
   Contador,
   Pantalla,
@@ -181,13 +182,15 @@ export default async function Tablero({
             const sinNada = m.libres === 0;
             return (
               <Tarjeta
-                key={`${m.modeloId}-${m.familiaId}`}
+                key={`${m.modeloId}-${m.familiaId}-${m.cemento}`}
                 className={sinNada ? "ring-amber-300" : ""}
               >
                 <div className="text-sm font-semibold text-slate-800">
                   {m.modelo}
                 </div>
-                <div className="text-xs text-slate-500">{m.familia}</div>
+                <div className="flex flex-wrap items-center gap-1 text-xs text-slate-500">
+                  {m.familia} {m.cemento === "blanco" && <ChipCemento cemento="blanco" />}
+                </div>
                 <div className="mt-2 flex items-baseline gap-1">
                   <span
                     className={`cifra text-2xl font-bold ${sinNada ? "text-amber-700" : "text-slate-900"}`}

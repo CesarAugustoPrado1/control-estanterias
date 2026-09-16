@@ -7,6 +7,8 @@ import type { MotivoRotura, Tanda } from "@/lib/db/schema";
 import { convertir } from "@/lib/estados";
 import { haceCuanto, numero } from "@/lib/formato";
 import { usarAccion } from "@/components/usar-accion";
+import { LetraDia, NombreTanda } from "@/components/tanda";
+import { DIA_DE_LETRA, type Letra } from "@/lib/tarjetas";
 import {
   Aviso,
   Boton,
@@ -21,6 +23,14 @@ import {
 /** El tunel se lee del producto en vivo: no entra en el calculo de rotura. */
 type TandaEmpaque = Tanda & { requiereTunel: boolean };
 
+type Cerrada = {
+  palabra: string | null;
+  letra: string | null;
+  orden: number | null;
+  codigo: string;
+  paquetes: number;
+};
+
 export function PanelEmpaque({
   tandas,
   motivos,
@@ -29,12 +39,19 @@ export function PanelEmpaque({
   motivos: MotivoRotura[];
 }) {
   const [abierta, setAbierta] = useState<number | null>(null);
-
-  if (!tandas.length) {
-    return <Vacio>No hay tandas esperando empaque.</Vacio>;
-  }
+  /**
+   * La ultima tanda cerrada queda en un cartel fijo arriba: entre tocar el boton
+   * y llegar al tablero pasan unos segundos, y si la tarjeta no vuelve a su
+   * gancho, manana la app va a mandar a buscar una que no esta.
+   */
+  const [cerrada, setCerrada] = useState<Cerrada | null>(null);
 
   return (
+    <div className="space-y-3">
+      {cerrada && <Devolver c={cerrada} alCerrar={() => setCerrada(null)} />}
+      {!tandas.length ? (
+        <Vacio>No hay tandas esperando empaque.</Vacio>
+      ) : (
     <ul className="space-y-3">
       {tandas.map((t) => (
         <li key={t.id}>
@@ -44,10 +61,50 @@ export function PanelEmpaque({
             abierta={abierta === t.id}
             alAbrir={() => setAbierta(abierta === t.id ? null : t.id)}
             alCerrar={() => setAbierta(null)}
+            alTerminar={(c) => {
+              setAbierta(null);
+              setCerrada(c);
+            }}
           />
         </li>
       ))}
     </ul>
+      )}
+    </div>
+  );
+}
+
+function Devolver({ c, alCerrar }: { c: Cerrada; alCerrar: () => void }) {
+  if (!c.palabra || !c.letra || !(c.letra in DIA_DE_LETRA)) {
+    return (
+      <Aviso tono="ok">
+        Tanda {c.codigo} cerrada con {c.paquetes} paquetes. No tenía tarjeta del tablero: si le pusieron
+        una provisoria, sacala.
+        <button type="button" onClick={alCerrar} className="ml-2 font-semibold underline">
+          OK
+        </button>
+      </Aviso>
+    );
+  }
+  const d = DIA_DE_LETRA[c.letra as Letra];
+  return (
+    <div className="rounded-2xl p-5" style={{ backgroundColor: `${d.hex}22`, border: `3px solid ${d.hex}` }}>
+      <div className="text-sm font-semibold text-slate-700">
+        Cerrada con {c.paquetes} paquetes. Devolvé la tarjeta:
+      </div>
+      <div className="mt-2 flex items-center gap-3">
+        <LetraDia letra={c.letra} tamano="grande" />
+        <span className="text-4xl font-black tracking-wide text-slate-900">{c.palabra.toUpperCase()}</span>
+      </div>
+      <p className="mt-2 text-slate-800">
+        Al tablero del <strong>{d.dia}</strong> ({d.color}), gancho <strong className="cifra">{c.orden}</strong>.
+      </p>
+      <div className="mt-3">
+        <Boton type="button" onClick={alCerrar}>
+          Ya la devolví
+        </Boton>
+      </div>
+    </div>
   );
 }
 
@@ -57,12 +114,14 @@ function Fila({
   abierta,
   alAbrir,
   alCerrar,
+  alTerminar,
 }: {
   tanda: TandaEmpaque;
   motivos: MotivoRotura[];
   abierta: boolean;
   alAbrir: () => void;
   alCerrar: () => void;
+  alTerminar: (c: Cerrada) => void;
 }) {
   const router = useRouter();
   const previsto = convertir(
@@ -77,8 +136,14 @@ function Fila({
   const { enviar, cargando, error, reintentando, detalle } = usarAccion(
     accionEmpaquetar,
     {
-      alTerminar: () => {
-        alCerrar();
+      alTerminar: (r) => {
+        alTerminar({
+          palabra: r.palabra,
+          letra: r.letra,
+          orden: r.orden,
+          codigo: r.codigo,
+          paquetes: r.paquetes,
+        });
         router.refresh();
       },
     },
@@ -103,7 +168,7 @@ function Fila({
       >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="cifra font-bold text-slate-900">{tanda.codigo}</span>
+            <NombreTanda palabra={tanda.tarjetaPalabra} letra={tanda.tarjetaLetra} codigo={tanda.codigo} />
             {tanda.rehornear && <MarcaRehornear />}
             {!tanda.piezasPorPaquete || tanda.piezasPorPaquete === 1 ? null : (
               <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">

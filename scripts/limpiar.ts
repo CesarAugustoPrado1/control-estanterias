@@ -27,8 +27,10 @@ const ESQ = "estanterias";
 
 /** Orden de dependencias: lo que referencia va antes de lo referenciado. */
 const TABLAS = [
+  "avisos",
   "movimientos",
   "tandas",
+  "reasignaciones",
   "estanterias",
   "productos",
   "modelos",
@@ -38,7 +40,13 @@ const TABLAS = [
   "config",
 ] as const;
 
-const MOVIMIENTOS = ["movimientos", "tandas"] as const;
+/**
+ * `tarjetas` y `migraciones` no estan en ninguna lista, a proposito. Las tarjetas
+ * son las palabras ya decididas y se cargan desde el JSON: empezar de cero con
+ * datos reales no tiene por que perderlas. Las migraciones registran el esquema
+ * de la base, no datos: vaciarlas haria que se intenten aplicar de nuevo.
+ */
+const MOVIMIENTOS = ["avisos", "movimientos", "tandas"] as const;
 
 async function contar(tabla: string): Promise<number> {
   const r = await db.execute(
@@ -92,6 +100,8 @@ async function main() {
   // CASCADE es necesario porque las FK cruzan tablas del listado; RESTART
   // IDENTITY es el punto entero del script.
   await db.execute(sql.raw(`truncate table ${lista} restart identity cascade`));
+  // Las marcas de "perdida" de las pruebas no tienen que sobrevivir a la limpieza.
+  await db.execute(sql.raw(`update "${ESQ}"."tarjetas" set perdida_desde = null`));
 
   console.log("Listo. Secuencias reiniciadas en 1.\n");
 

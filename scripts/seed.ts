@@ -37,18 +37,19 @@ import {
   type Rol,
   type TipoMovimiento,
   type Trompo,
+  type Cemento,
 } from "../lib/db/schema";
+import { codigoEstanteria, etiquetaPlaca } from "../lib/tarjetas";
+import { cargarPalabras, repartirTarjetasHistoricas } from "./_tarjetas";
 
 /* -------------------------------------------------------------------------- */
 /* Datos inventados                                                           */
 /* -------------------------------------------------------------------------- */
 
-const FAMILIAS = [
-  "Gris — cemento gris",
-  "Negro — cemento gris",
-  "Rojo — cemento gris",
-  "Beige — cemento blanco",
-];
+/**
+ * Familias = color. El cemento NO va en el nombre: es un dato propio (§10.5).
+ */
+const FAMILIAS = ["Gris", "Negro", "Terracota", "Beige"];
 
 const MODELOS = ["Kamba", "Uhma", "Laja Serrana", "Ladrillo Colonial"];
 
@@ -68,27 +69,33 @@ const PRODUCTOS: {
   ppm: number;
   ppp: number;
   tunel: boolean;
+  cemento: Cemento;
   m2: string;
   peso: number;
 }[] = [
-  { nombre: "Kamba Gris Perla", modelo: "Kamba", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, m2: "0.2600", peso: 10 },
-  { nombre: "Kamba Gris Basalto", modelo: "Kamba", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, m2: "0.2600", peso: 7 },
-  { nombre: "Kamba Negro Volcan", modelo: "Kamba", familia: FAMILIAS[1], ppm: 1, ppp: 1, tunel: true, m2: "0.2600", peso: 4 },
-  { nombre: "Uhma Beige Arena", modelo: "Uhma", familia: FAMILIAS[3], ppm: 1, ppp: 2, tunel: true, m2: "0.5000", peso: 8 },
-  { nombre: "Uhma Beige Trigo", modelo: "Uhma", familia: FAMILIAS[3], ppm: 1, ppp: 2, tunel: true, m2: "0.5000", peso: 5 },
-  { nombre: "Laja Serrana Gris", modelo: "Laja Serrana", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, m2: "0.3300", peso: 6 },
-  { nombre: "Laja Serrana Beige", modelo: "Laja Serrana", familia: FAMILIAS[3], ppm: 1, ppp: 1, tunel: true, m2: "0.3300", peso: 4 },
-  { nombre: "Ladrillo Colonial Rojo", modelo: "Ladrillo Colonial", familia: FAMILIAS[2], ppm: 2, ppp: 1, tunel: false, m2: "0.1200", peso: 6 },
+  { nombre: "Kamba Gris Perla", modelo: "Kamba", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, cemento: "gris", m2: "0.2600", peso: 10 },
+  { nombre: "Kamba Gris Basalto", modelo: "Kamba", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, cemento: "gris", m2: "0.2600", peso: 7 },
+  { nombre: "Kamba Negro Volcan", modelo: "Kamba", familia: FAMILIAS[1], ppm: 1, ppp: 1, tunel: true, cemento: "gris", m2: "0.2600", peso: 4 },
+  { nombre: "Uhma Beige Arena", modelo: "Uhma", familia: FAMILIAS[3], ppm: 1, ppp: 2, tunel: true, cemento: "gris", m2: "0.5000", peso: 8 },
+  { nombre: "Uhma Beige Trigo", modelo: "Uhma", familia: FAMILIAS[3], ppm: 1, ppp: 2, tunel: true, cemento: "blanco", m2: "0.5000", peso: 5 },
+  { nombre: "Laja Serrana Gris", modelo: "Laja Serrana", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, cemento: "gris", m2: "0.3300", peso: 6 },
+  { nombre: "Laja Serrana Beige", modelo: "Laja Serrana", familia: FAMILIAS[3], ppm: 1, ppp: 1, tunel: true, cemento: "blanco", m2: "0.3300", peso: 4 },
+  { nombre: "Ladrillo Colonial Rojo", modelo: "Ladrillo Colonial", familia: FAMILIAS[2], ppm: 2, ppp: 1, tunel: false, cemento: "gris", m2: "0.1200", peso: 6 },
 ];
 
-/** Cuantas estanterias hay de cada par modelo+familia, y con cuantos moldes. */
-const ESTANTERIAS: { modelo: string; familia: string; cantidad: number; moldes: number }[] = [
-  { modelo: "Kamba", familia: FAMILIAS[0], cantidad: 14, moldes: 40 },
-  { modelo: "Kamba", familia: FAMILIAS[1], cantidad: 6, moldes: 40 },
-  { modelo: "Uhma", familia: FAMILIAS[3], cantidad: 12, moldes: 40 },
-  { modelo: "Laja Serrana", familia: FAMILIAS[0], cantidad: 8, moldes: 30 },
-  { modelo: "Laja Serrana", familia: FAMILIAS[3], cantidad: 6, moldes: 30 },
-  { modelo: "Ladrillo Colonial", familia: FAMILIAS[2], cantidad: 10, moldes: 40 },
+/**
+ * Cuantas estanterias hay de cada modelo + familia + cemento. El numero de placa
+ * corre por modelo + familia, sin importar el cemento, porque el cemento no va
+ * grabado: Uhma Beige 01 a 08 son de gris y 09 a 12 de blanco.
+ */
+const ESTANTERIAS: { modelo: string; familia: string; cemento: Cemento; cantidad: number; moldes: number }[] = [
+  { modelo: "Kamba", familia: FAMILIAS[0], cemento: "gris", cantidad: 14, moldes: 40 },
+  { modelo: "Kamba", familia: FAMILIAS[1], cemento: "gris", cantidad: 6, moldes: 40 },
+  { modelo: "Uhma", familia: FAMILIAS[3], cemento: "gris", cantidad: 8, moldes: 40 },
+  { modelo: "Uhma", familia: FAMILIAS[3], cemento: "blanco", cantidad: 4, moldes: 40 },
+  { modelo: "Laja Serrana", familia: FAMILIAS[0], cemento: "gris", cantidad: 8, moldes: 30 },
+  { modelo: "Laja Serrana", familia: FAMILIAS[3], cemento: "blanco", cantidad: 6, moldes: 30 },
+  { modelo: "Ladrillo Colonial", familia: FAMILIAS[2], cemento: "gris", cantidad: 10, moldes: 40 },
 ];
 
 const MOTIVOS = [
@@ -140,8 +147,6 @@ async function cargarMaestros() {
   // Una consulta por tabla y un insert masivo por tabla. La version anterior
   // consultaba fila por fila -unos 80 viajes- y la conexion se cortaba a mitad
   // de camino con `Connection terminated unexpectedly`.
-  const abrev = (s: string) => s.split(" ")[0].slice(0, 3).toUpperCase();
-
   const f = new Map<string, number>(
     (await db.select().from(familias)).map((x) => [x.nombre, x.id]),
   );
@@ -174,6 +179,7 @@ async function cargarMaestros() {
     piezasPorMolde: d.ppm,
     piezasPorPaquete: d.ppp,
     requiereTunel: d.tunel,
+    cemento: d.cemento,
     m2PorPaquete: d.m2,
   }));
   if (faltanP.length) {
@@ -185,12 +191,18 @@ async function cargarMaestros() {
     (await db.select().from(estanterias)).map((e) => [e.codigo, e]),
   );
   const faltanE: (typeof estanterias.$inferInsert)[] = [];
+  const siguiente = new Map<string, number>();
   for (const g of ESTANTERIAS) {
+    const clave = `${g.modelo}|${g.familia}`;
     for (let i = 1; i <= g.cantidad; i++) {
-      const codigo = `${abrev(g.modelo)}-${abrev(g.familia)}-${String(i).padStart(2, "0")}`;
+      const numero = (siguiente.get(clave) ?? 0) + 1;
+      siguiente.set(clave, numero);
+      const codigo = codigoEstanteria(g.modelo, g.familia, numero);
       if (porCodigo.has(codigo)) continue;
       faltanE.push({
         codigo,
+        numero,
+        cemento: g.cemento,
         modeloId: m.get(g.modelo)!,
         familiaId: f.get(g.familia)!,
         // Variacion real: estanterias del mismo producto no tienen exactamente
@@ -296,6 +308,7 @@ async function simular(maestros: Maestros) {
         (e) =>
           e.modeloId === prod.modeloId &&
           e.familiaId === prod.familiaId &&
+          e.cemento === prod.cemento &&
           (libreDesde.get(e.id) ?? 0) <= llenado,
       );
       if (!candidatas.length) continue; // sin moldes libres: no se llena. Pasa en serio.
@@ -418,6 +431,12 @@ async function simular(maestros: Maestros) {
         productoNombre: prod.nombre,
         modeloNombre: modPorId.get(prod.modeloId)!,
         familiaNombre: famPorId.get(prod.familiaId)!,
+        cemento: prod.cemento,
+        estanteriaEtiqueta: etiquetaPlaca(
+          modPorId.get(est.modeloId)!,
+          famPorId.get(est.familiaId)!,
+          est.numero,
+        ),
         piezasPorMolde: prod.piezasPorMolde,
         piezasPorPaquete: prod.piezasPorPaquete,
         m2PorPaquete: prod.m2PorPaquete,
@@ -493,10 +512,11 @@ async function main() {
 
   console.log("\nCargando maestros...");
   const m = await cargarMaestros();
+  const pal = await cargarPalabras();
   console.log(
     `  ${FAMILIAS.length} familias, ${MODELOS.length} modelos, ` +
       `${PRODUCTOS.length} productos, ${m.estanterias.length} estanterias, ` +
-      `${USUARIOS.length} usuarios`,
+      `${USUARIOS.length} usuarios, ${pal.creadas} tarjetas nuevas`,
   );
 
   if (!soloMaestros) {
@@ -510,6 +530,8 @@ async function main() {
       console.log("\nSimulando produccion...");
       const r = await simular(m);
       console.log(`  ${r.tandas} tandas, ${r.movimientos} movimientos`);
+      const t = await repartirTarjetasHistoricas();
+      console.log(`  ${t.asignadas} tandas con tarjeta, ${t.sinTarjeta} sin tarjeta libre en su dia`);
     }
   }
 

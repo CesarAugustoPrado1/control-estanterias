@@ -46,13 +46,13 @@ export default function Planilla() {
               <strong className="text-slate-900">Productos</strong>
               <div className="text-slate-600">
                 nombre · modelo · familia · piezas por molde · piezas por paquete
-                · pasa por tunel (si/no) · m2 por paquete
+                · pasa por tunel (si/no) · cemento (gris/blanco) · m2 por paquete
               </div>
             </div>
             <div>
               <strong className="text-slate-900">Estanterias</strong>
               <div className="text-slate-600">
-                codigo · modelo · familia · moldes
+                modelo · familia · numero (el de la placa) · cemento (gris/blanco) · moldes
               </div>
             </div>
           </div>

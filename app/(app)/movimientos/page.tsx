@@ -85,7 +85,7 @@ export default async function Movimientos({
             <Entrada
               name="texto"
               defaultValue={p.texto ?? ""}
-              placeholder="Código o producto"
+              placeholder="Palabra, código o producto"
             />
           </Campo>
           <Campo etiqueta="Tipo">
@@ -155,8 +155,11 @@ export default async function Movimientos({
                       href={`/tanda/${encodeURIComponent(m.tandaCodigo)}`}
                       className="text-blue-700 hover:underline"
                     >
-                      {m.tandaCodigo}
+                      {m.tandaPalabra ? m.tandaPalabra.toUpperCase() : m.tandaCodigo}
                     </Link>
+                    {m.tandaPalabra && (
+                      <div className="text-xs font-normal text-slate-400">{m.tandaCodigo}</div>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-slate-700">{m.productoNombre}</td>
                   <td className="px-3 py-2">

@@ -1,6 +1,12 @@
 import { requerirRol } from "@/lib/auth";
-import { cola, disponibilidadDeMoldes, productosParaLlenar } from "@/lib/consultas";
+import {
+  cola,
+  disponibilidadDeMoldes,
+  estanteriasParaTrompo,
+  ultimoCementoPorTrompo,
+} from "@/lib/consultas";
 import { haceCuanto, numero } from "@/lib/formato";
+import { ChipCemento, NombreTanda, Placa } from "@/components/tanda";
 import { Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
 import { PanelTrompo } from "./panel";
 
@@ -10,45 +16,41 @@ export const dynamic = "force-dynamic";
 export default async function Trompo() {
   await requerirRol("trompo");
 
-  const [productos, moldes, enPatio] = await Promise.all([
-    productosParaLlenar(),
+  const [estanterias, ultimoCemento, moldes, enPatio] = await Promise.all([
+    estanteriasParaTrompo(),
+    ultimoCementoPorTrompo(),
     disponibilidadDeMoldes(),
     cola("patio"),
   ]);
 
   const libres = moldes.reduce((a, m) => a + m.libres, 0);
   const total = moldes.reduce((a, m) => a + m.total, 0);
+  const recientes = [...enPatio].sort((a, b) => b.creadaEn.getTime() - a.creadaEn.getTime()).slice(0, 8);
 
   return (
-    <Pantalla
-      titulo="Trompo"
-      bajada="Registrá cada estantería apenas sale del trompo."
-    >
-      <PanelTrompo productos={productos} />
+    <Pantalla titulo="Trompo" bajada="Identificá la estantería por su placa antes de volcar.">
+      <PanelTrompo estanterias={estanterias} ultimoCemento={ultimoCemento} />
 
       <Seccion
-        titulo="Moldes libres ahora"
+        titulo="Estanterías libres ahora"
         cantidad={libres}
-        ayuda={`De ${numero(total)} estanterías. El resto está en el circuito y se libera al desmoldarse.`}
+        ayuda={`De ${numero(total)}. El resto está en el circuito y se libera al desmoldarse.`}
       >
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {moldes.map((m) => (
             <Tarjeta
-              key={`${m.modeloId}-${m.familiaId}`}
+              key={`${m.modeloId}-${m.familiaId}-${m.cemento}`}
               className={m.libres === 0 ? "ring-amber-300" : ""}
             >
-              <div className="truncate text-sm font-semibold text-slate-800">
-                {m.modelo}
+              <div className="truncate text-sm font-semibold text-slate-800">{m.modelo}</div>
+              <div className="flex flex-wrap items-center gap-1 text-xs text-slate-500">
+                {m.familia} {m.cemento === "blanco" && <ChipCemento cemento="blanco" />}
               </div>
-              <div className="truncate text-xs text-slate-500">{m.familia}</div>
               <div
                 className={`cifra mt-1 text-2xl font-bold ${m.libres === 0 ? "text-amber-700" : "text-slate-900"}`}
               >
                 {m.libres}
-                <span className="text-sm font-medium text-slate-500">
-                  {" "}
-                  / {m.total}
-                </span>
+                <span className="text-sm font-medium text-slate-500"> / {m.total}</span>
               </div>
             </Tarjeta>
           ))}
@@ -56,26 +58,23 @@ export default async function Trompo() {
       </Seccion>
 
       <Seccion titulo="Últimas que mandaste al patio" cantidad={enPatio.length}>
-        {enPatio.length === 0 ? (
+        {recientes.length === 0 ? (
           <Vacio>No hay nada fraguando en el patio.</Vacio>
         ) : (
           <ul className="space-y-2">
-            {enPatio.slice(0, 8).map((t) => (
+            {recientes.map((t) => (
               <li
                 key={t.id}
                 className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 text-sm shadow-sm ring-1 ring-slate-200"
               >
-                <div className="min-w-0">
-                  <span className="cifra font-bold text-slate-900">
-                    {t.codigo}
-                  </span>
-                  <span className="ml-2 truncate text-slate-600">
-                    {t.productoNombre}
-                  </span>
+                <div className="min-w-0 space-y-1">
+                  <NombreTanda palabra={t.tarjetaPalabra} letra={t.tarjetaLetra} codigo={t.codigo} />
+                  <div className="flex flex-wrap items-center gap-1 text-slate-600">
+                    <Placa etiqueta={t.estanteriaEtiqueta} />
+                    <span className="truncate">{t.productoNombre}</span>
+                  </div>
                 </div>
-                <span className="shrink-0 text-xs text-slate-500">
-                  {haceCuanto(t.estadoDesde)}
-                </span>
+                <span className="shrink-0 text-xs text-slate-500">{haceCuanto(t.creadaEn)}</span>
               </li>
             ))}
           </ul>

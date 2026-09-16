@@ -20,13 +20,6 @@ export default async function Estanterias() {
 
   const campos: CampoDef[] = [
     {
-      clave: "codigo",
-      etiqueta: "Código",
-      tipo: "texto",
-      requerido: true,
-      ayuda: "Interno y único. Por ejemplo KAM-GRI-01.",
-    },
-    {
       clave: "modeloId",
       etiqueta: "Modelo",
       tipo: "select",
@@ -41,11 +34,36 @@ export default async function Estanterias() {
       opciones: fams.map((f) => ({ valor: f.id, texto: f.nombre })),
     },
     {
+      clave: "numero",
+      etiqueta: "Número de placa",
+      tipo: "numero",
+      requerido: true,
+      ayuda: "El que va grabado. Único dentro del mismo modelo y familia.",
+    },
+    {
+      clave: "cemento",
+      etiqueta: "Cemento",
+      tipo: "select",
+      requerido: true,
+      opciones: [
+        { valor: "gris", texto: "Cemento gris" },
+        { valor: "blanco", texto: "Cemento blanco" },
+      ],
+      ayuda: "Las de cemento blanco llevan los laterales pintados de blanco.",
+    },
+    {
       clave: "moldes",
       etiqueta: "Cantidad de moldes",
       tipo: "numero",
       requerido: true,
       ayuda: "Los de ESTE grupo. Pueden ser 39, 38 o 40 entre estanterías del mismo producto.",
+    },
+    {
+      clave: "motivo",
+      etiqueta: "Motivo del cambio de familia o cemento",
+      tipo: "texto",
+      soloEdicion: true,
+      ayuda: "Solo si cambiás familia o cemento. Es una reasignación: se registra para medir cuánto costó.",
     },
     { clave: "activa", etiqueta: "Activa", tipo: "check", soloEdicion: true },
   ];
@@ -71,23 +89,28 @@ export default async function Estanterias() {
           campos={campos}
           filas={ests.map((e) => ({
             id: e.id,
-            titulo: e.codigo,
-            subtitulo: `${e.modelo} · ${e.familia} · ${e.moldes} moldes`,
+            titulo: e.etiqueta,
+            subtitulo: `${e.moldes} moldes · código interno ${e.codigo}`,
             etiquetas: [
+              ...(e.cemento === "blanco" ? [{ texto: "CEMENTO BLANCO", tono: "gris" as const }] : []),
+              ...(e.numero === null ? [{ texto: "sin número de placa", tono: "rojo" as const }] : []),
+              ...(e.reasignaciones ? [{ texto: `${e.reasignaciones} reasignación(es)`, tono: "gris" as const }] : []),
               ...(e.activa ? [] : [{ texto: "de baja", tono: "rojo" as const }]),
               ...(e.ocupadaPor
                 ? [{ texto: `en uso: ${e.ocupadaPor}`, tono: "ambar" as const }]
                 : [{ texto: "libre", tono: "verde" as const }]),
             ],
             valores: {
-              codigo: e.codigo,
               modeloId: e.modeloId,
               familiaId: e.familiaId,
+              numero: e.numero,
+              cemento: e.cemento,
               moldes: e.moldes,
+              motivo: "",
               activa: e.activa,
             },
             bloqueada: e.ocupadaPor
-              ? `La tanda ${e.ocupadaPor} está usando esta estantería. Podés corregir los datos, pero no darla de baja hasta que se desmolde.`
+              ? `La tanda ${e.ocupadaPor} está usando esta estantería. Podés corregir moldes o número, pero no cambiar familia ni cemento, ni darla de baja, hasta que se desmolde.`
               : undefined,
           }))}
           accion={guardarEstanteria}

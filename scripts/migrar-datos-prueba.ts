@@ -23,15 +23,10 @@
  *    el principio: cada tanda toma la primera libre de su dia, y la tarjeta
  *    vuelve al gancho cuando la tanda llego a `listo`.
  */
-import { asc, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, despertar } from "./_db";
-import { config, familias, tandas, tarjetas } from "../lib/db/schema";
-import {
-  FABRICADAS_POR_DEFECTO,
-  claveFabricadas,
-  letraDelDia,
-  type Letra,
-} from "../lib/tarjetas";
+import { familias } from "../lib/db/schema";
+import { repartirTarjetasHistoricas } from "./_tarjetas";
 
 const RENOMBRES: Record<string, string> = {
   "Gris — cemento gris": "Gris",
@@ -88,55 +83,12 @@ async function main() {
   console.log(`Snapshots de tandas actualizados: ${snap.rowCount ?? "?"}`);
 
   // 4. Tarjetas -----------------------------------------------------------------
-  const ya = await db.execute(sql`select count(*)::int n from estanterias.tandas where tarjeta_id is not null`);
-  if (Number((ya.rows[0] as { n: number }).n) > 0) {
-    console.log("Tarjetas: ya hay tandas con tarjeta, no se reparten de nuevo.");
-    return;
-  }
-  const todas = await db.select().from(tarjetas).orderBy(asc(tarjetas.letra), asc(tarjetas.orden));
-  if (!todas.length) {
-    console.log("Tarjetas: la tabla esta vacia. Correr antes `npm run db:palabras`.");
-    return;
-  }
-  const cfg = await db.select().from(config);
-  const fabricadas = (l: Letra) => {
-    const v = cfg.find((c) => c.clave === claveFabricadas(l));
-    return v ? Number(v.valor) : FABRICADAS_POR_DEFECTO[l];
-  };
-
-  const lista = await db.select().from(tandas).orderBy(asc(tandas.creadaEn), asc(tandas.id));
-  // tarjetaId -> momento en que vuelve al gancho (null = sigue colgada)
-  const ocupadaHasta = new Map<number, Date | null>();
-  let asignadas = 0;
-  let sinTarjeta = 0;
-
-  for (const t of lista) {
-    const letra = letraDelDia(t.creadaEn);
-    const candidata = todas.find((c) => {
-      if (c.letra !== letra || c.orden > fabricadas(letra) || !c.activa) return false;
-      if (!ocupadaHasta.has(c.id)) return true;
-      const hasta = ocupadaHasta.get(c.id);
-      return hasta !== null && hasta !== undefined && hasta <= t.creadaEn;
-    });
-    if (!candidata) {
-      sinTarjeta++;
-      continue;
-    }
-    ocupadaHasta.set(candidata.id, t.estado === "listo" ? t.estadoDesde : null);
-    await db
-      .update(tandas)
-      .set({
-        tarjetaId: candidata.id,
-        tarjetaPalabra: candidata.palabra,
-        tarjetaLetra: candidata.letra,
-        tarjetaOrden: candidata.orden,
-      })
-      .where(eq(tandas.id, t.id));
-    await db.execute(sql`
-      update estanterias.movimientos set tanda_palabra = ${candidata.palabra} where tanda_id = ${t.id}`);
-    asignadas++;
-  }
-  console.log(`Tarjetas: ${asignadas} tandas con palabra, ${sinTarjeta} sin tarjeta libre en su dia.`);
+  const r = await repartirTarjetasHistoricas();
+  console.log(
+    r.salteado
+      ? "Tarjetas: ya hay tandas con tarjeta, no se reparten de nuevo."
+      : `Tarjetas: ${r.asignadas} tandas con palabra, ${r.sinTarjeta} sin tarjeta libre en su dia.`,
+  );
 }
 
 main()

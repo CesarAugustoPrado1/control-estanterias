@@ -63,12 +63,14 @@ async function main() {
     ["", false],
     ["QUE ES CADA COSA", true],
     ["Modelo    = la forma de la pieza (Kamba, Uhma...). Define el molde.", false],
-    ["Familia   = con qué se puede compartir molde. Dos tonos de beige comparten", false],
-    ["            molde; un gris y un beige no, y cemento gris con cemento blanco", false],
-    ["            tampoco. Es el criterio de compatibilidad, no el color exacto.", false],
+    ["Familia   = el color: gris, beige, terracota... Dos tonos de beige comparten", false],
+    ["            molde; un gris y un beige no.", false],
+    ["Cemento   = gris o blanco. Tampoco se mezclan: para llenar una estantería,", false],
+    ["            modelo, familia y cemento tienen que coincidir.", false],
     ["Producto  = modelo x tono exacto. Es lo que se elige al llenar el trompo.", false],
     ["Estanteria= un grupo fijo de moldes. Los 40 moldes de una estantería son", false],
-    ["            siempre esos 40 y no se mezclan con los de otra.", false],
+    ["            siempre esos 40 y no se mezclan con los de otra. Se identifica", false],
+    ["            por su placa: MODELO · FAMILIA · NÚMERO.", false],
     ["", false],
     ["LAS DOS COLUMNAS QUE MAS SE PRESTAN A CONFUSION", true],
     ["piezas por molde   = cuántas piezas salen de UN molde (casi siempre 1;", false],
@@ -98,7 +100,7 @@ async function main() {
       header: "nombre",
       key: "nombre",
       width: 34,
-      nota: "Criterio de compatibilidad de molde. Ej: 'Gris cemento gris'.",
+      nota: "El color: Gris, Beige, Terracota. El cemento NO va acá: tiene su propia columna.",
     },
     {
       header: "orden",
@@ -108,8 +110,8 @@ async function main() {
     },
   ]);
   ejemplos(familias, [
-    ["Gris — cemento gris", 1],
-    ["Beige — cemento blanco", 2],
+    ["Gris", 1],
+    ["Beige", 2],
   ]);
 
   /* ------------------------------------------------------------------ */
@@ -163,6 +165,12 @@ async function main() {
       nota: "si / no. Los que no pasan igual se cuentan en la estación de empaque: ahí es donde se mide la rotura.",
     },
     {
+      header: "cemento",
+      key: "cemento",
+      width: 12,
+      nota: "gris o blanco. Vacío = gris. Uhma Beige con cemento gris y con cemento blanco son dos productos distintos.",
+    },
+    {
       header: "m2 por paquete",
       key: "m2",
       width: 16,
@@ -170,21 +178,15 @@ async function main() {
     },
   ]);
   ejemplos(productos, [
-    ["Kamba Gris Perla", "Kamba", "Gris — cemento gris", 1, 1, "si", 0.26],
-    ["Kamba Gris Basalto", "Kamba", "Gris — cemento gris", 1, 1, "si", 0.26],
-    ["Uhma Beige Arena", "Uhma", "Beige — cemento blanco", 1, 2, "si", 0.5],
-    ["Uhma Beige Trigo", "Uhma", "Beige — cemento blanco", 2, 1, "no", 0.18],
+    ["Kamba Gris Perla", "Kamba", "Gris", 1, 1, "si", "gris", 0.26],
+    ["Kamba Gris Basalto", "Kamba", "Gris", 1, 1, "si", "gris", 0.26],
+    ["Uhma Beige", "Uhma", "Beige", 1, 2, "si", "gris", 0.5],
+    ["Uhma Beige Blanco", "Uhma", "Beige", 1, 2, "si", "blanco", 0.5],
   ]);
 
   /* ------------------------------------------------------------------ */
   const estanterias = libro.addWorksheet("Estanterias");
   encabezar(estanterias, [
-    {
-      header: "codigo",
-      key: "codigo",
-      width: 18,
-      nota: "Identificador interno, único. Ej: KAM-GRI-1. Si hoy no las distinguís en el piso, numeralas igual: el sistema cuenta cuántas hay libres de cada modelo+familia.",
-    },
     {
       header: "modelo",
       key: "modelo",
@@ -198,6 +200,18 @@ async function main() {
       nota: "Tiene que existir en la hoja Familias.",
     },
     {
+      header: "numero",
+      key: "numero",
+      width: 10,
+      nota: "El número que va grabado en la placa: MODELO · FAMILIA · NÚMERO. No se repite dentro del mismo modelo y familia. Si lo dejás vacío se asigna el siguiente.",
+    },
+    {
+      header: "cemento",
+      key: "cemento",
+      width: 12,
+      nota: "gris o blanco. Vacío = gris. Las de cemento blanco llevan los laterales pintados de blanco.",
+    },
+    {
       header: "moldes",
       key: "moldes",
       width: 12,
@@ -205,11 +219,11 @@ async function main() {
     },
   ]);
   ejemplos(estanterias, [
-    ["KAM-GRI-1", "Kamba", "Gris — cemento gris", 40],
-    ["KAM-GRI-2", "Kamba", "Gris — cemento gris", 39],
-    ["UHM-BEI-1", "Uhma", "Beige — cemento blanco", 39],
-    ["UHM-BEI-2", "Uhma", "Beige — cemento blanco", 38],
-    ["UHM-BEI-3", "Uhma", "Beige — cemento blanco", 40],
+    ["Kamba", "Gris", 1, "gris", 40],
+    ["Kamba", "Gris", 2, "gris", 39],
+    ["Uhma", "Beige", 1, "gris", 39],
+    ["Uhma", "Beige", 2, "gris", 38],
+    ["Uhma", "Beige", 3, "blanco", 40],
   ]);
 
   await libro.xlsx.writeFile("plantilla-datos.xlsx");

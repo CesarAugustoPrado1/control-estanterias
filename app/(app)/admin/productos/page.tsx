@@ -51,6 +51,17 @@ export default async function Productos() {
       tipo: "decimal",
       ayuda: "Por ejemplo 0,26. Es lo que convierte la producción a m².",
     },
+    {
+      clave: "cemento",
+      etiqueta: "Cemento",
+      tipo: "select",
+      requerido: true,
+      opciones: [
+        { valor: "gris", texto: "Cemento gris" },
+        { valor: "blanco", texto: "Cemento blanco" },
+      ],
+      ayuda: "Solo se puede llenar en estanterías del mismo cemento.",
+    },
     { clave: "requiereTunel", etiqueta: "Pasa por el túnel", tipo: "check" },
     { clave: "activo", etiqueta: "Activo", tipo: "check", soloEdicion: true },
   ];
@@ -63,6 +74,7 @@ export default async function Productos() {
       subtitulo: `${x.modelo} · ${x.familia} · 40 moldes dan ${ej.paquetes} paquetes${x.p.m2PorPaquete ? ` · ${x.p.m2PorPaquete} m²/paq` : ""}`,
       etiquetas: [
         ...(x.p.activo ? [] : [{ texto: "de baja", tono: "rojo" as const }]),
+        ...(x.p.cemento === "blanco" ? [{ texto: "CEMENTO BLANCO", tono: "gris" as const }] : []),
         ...(x.p.requiereTunel ? [] : [{ texto: "sin túnel", tono: "ambar" as const }]),
         ...(x.p.piezasPorPaquete > 1
           ? [{ texto: `${x.p.piezasPorPaquete} piezas/paquete`, tono: "gris" as const }]
@@ -79,6 +91,7 @@ export default async function Productos() {
         piezasPorPaquete: x.p.piezasPorPaquete,
         m2PorPaquete: x.p.m2PorPaquete ?? "",
         requiereTunel: x.p.requiereTunel,
+        cemento: x.p.cemento,
         activo: x.p.activo,
       },
     };
