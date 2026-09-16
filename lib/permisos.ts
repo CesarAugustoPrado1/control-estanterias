@@ -47,9 +47,25 @@ export function navegacionDe(rol: Rol): Entrada[] {
   return NAVEGACION.filter((e) => e.roles.includes(rol));
 }
 
+/**
+ * Rutas que no estan en la barra pero igual tienen permiso propio.
+ *
+ * El detalle de una tanda se llega desde el historial o escaneando su codigo,
+ * no desde un menu: seria una entrada que nunca se toca. Pero sigue
+ * necesitando control de acceso, asi que vive aca y no en NAVEGACION.
+ */
+export const RUTAS_EXTRA: Entrada[] = [
+  {
+    href: "/tanda",
+    etiqueta: "Detalle de tanda",
+    roles: ["admin", "oficina", "auditor", "trompo", "horno", "desmolde", "empaque"],
+  },
+];
+
 export function puedeVer(rol: Rol, ruta: string): boolean {
   if (rol === "admin") return true;
-  const entrada = NAVEGACION.filter((e) => ruta === e.href || ruta.startsWith(e.href + "/"))
+  const entrada = [...NAVEGACION, ...RUTAS_EXTRA]
+    .filter((e) => ruta === e.href || ruta.startsWith(e.href + "/"))
     // La ruta mas especifica gana: /admin/productos antes que /admin.
     .sort((a, b) => b.href.length - a.href.length)[0];
   return entrada ? entrada.roles.includes(rol) : false;

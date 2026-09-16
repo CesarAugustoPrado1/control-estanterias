@@ -148,8 +148,15 @@ export default async function Movimientos({
                   <td className="whitespace-nowrap px-3 py-2 text-slate-600">
                     {fechaHora(m.creadoEn)}
                   </td>
-                  <td className="cifra whitespace-nowrap px-3 py-2 font-semibold text-slate-900">
-                    {m.tandaCodigo}
+                  <td className="cifra whitespace-nowrap px-3 py-2 font-semibold">
+                    {/* El codigo es la puerta a la ficha: es el numero que
+                        aparece en un reclamo y por el que se pregunta. */}
+                    <Link
+                      href={`/tanda/${encodeURIComponent(m.tandaCodigo)}`}
+                      className="text-blue-700 hover:underline"
+                    >
+                      {m.tandaCodigo}
+                    </Link>
                   </td>
                   <td className="px-3 py-2 text-slate-700">{m.productoNombre}</td>
                   <td className="px-3 py-2">

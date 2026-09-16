@@ -52,15 +52,24 @@ export async function colaEmpaque() {
   return filas.map((f) => ({ ...f.t, requiereTunel: f.requiereTunel }));
 }
 
-export async function tandaPorId(id: number) {
-  const [t] = await db.select().from(tandas).where(eq(tandas.id, id));
-  if (!t) return null;
-  const movs = await db
+/** Ficha completa de una tanda: sus datos y toda su linea de tiempo. */
+export async function tandaPorCodigo(codigo: string) {
+  const [t] = await db
     .select()
-    .from(movimientos)
-    .where(eq(movimientos.tandaId, id))
-    .orderBy(asc(movimientos.creadoEn), asc(movimientos.id));
-  return { tanda: t, movimientos: movs };
+    .from(tandas)
+    .where(sql`upper(${tandas.codigo}) = upper(${codigo})`);
+  if (!t) return null;
+  const [movs, est] = await Promise.all([
+    db
+      .select()
+      .from(movimientos)
+      .where(eq(movimientos.tandaId, t.id))
+      .orderBy(asc(movimientos.creadoEn), asc(movimientos.id)),
+    t.estanteriaId
+      ? db.select().from(estanterias).where(eq(estanterias.id, t.estanteriaId))
+      : Promise.resolve([]),
+  ]);
+  return { tanda: t, movimientos: movs, estanteria: est[0] ?? null };
 }
 
 /* -------------------------------------------------------------------------- */
