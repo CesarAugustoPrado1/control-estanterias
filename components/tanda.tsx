@@ -121,8 +121,18 @@ export function Placa({ etiqueta, grande = false }: { etiqueta: string | null; g
 /**
  * Una tanda que lleva en su estado mucho mas de lo razonable casi siempre tiene
  * un movimiento sin registrar. No es una alarma de demora: es "esto no cierra".
+ *
+ * `exentos` son los estados cuya espera ya esta explicada por un desvio abierto
+ * (tunel roto, corte de luz). La marca sirve porque casi siempre acierta: un
+ * corte de luz que pinta de rojo veinte palets la vuelve ruido, y una marca que
+ * se ignora es peor que no tenerla.
  */
-export function esSospechosa(estado: string, desde: Date | string): boolean {
+export function esSospechosa(
+  estado: string,
+  desde: Date | string,
+  exentos: readonly string[] = [],
+): boolean {
+  if (exentos.includes(estado)) return false;
   const umbral = HORAS_SOSPECHOSAS[estado as keyof typeof HORAS_SOSPECHOSAS];
   if (!umbral) return false;
   const f = typeof desde === "string" ? new Date(desde) : desde;
@@ -133,6 +143,15 @@ export function MarcaSospechosa() {
   return (
     <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
       ¿FALTA REGISTRAR?
+    </span>
+  );
+}
+
+/** Espera explicada por un desvio abierto: no es un movimiento sin registrar. */
+export function MarcaDesvio() {
+  return (
+    <span className="inline-flex items-center rounded-full bg-violet-600 px-2 py-0.5 text-xs font-bold text-white">
+      EMPAQUE PARADO
     </span>
   );
 }

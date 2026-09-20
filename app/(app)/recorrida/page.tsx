@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { requerirRol } from "@/lib/auth";
 import { datosRecorrida, estadoDeTarjetas } from "@/lib/consultas";
-import type { Estado } from "@/lib/db/schema";
+import type { Estado, TipoAviso } from "@/lib/db/schema";
 import { TITULO_ESTADO } from "@/lib/estados";
 import { fechaHora, haceCuanto } from "@/lib/formato";
 import { DIA_DE_LETRA, LETRAS } from "@/lib/tarjetas";
 import {
   ChipCemento,
   LetraDia,
+  MarcaDesvio,
   MarcaSospechosa,
   NombreTanda,
   Placa,
@@ -20,6 +21,12 @@ export const metadata = { title: "Recorrida · Control de Estanterías" };
 export const dynamic = "force-dynamic";
 
 /** Donde tiene que estar fisicamente la tarjeta en cada estado. */
+const ETIQUETA_AVISO: Record<TipoAviso, string> = {
+  tarjeta_no_coincide: "PLACA NO COINCIDE",
+  tarjeta_perdida: "TARJETA PERDIDA",
+  empaque_parado: "EMPAQUE PARADO",
+};
+
 const DONDE: Record<Exclude<Estado, "listo">, string> = {
   patio: "colgada en la estantería, en el patio",
   horno: "colgada en la estantería, adentro del horno",
@@ -44,7 +51,14 @@ export default async function Recorrida() {
     estadoDeTarjetas(),
   ]);
 
-  const sospechosas = vivas.filter((t) => esSospechosa(t.estado, t.estadoDesde));
+  /**
+   * Con el empaque parado, los palets que esperan NO son movimientos sin
+   * registrar: su espera ya esta explicada. Si igual se los marcara, un corte
+   * de luz llenaria la pantalla de rojo y la marca dejaria de mirarse.
+   */
+  const parado = avisos.find(({ a }) => a.tipo === "empaque_parado") ?? null;
+  const exentos = parado ? (["a_empaquetar"] as const) : [];
+  const sospechosas = vivas.filter((t) => esSospechosa(t.estado, t.estadoDesde, exentos));
   const estados = ["patio", "horno", "a_desmoldar", "a_empaquetar"] as const;
 
   return (
@@ -52,6 +66,24 @@ export default async function Recorrida() {
       titulo="Recorrida"
       bajada="Lo que debería haber en el piso ahora. Caminá, compará y anotá lo que no coincida."
     >
+      {parado && (
+        <div className="mb-6 rounded-2xl border-4 border-violet-500 bg-violet-50 p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded bg-violet-600 px-2 py-0.5 text-xs font-bold text-white">
+              EMPAQUE PARADO
+            </span>
+            <span className="text-sm text-violet-900">
+              {parado.a.usuarioNombre} · {fechaHora(parado.a.creadoEn)}
+            </span>
+          </div>
+          <p className="mt-1 text-xl font-bold text-slate-900">{parado.a.texto}</p>
+          <p className="mt-1 text-sm text-violet-900">
+            Los palets que esperan empaque no se cuentan como movimientos sin registrar
+            mientras esto esté abierto. Lo cierra el empaque cuando vuelve a andar.
+          </p>
+        </div>
+      )}
+
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tarjeta className={avisos.length ? "ring-red-300" : ""}>
           <div className="text-sm text-slate-600">Avisos abiertos</div>
@@ -88,7 +120,7 @@ export default async function Recorrida() {
               <li key={a.id} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-red-200">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800">
-                    {a.tipo === "tarjeta_perdida" ? "TARJETA PERDIDA" : "PLACA NO COINCIDE"}
+                    {ETIQUETA_AVISO[a.tipo]}
                   </span>
                   {codigo && (
                     <Link href={`/tanda/${codigo}`} className="font-semibold text-blue-700 hover:underline">
@@ -113,15 +145,27 @@ export default async function Recorrida() {
           cantidad={sospechosas.length}
           ayuda="Tandas que llevan en su estado mucho más de lo normal. Casi siempre es un movimiento que no se cargó: fijate dónde están de verdad."
         >
-          <ListaTandas tandas={sospechosas} />
+          <ListaTandas tandas={sospechosas} exentos={exentos} />
         </Seccion>
       )}
 
       {estados.map((e) => {
         const lista = vivas.filter((t) => t.estado === e);
         return (
-          <Seccion key={e} titulo={TITULO_ESTADO[e]} cantidad={lista.length} ayuda={`La tarjeta tiene que estar ${DONDE[e]}.`}>
-            {lista.length === 0 ? <Vacio>Nada en este estado.</Vacio> : <ListaTandas tandas={lista} />}
+          <Seccion
+            key={e}
+            titulo={TITULO_ESTADO[e]}
+            cantidad={lista.length}
+            ayuda={
+              `La tarjeta tiene que estar ${DONDE[e]}.` +
+              (e === "a_empaquetar" && parado ? " El empaque está parado: la espera es esperable." : "")
+            }
+          >
+            {lista.length === 0 ? (
+              <Vacio>Nada en este estado.</Vacio>
+            ) : (
+              <ListaTandas tandas={lista} exentos={exentos} />
+            )}
           </Seccion>
         );
       })}
@@ -185,7 +229,13 @@ export default async function Recorrida() {
   );
 }
 
-function ListaTandas({ tandas }: { tandas: Awaited<ReturnType<typeof datosRecorrida>>["vivas"] }) {
+function ListaTandas({
+  tandas,
+  exentos = [],
+}: {
+  tandas: Awaited<ReturnType<typeof datosRecorrida>>["vivas"];
+  exentos?: readonly string[];
+}) {
   return (
     <ul className="space-y-2">
       {tandas.map((t) => (
@@ -198,7 +248,9 @@ function ListaTandas({ tandas }: { tandas: Awaited<ReturnType<typeof datosRecorr
             <Placa etiqueta={t.estanteriaEtiqueta} />
             {t.cemento === "blanco" && <ChipCemento cemento="blanco" />}
             {t.rehornear && <MarcaRehornear />}
-            {esSospechosa(t.estado, t.estadoDesde) && <MarcaSospechosa />}
+            {esSospechosa(t.estado, t.estadoDesde, exentos) && <MarcaSospechosa />}
+            {/* Llevaba de sobra, pero el desvio lo explica: se dice, no se marca en rojo. */}
+            {exentos.includes(t.estado) && esSospechosa(t.estado, t.estadoDesde) && <MarcaDesvio />}
             <span className="text-sm text-slate-600">{t.productoNombre}</span>
             <span className="ml-auto text-xs text-slate-500">{haceCuanto(t.estadoDesde)}</span>
           </Link>

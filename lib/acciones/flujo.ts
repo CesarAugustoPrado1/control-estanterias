@@ -80,6 +80,26 @@ export async function accionResolverAviso(fd: FormData): Promise<Resultado<void>
   });
 }
 
+/**
+ * El desvio lo abre y lo cierra el puesto que lo sufre, no la oficina: el que
+ * ve el tunel roto es el de empaque, y si tuviera que pedirlo no lo pediria.
+ */
+export async function accionEmpaqueParado(fd: FormData): Promise<Resultado<void>> {
+  return ejecutar(async () => {
+    const sesion = await autorizar("empaque", "desmolde", "oficina");
+    await motor.abrirEmpaqueParado(sesion, String(fd.get("texto") ?? ""));
+    refrescar("/empaque", "/recorrida");
+  });
+}
+
+export async function accionEmpaqueAnda(fd: FormData): Promise<Resultado<void>> {
+  return ejecutar(async () => {
+    const sesion = await autorizar("empaque", "desmolde", "oficina");
+    await motor.cerrarEmpaqueParado(sesion, String(fd.get("nota") ?? ""));
+    refrescar("/empaque", "/recorrida");
+  });
+}
+
 export async function accionTarjetaEncontrada(fd: FormData): Promise<Resultado<string>> {
   return ejecutar(async () => {
     await autorizar();

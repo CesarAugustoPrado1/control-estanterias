@@ -95,6 +95,9 @@ function mensajeDeChoque(e: unknown): string | null {
   if (constraint.includes("tandas_tarjeta_en_uso")) {
     return "Esa tarjeta ya está colgada en otra tanda que no se empaquetó. Actualizá la pantalla.";
   }
+  if (constraint.includes("avisos_empaque_parado")) {
+    return "Alguien acaba de avisar que el empaque está parado. Actualizá la pantalla.";
+  }
   if (constraint.includes("estanterias_placa")) {
     return "Ya hay una estantería con ese modelo, familia y número de placa.";
   }

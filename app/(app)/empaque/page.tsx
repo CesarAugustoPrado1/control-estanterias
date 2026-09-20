@@ -1,6 +1,8 @@
 import { requerirRol } from "@/lib/auth";
-import { colaEmpaque, listarMotivos } from "@/lib/consultas";
+import { colaEmpaque, empaqueParado, listarMotivos } from "@/lib/consultas";
+import { haceCuanto } from "@/lib/formato";
 import { Aviso, Pantalla, Seccion } from "@/components/ui";
+import { Desvio } from "./desvio";
 import { PanelEmpaque } from "./panel";
 
 export const metadata = { title: "Empaque · Control de Estanterías" };
@@ -8,9 +10,10 @@ export const dynamic = "force-dynamic";
 
 export default async function Empaque() {
   await requerirRol("empaque");
-  const [tandas, motivos] = await Promise.all([
+  const [tandas, motivos, parado] = await Promise.all([
     colaEmpaque(),
     listarMotivos(),
+    empaqueParado(),
   ]);
 
   const sinTunel = tandas.filter((t) => !t.requiereTunel).length;
@@ -20,6 +23,19 @@ export default async function Empaque() {
       titulo="Empaque"
       bajada="Contá los paquetes y cerrá la tanda. Lo más viejo primero."
     >
+      {/* El texto relativo se arma en el servidor y viaja como prop: el cliente
+          no lo recalcula, asi que no hay diferencia de hidratacion. */}
+      <Desvio
+        parado={
+          parado
+            ? {
+                texto: parado.texto,
+                usuarioNombre: parado.usuarioNombre,
+                desde: haceCuanto(parado.creadoEn),
+              }
+            : null
+        }
+      />
       {sinTunel > 0 && (
         <div className="mb-4">
           <Aviso>

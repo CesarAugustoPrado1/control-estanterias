@@ -866,6 +866,60 @@ export async function resolverAviso(sesion: Sesion, avisoId: number, resolucion:
   if (!r.length) fallar("Ese aviso ya estaba resuelto. Actualizá la pantalla.");
 }
 
+/**
+ * El empaque se paro por un desvio: tunel roto, corte de luz.
+ *
+ * No mueve ninguna tanda ni toca ningun numero. Los palets siguen esperando
+ * donde estan -la estanteria ya se libero en el desmolde, asi que el trompo no
+ * se entera- y lo unico que cambia es que la espera queda EXPLICADA: mientras
+ * el desvio este abierto, la recorrida no marca los palets con "¿falta
+ * registrar?".
+ *
+ * Esa marca vale porque casi siempre acierta. Un corte de luz que pinta de rojo
+ * veinte palets la convierte en ruido, y una marca que se ignora es peor que no
+ * tenerla.
+ */
+export async function abrirEmpaqueParado(sesion: Sesion, texto: string) {
+  const motivo = texto.trim();
+  if (!motivo) {
+    fallar("Escribí por qué está parado el empaque (túnel roto, corte de luz…).");
+  }
+  const [ya] = await db
+    .select()
+    .from(avisos)
+    .where(and(eq(avisos.tipo, "empaque_parado"), isNull(avisos.resueltoEn)))
+    .limit(1);
+  if (ya) {
+    fallar(`Ya hay un desvío abierto: "${ya.texto}". Cerrá ese antes de abrir otro.`);
+  }
+  await db.insert(avisos).values({
+    tipo: "empaque_parado",
+    texto: motivo,
+    usuarioId: sesion.id,
+    usuarioNombre: sesion.nombre,
+  });
+}
+
+/**
+ * El empaque volvio a andar.
+ *
+ * Los palets que sigan esperando despues de esto vuelven a marcarse solos a las
+ * 72 h, y esta bien que asi sea: pasado el desvio, un palet todavia parado es
+ * algo para ir a mirar.
+ */
+export async function cerrarEmpaqueParado(sesion: Sesion, nota: string) {
+  const r = await db
+    .update(avisos)
+    .set({
+      resueltoEn: new Date(),
+      resueltoPor: sesion.nombre,
+      resolucion: nota.trim() || "El empaque volvió a andar.",
+    })
+    .where(and(eq(avisos.tipo, "empaque_parado"), isNull(avisos.resueltoEn)))
+    .returning({ id: avisos.id });
+  if (!r.length) fallar("No había ningún desvío abierto. Actualizá la pantalla.");
+}
+
 /** Una tarjeta marcada como perdida aparecio: vuelve a poder asignarse. */
 export async function tarjetaEncontrada(tarjetaId: number) {
   const r = await db

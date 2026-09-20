@@ -126,6 +126,12 @@ export const tipoAvisoEnum = esq.enum("tipo_aviso", [
   "tarjeta_no_coincide",
   /** El trompo no encontro en el tablero la tarjeta que indico la app. */
   "tarjeta_perdida",
+  /**
+   * El empaque esta parado por un desvio (tunel roto, corte de luz). No es
+   * cosa de una tanda: explica por que TODOS los palets estan esperando. Se
+   * agrego despues, asi que va ultimo: `ALTER TYPE ... ADD VALUE` appendea.
+   */
+  "empaque_parado",
 ]);
 
 /**
@@ -570,7 +576,16 @@ export const avisos = esq.table(
     resueltoPor: text("resuelto_por"),
     resolucion: text("resolucion"),
   },
-  (t) => [index("avisos_abiertos_idx").on(t.resueltoEn)],
+  (t) => [
+    index("avisos_abiertos_idx").on(t.resueltoEn),
+    /**
+     * Un solo desvio de empaque abierto a la vez. Con dos, nadie sabria cual
+     * cerrar cuando el tunel vuelve a andar.
+     */
+    uniqueIndex("avisos_empaque_parado_idx")
+      .on(t.tipo)
+      .where(sql`tipo = 'empaque_parado' and resuelto_en is null`),
+  ],
 );
 
 /**

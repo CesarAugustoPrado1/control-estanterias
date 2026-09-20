@@ -248,6 +248,7 @@ movimientos      tanda_id + codigo y palabra (snapshot), tipo, estado_desde,
                  moldes_llenados?, paquetes?, motivo_fraguado?, nota, creado_en
 avisos           tipo, tanda_id?, tarjeta_id?, texto, usuario, creado_en,
                  resuelto_en?, resuelto_por?, resolucion?            (§10.8)
+                 -- tipo empaque_parado: no cuelga de ninguna tanda
 reasignaciones   estanteria_id, etiqueta, familia y cemento antes/después,
                  motivo, usuario, creado_en                          (§10.6)
 motivos_rotura   nombre, activo
@@ -524,6 +525,12 @@ Cada una costó un rato encontrarla. Quedan anotadas para no volver a pagarlas:
   para `numeric`. Hay que castear antes de redondear.
 - **Checkbox destildado = campo ausente.** Un casillero sin tildar no viaja en el
   `FormData`. Leer `fd.get(...) === null` como "sí" deja imposible dar de baja nada.
+- **Un valor nuevo de enum no se puede usar en la misma transacción.** Postgres
+  acepta `ALTER TYPE ... ADD VALUE` dentro de una transacción, pero rechaza
+  *nombrar* ese valor hasta que la transacción commitee (*unsafe use of new value
+  of enum type*). Como cada migración corre entera en una transacción, agregar un
+  valor y crear un índice que lo menciona son **dos archivos**: 0002 agrega
+  `empaque_parado`, 0003 crea el índice que lo nombra.
 - **El driver WebSocket de Neon a veces corta** (en desarrollo se vio un error
   genérico `[object Object]` después de una consulta de 30 s). Es transitorio: la
   pantalla de error con reintento lo cubre en lectura, y `usar-accion` en escritura.
@@ -557,7 +564,7 @@ cuota sobra; lo unico que se nota es ese primer request.
 > **Estado:** decidido con planta e **implementado** en septiembre de 2026, y
 > probado de punta a punta en el navegador con cada rol. Lo que sigue pendiente es
 > físico, no de software: fabricar tarjetas y placas, pintar laterales y probar
-> materiales en el horno (§10.9). Mientras tanto la app ya funciona: si no hay
+> materiales en el horno (§10.10). Mientras tanto la app ya funciona: si no hay
 > tarjeta libre, la tanda sigue con su código.
 >
 > **Datos de prueba:** la base de prueba se adaptó con
@@ -823,7 +830,45 @@ listas. Las defensas contra el error pasan a ser:
 Nunca van a ser cero errores. El objetivo es que sean raros **y que nadie los
 descubra un mes después.**
 
-### 10.9 Materiales: a probar en el horno real
+### 10.9 Desvíos: cuando el empaque se para
+
+El circuito normal desmolda y empaqueta **el mismo día**: las piezas de cada
+estantería van a un palet propio —nunca se mezclan con las de otra, y una
+estantería entra siempre en un solo palet— y de ahí pasan al túnel. A veces queda
+algo para el día siguiente, y muy cada tanto un desvío —corte de luz, túnel roto—
+deja los palets esperando **un par de días**.
+
+Eso, por sí solo, no rompe nada: al desmoldar la estantería **ya se liberó**, así
+que un palet varado no frena el trompo, y la tanda se queda en `a_empaquetar` el
+tiempo que haga falta. El problema era otro, y es de **credibilidad**: a las 72 h
+la recorrida marca los palets con «¿FALTA REGISTRAR?», y un corte de luz los pinta
+de rojo a todos de una vez. Una marca que aparece cuando no hay nada mal es una
+marca que se deja de mirar, y esa marca es la única defensa contra un movimiento
+que nadie cargó.
+
+Por eso existe el aviso **`empaque_parado`**:
+
+- Lo abre y lo cierra **el puesto que lo sufre** (empaque), con el motivo escrito.
+  Si hubiera que pedírselo a la oficina, no se pediría.
+- **No mueve ninguna tanda ni toca ningún número.** Lo único que hace es explicar
+  la espera.
+- Mientras esté abierto, los palets en `a_empaquetar` **no se cuentan como
+  sospechosos**: en la recorrida aparecen en violeta («EMPAQUE PARADO») en vez de
+  en rojo.
+- **Uno solo abierto a la vez**, garantizado por un índice único parcial: con dos,
+  nadie sabría cuál cerrar cuando el túnel vuelve a andar.
+- Al cerrarlo, los palets que sigan esperando **vuelven a marcarse solos**. Está
+  bien que así sea: pasado el desvío, un palet todavía parado es algo para ir a
+  mirar.
+
+Lo que **no** resuelve es el empaque a medias —empaquetar medio palet hoy y el
+resto mañana—, que hoy obligaría a registrar rotura que no existió o a cargar todo
+junto con la fecha equivocada. Se evaluó y se decidió **no implementarlo
+todavía**: planta dice que casi no pasa. Si aparece, el cambio es partir el
+empaque en «empaqué una parte» (acumula sin cerrar) y «terminé este palet»
+(cierra y calcula la rotura sobre el total).
+
+### 10.10 Materiales: a probar en el horno real
 
 Ambiente: ~70 °C normal, hasta 80 °C, **100 % de humedad** y salpicaduras de
 **cemento fresco, que es muy alcalino**.
@@ -844,7 +889,7 @@ Ambiente: ~70 °C normal, hasta 80 °C, **100 % de humedad** y salpicaduras de
 **Antes de encargar nada:** dos o tres muestras de cada opción, un par de semanas
 de uso real en el horno, con cemento incluido.
 
-### 10.10 Cambios de datos previstos
+### 10.11 Cambios de datos previstos
 
 - `productos`, `estanterias` y el snapshot de `tandas`: columna **cemento**
   (gris / blanco), y la compatibilidad pasa a exigir modelo + familia + cemento.
@@ -886,5 +931,6 @@ Marcados para no olvidarlos:
   `datos/palabras-tarjetas.xlsx`; en particular, sacar cualquier palabra que
   coincida con el nombre comercial de un tono.
 - **Prueba de materiales** en el horno real antes de encargar tarjetas, placas,
-  sujeciones y pintura (§10.9).
+  sujeciones y pintura (§10.10).
+- **Empaque a medias**: hoy el empaque es todo o nada. Planta dice que casi no pasa que un palet quede a medio empaquetar, así que queda sin implementar (§10.9). Si empieza a pasar, se parte en parcial + cierre.
 - **Rastreo de paquetes después de "listo"**: postergado a pedido de planta.

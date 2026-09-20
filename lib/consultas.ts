@@ -419,6 +419,19 @@ export async function datosRecorrida() {
 }
 
 /**
+ * El desvio de empaque abierto, si hay. Uno solo como maximo: lo garantiza un
+ * indice unico parcial, no solo el motor.
+ */
+export async function empaqueParado() {
+  const [a] = await db
+    .select()
+    .from(avisos)
+    .where(and(eq(avisos.tipo, "empaque_parado"), isNull(avisos.resueltoEn)))
+    .limit(1);
+  return a ?? null;
+}
+
+/**
  * Estado de todas las tarjetas, por letra: la vista del tablero de ganchos.
  *
  * Para cada tarjeta dice si deberia estar en su gancho (libre), colgada en una
