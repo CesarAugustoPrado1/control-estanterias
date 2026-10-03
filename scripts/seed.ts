@@ -4,6 +4,8 @@
  *
  *   npm run db:seed                     maestros + produccion simulada
  *   npm run db:seed -- --solo-maestros  sin tandas
+ *   npm run db:seed -- --solo-admin     solo el admin y las tarjetas: para
+ *                                       arrancar con datos reales
  *
  * Sobre la simulacion: en vez de inventar estados sueltos, genera la LINEA DE
  * TIEMPO COMPLETA de cada tanda (llenado, patio, horno, desmolde, empaque) y
@@ -20,7 +22,7 @@
  * botella de la planta, asi que la simulacion lo reproduce en vez de ignorarlo.
  */
 import bcrypt from "bcryptjs";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, despertar } from "./_db";
 import {
   config,
@@ -506,8 +508,36 @@ async function simular(maestros: Maestros) {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Para la carga real: despues de `db:limpiar -- --todo` no queda ningun usuario,
+ * y el seed comun vuelve a meter familias, productos y operarios inventados.
+ * Esto crea solo lo minimo para entrar; el resto se carga por panel o planilla.
+ * La capacidad del horno no hace falta: sin fila en config vale el defecto.
+ */
+async function soloAdmin() {
+  const [ya] = await db
+    .select()
+    .from(usuarios)
+    .where(eq(usuarios.usuario, "admin"));
+  if (ya) {
+    console.log("\nEl admin ya existe: no se toca su PIN.");
+  } else {
+    const hash = await bcrypt.hash(process.env.ADMIN_PIN ?? "1234", 10);
+    await db.insert(usuarios).values({
+      usuario: "admin",
+      nombre: "Administrador",
+      rol: "admin",
+      pinHash: hash,
+    });
+    console.log(`\nAdmin creado. Usuario admin / PIN ${process.env.ADMIN_PIN ?? "1234"}`);
+  }
+  const pal = await cargarPalabras();
+  console.log(`${pal.creadas} tarjetas nuevas\n`);
+}
+
 async function main() {
   await despertar();
+  if (process.argv.includes("--solo-admin")) return soloAdmin();
   const soloMaestros = process.argv.includes("--solo-maestros");
 
   console.log("\nCargando maestros...");
