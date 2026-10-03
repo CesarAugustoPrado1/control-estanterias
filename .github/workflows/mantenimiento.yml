@@ -1,0 +1,88 @@
+# Comandos de base de datos desde GitHub, sin tener el proyecto en una PC.
+#
+# Se corre a mano: Actions > Mantenimiento de la base > Run workflow, y se
+# elige la accion. Usa los mismos secretos que el backup:
+#   NEON_DIRECT_URL  la cadena directa de Neon (sin "-pooler").
+#   ADMIN_PIN        opcional. PIN del admin que se crea; sin el, es 1234.
+#
+# El repo es PUBLICO y los logs de Actions tambien: nada de lo que corre aca
+# imprime la cadena de conexion completa (solo el host), y GitHub tapa los
+# secretos si aparecieran.
+
+name: Mantenimiento de la base
+
+on:
+  workflow_dispatch:
+    inputs:
+      accion:
+        description: "Qué hacer"
+        type: choice
+        default: ver
+        options:
+          - ver
+          - migrar
+          - borrar-todo-y-crear-admin
+          - crear-admin
+      confirmar:
+        description: "Para borrar, escribí BORRAR. Para las otras acciones dejalo vacío."
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# Dos corridas a la vez sobre la misma base no tienen sentido.
+concurrency:
+  group: mantenimiento-base
+  cancel-in-progress: false
+
+jobs:
+  correr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DIRECT_URL: ${{ secrets.NEON_DIRECT_URL }}
+      DATABASE_URL: ${{ secrets.NEON_DIRECT_URL }}
+      ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
+    steps:
+      - name: Verificar
+        env:
+          ACCION: ${{ inputs.accion }}
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          if [ -z "$DIRECT_URL" ]; then
+            echo "::error::Falta el secreto NEON_DIRECT_URL."
+            exit 1
+          fi
+          if [ "$ACCION" = "borrar-todo-y-crear-admin" ] && [ "$CONFIRMAR" != "BORRAR" ]; then
+            echo "::error::Para borrar hay que escribir BORRAR en el campo de confirmación. No se tocó nada."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Ver qué hay
+        run: npm run db:limpiar
+
+      - name: Migrar
+        if: inputs.accion == 'migrar'
+        run: npm run db:migrar
+
+      - name: Borrar todo
+        if: inputs.accion == 'borrar-todo-y-crear-admin'
+        run: npm run db:limpiar -- --todo
+
+      - name: Crear admin
+        if: inputs.accion == 'borrar-todo-y-crear-admin' || inputs.accion == 'crear-admin'
+        run: npm run db:seed -- --solo-admin
+
+      - name: Cómo quedó
+        if: inputs.accion != 'ver'
+        run: npm run db:limpiar
