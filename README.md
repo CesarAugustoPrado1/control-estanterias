@@ -122,6 +122,10 @@ notas de cada columna.
 
 ### Pasar de la simulación a los datos reales
 
+Sin el proyecto en una PC: **Actions → Mantenimiento de la base → Run workflow**,
+acción `borrar-todo-y-crear-admin` y `BORRAR` en la confirmación. Usa el secreto
+`NEON_DIRECT_URL` del backup y, si está, `ADMIN_PIN`. Desde una PC:
+
 ```bash
 npm run db:limpiar                  # mirar contra qué base apunta y qué hay
 npm run db:limpiar -- --todo        # borra todo menos tarjetas y migraciones
