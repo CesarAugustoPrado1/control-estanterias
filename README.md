@@ -90,6 +90,7 @@ el panel apenas entres.
 | `npm run db:studio` | Explorador de datos |
 | `npm run db:seed` | Maestros inventados + 14 días de producción simulada |
 | `npm run db:seed -- --solo-maestros` | Sin tandas |
+| `npm run db:seed -- --solo-admin` | Solo el admin y las tarjetas, para arrancar con datos reales |
 | `npm run db:limpiar` | Muestra qué hay en cada tabla. **No toca nada** |
 | `npm run db:limpiar -- --movimientos` | Borra tandas e historial |
 | `npm run db:limpiar -- --todo` | Además borra los maestros |
@@ -118,6 +119,18 @@ transacción. **La planilla nunca borra** y **o entra todo o no entra nada**.
 
 `npx tsx scripts/plantilla.ts` genera un archivo con el formato exacto y las
 notas de cada columna.
+
+### Pasar de la simulación a los datos reales
+
+```bash
+npm run db:limpiar                  # mirar contra qué base apunta y qué hay
+npm run db:limpiar -- --todo        # borra todo menos tarjetas y migraciones
+npm run db:seed -- --solo-admin     # solo el admin; NO correr el seed común
+```
+
+Después, entrando como admin: cambiar el PIN, revisar la capacidad del horno en
+Config, cargar los motivos de rotura en Modelos, y subir la planilla con
+familias, modelos, productos, estanterías y usuarios.
 
 ## Backup
 
