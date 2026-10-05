@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { autorizar } from "../auth";
 import { db } from "../db";
 import { estanterias, familias, modelos, productos, type Arido, type Cemento } from "../db/schema";
-import { codigoEstanteria, ETIQUETA_ARIDO, etiquetaPlaca } from "../tarjetas";
+import { codigosEstanteria, ETIQUETA_ARIDO, etiquetaPlaca } from "../tarjetas";
 import { codigoPlataforma, ejecutar, fallar, type Resultado } from "./comun";
 
 /**
@@ -406,6 +406,8 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
   const claveGrupo = (modelo: string, familia: string, cemento: Cemento) =>
     `${normalizar(modelo)}|${normalizar(familia)}|${cemento}`;
   const placasUsadas = new Map<string, number>(); // "grupo|numero" -> id existente (0 = nueva)
+  // Codigo interno normalizado -> id existente (0 = nueva de este archivo).
+  const codigosUsados = new Map(estBase.map((e) => [normalizar(e.codigo), e.id]));
   const maxNumero = new Map<string, number>();
   for (const e of estBase) {
     const g = `${nombreModelo.get(e.modeloId)}|${nombreFamilia.get(e.familiaId)}|${e.cemento}`;
@@ -466,7 +468,22 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
     placasUsadas.set(clavePlaca, ya?.id ?? 0);
     maxNumero.set(g, Math.max(maxNumero.get(g) ?? 0, numero));
 
-    const codigo = codigoPlanilla ?? ya?.codigo ?? codigoEstanteria(modelo, familia, numero, cemento);
+    // Sin codigo en la planilla, el primero libre de los candidatos: con 3
+    // letras, dos modelos que empiezan igual darian el mismo (ver
+    // `codigosEstanteria`).
+    const propio = (c: string) => {
+      const d = codigosUsados.get(normalizar(c));
+      return d === undefined || (!!ya && d === ya.id);
+    };
+    const codigo =
+      codigoPlanilla ??
+      ya?.codigo ??
+      codigosEstanteria(modelo, familia, numero, cemento).find(propio) ??
+      fallar(`${H}, fila ${e.n}: no se pudo armar un código interno libre. Cargalo en la columna codigo.`);
+    if (!propio(codigo)) {
+      fallar(`${H}, fila ${e.n}: el código interno ${codigo} ya lo tiene otra estantería.`);
+    }
+    codigosUsados.set(normalizar(codigo), ya?.id ?? 0);
     const cambia =
       !!ya && (ya.moldes !== moldes || ya.activa !== activa || ya.numero !== numero || ya.codigo !== codigo);
 

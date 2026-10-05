@@ -86,6 +86,8 @@ export function etiquetaPlaca(
  * Codigo interno de una estanteria cuando no se carga uno: KAM-GRI-03, y
  * KAM-GRI-BL-03 si es de cemento blanco. El numero queda al final a proposito
  * (la migracion 0001 lo lee de ahi).
+ *
+ * Es el primero de `codigosEstanteria`: el corto, que alcanza casi siempre.
  */
 export function codigoEstanteria(
   modelo: string,
@@ -93,15 +95,45 @@ export function codigoEstanteria(
   numero: number,
   cemento: Cemento,
 ): string {
-  const abrev = (s: string) =>
+  return codigosEstanteria(modelo, familia, numero, cemento)[0];
+}
+
+/**
+ * Codigos candidatos, del mas corto al mas largo, para elegir el primero libre.
+ *
+ * Con 3 letras por nombre, dos modelos que empiezan igual ("Re Deck" y "Red
+ * Deck", "Kamba" y "Kambara") darian el mismo codigo y la segunda estanteria no
+ * se podria guardar. Los siguientes candidatos usan las iniciales de cada
+ * palabra y despues los nombres enteros; el ultimo recurso numera.
+ */
+export function codigosEstanteria(
+  modelo: string,
+  familia: string,
+  numero: number,
+  cemento: Cemento,
+): string[] {
+  const palabras = (s: string) =>
     s
       .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .replace(/[^A-Za-z]/g, "")
-      .slice(0, 3)
-      .toUpperCase();
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .split(/[^A-Z]+/)
+      .filter(Boolean);
+  const corto = (s: string) => palabras(s).join("").slice(0, 3);
+  const porPalabra = (s: string) => palabras(s).map((w) => w.slice(0, 3)).join("");
+  const entero = (s: string) => palabras(s).join("");
   const bl = cemento === "blanco" ? "BL-" : "";
-  return `${abrev(modelo)}-${abrev(familia)}-${bl}${String(numero).padStart(2, "0")}`;
+  const n = String(numero).padStart(2, "0");
+  const armar = (m: string, f: string, extra = "") => `${m}-${f}-${bl}${extra}${n}`;
+
+  const lista = [
+    armar(corto(modelo), corto(familia)),
+    armar(porPalabra(modelo), corto(familia)),
+    armar(porPalabra(modelo), porPalabra(familia)),
+    armar(entero(modelo), entero(familia)),
+  ];
+  for (let i = 2; i <= 9; i++) lista.push(armar(entero(modelo), entero(familia), `${i}-`));
+  return [...new Set(lista)];
 }
 
 export const ETIQUETA_CEMENTO: Record<Cemento, string> = {
