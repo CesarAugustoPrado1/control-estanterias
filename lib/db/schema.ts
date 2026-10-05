@@ -118,6 +118,19 @@ export const tipoMovimientoEnum = esq.enum("tipo_movimiento", [
 export const cementoEnum = esq.enum("cemento", ["gris", "blanco"]);
 
 /**
+ * Arido de la formula de un producto.
+ *
+ *   alivianado  granulado volcanico + dolomita
+ *   hormigon    arena + piedra
+ *
+ * Como el cemento, es un dato propio del producto y la tanda guarda una copia
+ * al llenarse. A diferencia del cemento, NO es regla de compatibilidad: no
+ * cambia que estanteria se puede usar, porque lo que impide mezclar moldes es
+ * el cemento. Sirve para distinguir y medir.
+ */
+export const aridoEnum = esq.enum("arido", ["alivianado", "hormigon"]);
+
+/**
  * Cosas que alguien en el piso vio que no cierran. No bloquean la operacion:
  * quedan abiertas para que el supervisor las resuelva en la recorrida.
  */
@@ -242,6 +255,16 @@ export const productos = esq.table(
     requiereTunel: boolean("requiere_tunel").notNull().default(true),
     /** Ver `cementoEnum`. Un producto de cemento blanco es otro producto. */
     cemento: cementoEnum("cemento").notNull().default("gris"),
+    /** Ver `aridoEnum`. El default solo completa filas viejas: se pide al crear. */
+    arido: aridoEnum("arido").notNull().default("hormigon"),
+    /**
+     * Codigos del ERP Plataforma: producto en proceso y producto terminado.
+     * Reservados para cruzar con el ERP; la app todavia no los usa. Texto
+     * porque un codigo de ERP puede tener ceros a la izquierda o letras.
+     * Opcionales, pero si estan cargados no se repiten entre productos.
+     */
+    codigoPlataformaProceso: text("codigo_plataforma_proceso"),
+    codigoPlataformaTerminado: text("codigo_plataforma_terminado"),
     /** Unidad comercial. Es lo que convierte todo a m2. */
     m2PorPaquete: numeric("m2_por_paquete", { precision: 8, scale: 4 }),
     activo: boolean("activo").notNull().default(true),
@@ -251,6 +274,12 @@ export const productos = esq.table(
   },
   (t) => [
     index("productos_modelo_familia_idx").on(t.modeloId, t.familiaId, t.cemento),
+    uniqueIndex("productos_plataforma_proceso_idx")
+      .on(t.codigoPlataformaProceso)
+      .where(sql`codigo_plataforma_proceso is not null`),
+    uniqueIndex("productos_plataforma_terminado_idx")
+      .on(t.codigoPlataformaTerminado)
+      .where(sql`codigo_plataforma_terminado is not null`),
   ],
 );
 
@@ -449,6 +478,8 @@ export const tandas = esq.table(
 
     /** Snapshot del cemento del producto al llenarse. */
     cemento: cementoEnum("cemento").notNull().default("gris"),
+    /** Snapshot del arido del producto al llenarse. */
+    arido: aridoEnum("arido").notNull().default("hormigon"),
     /** Snapshot de lo que dice la placa: "UHMA · BEIGE · 03". */
     estanteriaEtiqueta: text("estanteria_etiqueta"),
 
@@ -696,6 +727,7 @@ export type Tanda = typeof tandas.$inferSelect;
 export type Movimiento = typeof movimientos.$inferSelect;
 export type MotivoRotura = typeof motivosRotura.$inferSelect;
 export type Cemento = (typeof cementoEnum.enumValues)[number];
+export type Arido = (typeof aridoEnum.enumValues)[number];
 export type TipoAviso = (typeof tipoAvisoEnum.enumValues)[number];
 export type Tarjeta = typeof tarjetas.$inferSelect;
 export type Aviso = typeof avisos.$inferSelect;

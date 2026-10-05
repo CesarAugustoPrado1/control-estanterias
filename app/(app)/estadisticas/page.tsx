@@ -11,6 +11,7 @@ import {
   roturaPorTrompo,
   roturaSegunHorno,
   roturaPorCemento,
+  roturaPorArido,
   costoDeReasignaciones,
   TANDAS_DESPUES_DE_REASIGNAR,
   tiempoDeHorno,
@@ -112,6 +113,7 @@ export default async function Estadisticas({
     sinLlenar,
     diaria,
     porCemento,
+    porArido,
     reasignaciones,
   ] = await Promise.all([
     tiemposPorEtapa(dias),
@@ -126,6 +128,7 @@ export default async function Estadisticas({
     moldesSinLlenar(dias),
     produccionDiaria(dias),
     roturaPorCemento(dias),
+    roturaPorArido(dias),
     costoDeReasignaciones(),
   ]);
 
@@ -328,6 +331,10 @@ export default async function Estadisticas({
 
       <Seccion titulo="Rotura por cemento">
         <TablaRotura filas={porCemento} encabezado="Cemento" />
+      </Seccion>
+
+      <Seccion titulo="Rotura por árido">
+        <TablaRotura filas={porArido} encabezado="Árido" />
       </Seccion>
 
       <Seccion

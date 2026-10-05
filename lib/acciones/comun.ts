@@ -4,6 +4,7 @@ import {
   ErrorDeAutorizacion,
   ErrorDeConfiguracion,
   ErrorDeNegocio,
+  fallar,
 } from "../errores";
 
 // Se reexportan para que las acciones importen todo de un solo lugar.
@@ -76,6 +77,18 @@ export function numeroOpcional(valor: FormDataEntryValue | null): number | null 
 }
 
 /**
+ * Codigo del ERP Plataforma tal como se guarda: sin espacios en las puntas y
+ * `null` si viene vacio. Se guarda como texto, sin pasarlo a numero, para no
+ * perder ceros a la izquierda.
+ */
+export function codigoPlataforma(valor: unknown): string | null {
+  const s = String(valor ?? "").trim();
+  if (s === "") return null;
+  if (s.length > 40) fallar(`El código de Plataforma "${s.slice(0, 40)}…" es demasiado largo.`);
+  return s;
+}
+
+/**
  * Traduce los rechazos de los indices unicos que protegen las reglas fisicas
  * del circuito (ver `tandas` en el esquema).
  *
@@ -97,6 +110,12 @@ function mensajeDeChoque(e: unknown): string | null {
   }
   if (constraint.includes("avisos_empaque_parado")) {
     return "Alguien acaba de avisar que el empaque está parado. Actualizá la pantalla.";
+  }
+  if (constraint.includes("productos_plataforma_proceso")) {
+    return "Ese código de Plataforma de producto en proceso ya lo tiene otro producto.";
+  }
+  if (constraint.includes("productos_plataforma_terminado")) {
+    return "Ese código de Plataforma de producto terminado ya lo tiene otro producto.";
   }
   if (constraint.includes("estanterias_placa")) {
     return "Ya hay una estantería con ese modelo, familia y número de placa.";

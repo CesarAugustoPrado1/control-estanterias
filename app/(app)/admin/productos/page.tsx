@@ -1,6 +1,7 @@
 import { guardarProducto } from "@/lib/acciones/admin";
 import { listarFamilias, listarModelos, listarProductos } from "@/lib/consultas";
 import { convertir } from "@/lib/estados";
+import { ETIQUETA_ARIDO } from "@/lib/tarjetas";
 import { EditorFilas, type CampoDef } from "@/components/admin/editor";
 import { Aviso, Pantalla, Seccion } from "@/components/ui";
 
@@ -62,6 +63,29 @@ export default async function Productos() {
       ],
       ayuda: "Solo se puede llenar en estanterías del mismo cemento.",
     },
+    {
+      clave: "arido",
+      etiqueta: "Árido",
+      tipo: "select",
+      requerido: true,
+      opciones: [
+        { valor: "alivianado", texto: "Alivianado (granulado volcánico + dolomita)" },
+        { valor: "hormigon", texto: "Hormigón (arena + piedra)" },
+      ],
+      ayuda: "La fórmula del producto. No cambia en qué estanterías se puede llenar.",
+    },
+    {
+      clave: "codigoPlataformaProceso",
+      etiqueta: "Código Plataforma · producto en proceso",
+      tipo: "texto",
+      ayuda: "El código del ERP. Opcional por ahora; no se puede repetir entre productos.",
+    },
+    {
+      clave: "codigoPlataformaTerminado",
+      etiqueta: "Código Plataforma · producto terminado",
+      tipo: "texto",
+      ayuda: "El código del ERP. Opcional por ahora; no se puede repetir entre productos.",
+    },
     { clave: "requiereTunel", etiqueta: "Pasa por el túnel", tipo: "check" },
     { clave: "activo", etiqueta: "Activo", tipo: "check", soloEdicion: true },
   ];
@@ -71,7 +95,12 @@ export default async function Productos() {
     return {
       id: x.p.id,
       titulo: x.p.nombre,
-      subtitulo: `${x.modelo} · ${x.familia} · 40 moldes dan ${ej.paquetes} paquetes${x.p.m2PorPaquete ? ` · ${x.p.m2PorPaquete} m²/paq` : ""}`,
+      subtitulo:
+        `${x.modelo} · ${x.familia} · ${ETIQUETA_ARIDO[x.p.arido]} · 40 moldes dan ${ej.paquetes} paquetes` +
+        (x.p.m2PorPaquete ? ` · ${x.p.m2PorPaquete} m²/paq` : "") +
+        (x.p.codigoPlataformaProceso || x.p.codigoPlataformaTerminado
+          ? ` · Plataforma ${x.p.codigoPlataformaProceso ?? "—"} / ${x.p.codigoPlataformaTerminado ?? "—"}`
+          : ""),
       etiquetas: [
         ...(x.p.activo ? [] : [{ texto: "de baja", tono: "rojo" as const }]),
         ...(x.p.cemento === "blanco" ? [{ texto: "CEMENTO BLANCO", tono: "gris" as const }] : []),
@@ -92,6 +121,9 @@ export default async function Productos() {
         m2PorPaquete: x.p.m2PorPaquete ?? "",
         requiereTunel: x.p.requiereTunel,
         cemento: x.p.cemento,
+        arido: x.p.arido,
+        codigoPlataformaProceso: x.p.codigoPlataformaProceso ?? "",
+        codigoPlataformaTerminado: x.p.codigoPlataformaTerminado ?? "",
         activo: x.p.activo,
       },
     };

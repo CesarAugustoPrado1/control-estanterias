@@ -5,9 +5,9 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { autorizar } from "../auth";
 import { db } from "../db";
-import { estanterias, familias, modelos, productos, type Cemento } from "../db/schema";
-import { codigoEstanteria, etiquetaPlaca } from "../tarjetas";
-import { ejecutar, fallar, type Resultado } from "./comun";
+import { estanterias, familias, modelos, productos, type Arido, type Cemento } from "../db/schema";
+import { codigoEstanteria, ETIQUETA_ARIDO, etiquetaPlaca } from "../tarjetas";
+import { codigoPlataforma, ejecutar, fallar, type Resultado } from "./comun";
 
 /**
  * Import de planillas, con dos reglas que no se negocian:
@@ -84,6 +84,15 @@ const ALIAS: Record<string, string> = {
   activa: "activo",
   cemento: "cemento",
   "tipo de cemento": "cemento",
+  arido: "arido",
+  aridos: "arido",
+  formula: "arido",
+  "codigo plataforma proceso": "codigoPlataformaProceso",
+  "plataforma proceso": "codigoPlataformaProceso",
+  "codigo producto en proceso": "codigoPlataformaProceso",
+  "codigo plataforma terminado": "codigoPlataformaTerminado",
+  "plataforma terminado": "codigoPlataformaTerminado",
+  "codigo producto terminado": "codigoPlataformaTerminado",
   numero: "numero",
   nro: "numero",
   placa: "numero",
@@ -161,6 +170,19 @@ function aCemento(v: string, fila: number, hoja: string): Cemento {
   fallar(`${hoja}, fila ${fila}: "cemento" tiene que ser gris o blanco, y dice "${v}".`);
 }
 
+/**
+ * Vacio no es un valor por defecto: no hay un arido "normal" como con el
+ * cemento. Devuelve `null` y quien llama decide (un producto nuevo lo exige, uno
+ * existente se queda con el que tiene).
+ */
+function aArido(v: string, fila: number, hoja: string): Arido | null {
+  const n = normalizar(v);
+  if (n === "") return null;
+  if (n === "alivianado" || n === "a" || n === "liviano") return "alivianado";
+  if (n === "hormigon" || n === "h") return "hormigon";
+  fallar(`${hoja}, fila ${fila}: "arido" tiene que ser alivianado u hormigon, y dice "${v}".`);
+}
+
 function aBooleano(v: string, pordefecto: boolean): boolean {
   const n = normalizar(v);
   if (n === "") return pordefecto;
@@ -182,7 +204,10 @@ type Plan = {
     piezasPorPaquete: number;
     requiereTunel: boolean;
     cemento: Cemento;
+    arido: Arido;
     m2PorPaquete: string | null;
+    codigoPlataformaProceso: string | null;
+    codigoPlataformaTerminado: string | null;
     activo: boolean;
     idExistente: number | null;
     cambia: boolean;
@@ -295,10 +320,22 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
     const activo = aBooleano(p.datos.activo ?? "", true);
 
     const ya = prodPorNombre.get(normalizar(nombre));
+    // Arido y codigos de Plataforma: vacio deja lo que hay (la planilla nunca
+    // borra). Un producto nuevo tiene que traer el arido.
+    const arido = aArido(p.datos.arido ?? "", p.n, H) ?? ya?.arido;
+    if (!arido) {
+      fallar(`${H}, fila ${p.n}: falta el árido del producto nuevo "${nombre}" (alivianado u hormigon).`);
+    }
+    const cpp = codigoPlataforma(p.datos.codigoPlataformaProceso) ?? ya?.codigoPlataformaProceso ?? null;
+    const cpt = codigoPlataforma(p.datos.codigoPlataformaTerminado) ?? ya?.codigoPlataformaTerminado ?? null;
+
     const cambia =
       !!ya &&
       (ya.piezasPorMolde !== ppm ||
         ya.cemento !== cemento ||
+        ya.arido !== arido ||
+        (ya.codigoPlataformaProceso ?? null) !== cpp ||
+        (ya.codigoPlataformaTerminado ?? null) !== cpt ||
         ya.piezasPorPaquete !== ppp ||
         ya.requiereTunel !== tunel ||
         ya.activo !== activo ||
@@ -312,7 +349,10 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
       piezasPorPaquete: ppp,
       requiereTunel: tunel,
       cemento,
+      arido,
       m2PorPaquete: m2,
+      codigoPlataformaProceso: cpp,
+      codigoPlataformaTerminado: cpt,
       activo,
       idExistente: ya?.id ?? null,
       cambia,
@@ -322,8 +362,33 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
       fila: p.n,
       accion: !ya ? "crear" : cambia ? "actualizar" : "sin cambios",
       descripcion: nombre,
-      detalle: `cemento ${cemento} · ${ppm} pieza(s)/molde · ${ppp} pieza(s)/paquete · ${tunel ? "con túnel" : "sin túnel"}${m2 ? ` · ${m2} m²` : ""}`,
+      detalle: `cemento ${cemento} · ${ETIQUETA_ARIDO[arido]} · ${ppm} pieza(s)/molde · ${ppp} pieza(s)/paquete · ${tunel ? "con túnel" : "sin túnel"}${m2 ? ` · ${m2} m²` : ""}`,
     });
+  }
+
+  // Los codigos de Plataforma no se repiten entre productos. Se mira como
+  // quedaria la base despues del import (lo que ya hay mas lo que trae el
+  // archivo), para rechazar con la fila y no con un error de indice unico.
+  for (const campo of ["codigoPlataformaProceso", "codigoPlataformaTerminado"] as const) {
+    const nombreCampo =
+      campo === "codigoPlataformaProceso" ? "código Plataforma de proceso" : "código Plataforma terminado";
+    const final = new Map<string, string | null>(
+      prodBase.map((x) => [normalizar(x.nombre), x[campo] ?? null]),
+    );
+    for (const x of plan.productos) final.set(normalizar(x.nombre), x[campo]);
+    const duenio = new Map<string, string>();
+    for (const [prod, codigo] of final) {
+      if (codigo === null) continue;
+      const otro = duenio.get(codigo);
+      if (otro !== undefined) {
+        const nombres = [otro, prod].map(
+          (n) => plan.productos.find((x) => normalizar(x.nombre) === n)?.nombre ??
+            prodBase.find((x) => normalizar(x.nombre) === n)?.nombre ?? n,
+        );
+        fallar(`Productos: el ${nombreCampo} "${codigo}" quedaría repetido en "${nombres[0]}" y "${nombres[1]}".`);
+      }
+      duenio.set(codigo, prod);
+    }
   }
 
   // --- Estanterias
@@ -511,7 +576,10 @@ export async function importarPlanilla(fd: FormData): Promise<Resultado<Analisis
           piezasPorPaquete: p.piezasPorPaquete,
           requiereTunel: p.requiereTunel,
           cemento: p.cemento,
+          arido: p.arido,
           m2PorPaquete: p.m2PorPaquete,
+          codigoPlataformaProceso: p.codigoPlataformaProceso,
+          codigoPlataformaTerminado: p.codigoPlataformaTerminado,
           activo: p.activo,
         };
         if (p.idExistente) {

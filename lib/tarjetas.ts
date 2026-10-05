@@ -1,5 +1,5 @@
 import palabras from "../datos/palabras.json";
-import type { Cemento } from "./db/schema";
+import type { Arido, Cemento } from "./db/schema";
 
 /**
  * Tarjetas de tanda y placas de grupo. Modulo PURO: lo usan la app (servidor y
@@ -89,6 +89,11 @@ export function codigoEstanteria(modelo: string, familia: string, numero: number
 export const ETIQUETA_CEMENTO: Record<Cemento, string> = {
   gris: "cemento gris",
   blanco: "cemento blanco",
+};
+
+export const ETIQUETA_ARIDO: Record<Arido, string> = {
+  alivianado: "alivianado",
+  hormigon: "hormigón",
 };
 
 /** Como se nombra una tanda en el piso: la palabra si tiene, si no el codigo. */

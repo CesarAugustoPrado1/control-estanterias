@@ -186,6 +186,15 @@ export async function roturaPorCemento(dias: Rango) {
   return r.rows as FilaRotura[];
 }
 
+export async function roturaPorArido(dias: Rango) {
+  const r = await db.execute(sql`
+    ${roturaPor(sql`case arido when 'alivianado' then 'Alivianado' else 'Hormigón' end`)}
+      and estado_desde >= ${desdeSql(dias)}
+    group by 1 order by 1
+  `);
+  return r.rows as FilaRotura[];
+}
+
 /**
  * Cuanto costo cada reasignacion de familia o cemento (ARQUITECTURA.md §10.6).
  *

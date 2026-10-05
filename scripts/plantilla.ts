@@ -67,6 +67,8 @@ async function main() {
     ["            molde; un gris y un beige no.", false],
     ["Cemento   = gris o blanco. Tampoco se mezclan: para llenar una estantería,", false],
     ["            modelo, familia y cemento tienen que coincidir.", false],
+    ["Arido     = alivianado (granulado volcánico + dolomita) u hormigon (arena", false],
+    ["            + piedra). Es la fórmula del producto; no cambia la estantería.", false],
     ["Producto  = modelo x tono exacto. Es lo que se elige al llenar el trompo.", false],
     ["Estanteria= un grupo fijo de moldes. Los 40 moldes de una estantería son", false],
     ["            siempre esos 40 y no se mezclan con los de otra. Se identifica", false],
@@ -171,17 +173,35 @@ async function main() {
       nota: "gris o blanco. Vacío = gris. Uhma Beige con cemento gris y con cemento blanco son dos productos distintos.",
     },
     {
+      header: "arido",
+      key: "arido",
+      width: 12,
+      nota: "alivianado (granulado volcánico + dolomita) u hormigon (arena + piedra). Obligatorio en un producto nuevo; vacío en uno existente deja el que tiene.",
+    },
+    {
       header: "m2 por paquete",
       key: "m2",
       width: 16,
       nota: "Decimal. Es lo que convierte toda la producción a m2.",
     },
+    {
+      header: "codigo plataforma proceso",
+      key: "cpp",
+      width: 26,
+      nota: "Código del ERP Plataforma como producto en proceso. Opcional; no se repite entre productos. Vacío deja el que tiene.",
+    },
+    {
+      header: "codigo plataforma terminado",
+      key: "cpt",
+      width: 28,
+      nota: "Código del ERP Plataforma como producto terminado. Opcional; no se repite entre productos. Vacío deja el que tiene.",
+    },
   ]);
   ejemplos(productos, [
-    ["Kamba Gris Perla", "Kamba", "Gris", 1, 1, "si", "gris", 0.26],
-    ["Kamba Gris Basalto", "Kamba", "Gris", 1, 1, "si", "gris", 0.26],
-    ["Uhma Beige", "Uhma", "Beige", 1, 2, "si", "gris", 0.5],
-    ["Uhma Beige Blanco", "Uhma", "Beige", 1, 2, "si", "blanco", 0.5],
+    ["Kamba Gris Perla", "Kamba", "Gris", 1, 1, "si", "gris", "hormigon", 0.26],
+    ["Kamba Gris Basalto", "Kamba", "Gris", 1, 1, "si", "gris", "hormigon", 0.26],
+    ["Uhma Beige", "Uhma", "Beige", 1, 2, "si", "gris", "alivianado", 0.5],
+    ["Uhma Beige Blanco", "Uhma", "Beige", 1, 2, "si", "blanco", "alivianado", 0.5],
   ]);
 
   /* ------------------------------------------------------------------ */
