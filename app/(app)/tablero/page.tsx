@@ -167,7 +167,7 @@ export default async function Tablero({
       </Seccion>
 
       <Seccion
-        titulo="Moldes disponibles"
+        titulo="Estanterías disponibles"
         cantidad={totalLibres}
         ayuda={
           <>
