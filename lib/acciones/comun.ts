@@ -120,5 +120,8 @@ function mensajeDeChoque(e: unknown): string | null {
   if (constraint.includes("estanterias_placa")) {
     return "Ya hay una estantería con ese modelo, familia y número de placa.";
   }
+  if (constraint.includes("estanterias_codigo")) {
+    return "Ya hay una estantería con ese código interno. Usá otro número de placa.";
+  }
   return null;
 }
