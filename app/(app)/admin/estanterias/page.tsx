@@ -5,6 +5,8 @@ import {
   listarModelos,
 } from "@/lib/consultas";
 import { numero } from "@/lib/formato";
+import { ETIQUETA_ARIDO } from "@/lib/tarjetas";
+import type { DefFiltro } from "@/components/filtros";
 import { EditorFilas, type CampoDef } from "@/components/admin/editor";
 import { Aviso, Pantalla, Seccion } from "@/components/ui";
 
@@ -68,6 +70,40 @@ export default async function Estanterias() {
     { clave: "activa", etiqueta: "Activa", tipo: "check", soloEdicion: true },
   ];
 
+  // Color = familia. El arido no es de la estanteria sino de los productos que
+  // se pueden llenar en ella: una estanteria puede servir a los dos.
+  const filtros: DefFiltro[] = [
+    { clave: "modelo", etiqueta: "Modelo", opciones: mods.map((m) => ({ valor: m.nombre, texto: m.nombre })) },
+    { clave: "familia", etiqueta: "Color", opciones: fams.map((f) => ({ valor: f.nombre, texto: f.nombre })) },
+    {
+      clave: "cemento",
+      etiqueta: "Cemento",
+      opciones: [
+        { valor: "gris", texto: "Gris" },
+        { valor: "blanco", texto: "Blanco" },
+      ],
+    },
+    {
+      clave: "arido",
+      etiqueta: "Árido",
+      opciones: [
+        { valor: "hormigon", texto: "Hormigón" },
+        { valor: "alivianado", texto: "Alivianado" },
+        { valor: "sin_producto", texto: "Sin producto activo" },
+      ],
+    },
+    {
+      clave: "estado",
+      etiqueta: "Estado",
+      opciones: [
+        { valor: "libre", texto: "Libre" },
+        { valor: "en_uso", texto: "En uso" },
+        { valor: "baja", texto: "De baja" },
+        { valor: "sin_numero", texto: "Sin número de placa" },
+      ],
+    },
+  ];
+
   const total = ests.reduce((a, e) => a + (e.activa ? e.moldes : 0), 0);
   const ocupadas = ests.filter((e) => e.ocupadaPor).length;
 
@@ -87,10 +123,25 @@ export default async function Estanterias() {
       <Seccion titulo="Listado" cantidad={ests.length}>
         <EditorFilas
           campos={campos}
+          filtros={filtros}
           filas={ests.map((e) => ({
             id: e.id,
             titulo: e.etiqueta,
-            subtitulo: `${e.moldes} moldes · código interno ${e.codigo}`,
+            subtitulo:
+              `${e.moldes} moldes · código interno ${e.codigo}` +
+              (e.productos.length
+                ? ` · ${e.productos.map((p) => `${p.nombre} (${ETIQUETA_ARIDO[p.arido]})`).join(", ")}`
+                : " · sin producto activo"),
+            filtro: {
+              modelo: e.modelo,
+              familia: e.familia,
+              cemento: e.cemento,
+              arido: e.productos.length ? [...new Set(e.productos.map((p) => p.arido))] : "sin_producto",
+              estado: [
+                !e.activa ? "baja" : e.ocupadaPor ? "en_uso" : "libre",
+                ...(e.numero === null ? ["sin_numero"] : []),
+              ],
+            },
             etiquetas: [
               ...(e.cemento === "blanco" ? [{ texto: "CEMENTO BLANCO", tono: "gris" as const }] : []),
               ...(e.numero === null ? [{ texto: "sin número de placa", tono: "rojo" as const }] : []),

@@ -4,6 +4,7 @@ import { DIA_DE_LETRA, LETRAS, type Letra } from "@/lib/tarjetas";
 import { LetraDia } from "@/components/tanda";
 import { Pantalla, Seccion } from "@/components/ui";
 import { BotonImprimir } from "./boton";
+import { TablaPlacas } from "./placas";
 
 export const metadata = { title: "Imprimir · Admin" };
 export const dynamic = "force-dynamic";
@@ -108,26 +109,16 @@ async function Placas() {
           {sinNumero} estantería(s) no tienen número: cargalo en Admin → Estanterías antes de mandar a grabar.
         </p>
       )}
-      <div className="overflow-x-auto rounded-xl bg-white ring-1 ring-slate-200">
-        <table className="w-full text-sm">
-          <thead className="border-b border-slate-200 text-left text-slate-600">
-            <tr>
-              <th className="px-4 py-2 font-medium">Texto a grabar</th>
-              <th className="px-4 py-2 font-medium">Moldes</th>
-              <th className="px-4 py-2 font-medium">Pintar laterales de blanco</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {ests.map((e) => (
-              <tr key={e.id} style={{ breakInside: "avoid" }}>
-                <td className="px-4 py-2 font-mono text-base font-bold">{e.etiqueta}</td>
-                <td className="cifra px-4 py-2">{e.moldes}</td>
-                <td className="px-4 py-2">{e.cemento === "blanco" ? "SÍ" : ""}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <TablaPlacas
+        placas={ests.map((e) => ({
+          id: e.id,
+          etiqueta: e.etiqueta,
+          modelo: e.modelo,
+          familia: e.familia,
+          cemento: e.cemento,
+          moldes: e.moldes,
+        }))}
+      />
     </Seccion>
   );
 }
