@@ -268,7 +268,7 @@ export async function llenar(
       .innerJoin(familias, eq(familias.id, bloqueada.familiaId))
       .where(eq(modelos.id, bloqueada.modeloId));
     const est = { e: bloqueada, modelo: nombres.modelo, familia: nombres.familia };
-    const etiqueta = etiquetaPlaca(est.modelo, est.familia, est.e.numero);
+    const etiqueta = etiquetaPlaca(est.modelo, est.familia, est.e.numero, est.e.cemento);
     if (!est.e.activa) fallar(`La estantería ${etiqueta} está dada de baja.`);
 
     const ocupante = await tandaQueRetiene(tx, est.e.id);
@@ -768,8 +768,21 @@ export async function guardarEstanteria(
     const [fam] = await tx.select().from(familias).where(eq(familias.id, datos.familiaId));
     if (!mod) fallar("Elegí un modelo que exista.");
     if (!fam) fallar("Elegí una familia que exista.");
-    const etiqueta = etiquetaPlaca(mod.nombre, fam.nombre, datos.numero);
-    const codigo = datos.codigo?.trim() || codigoEstanteria(mod.nombre, fam.nombre, datos.numero);
+    const etiqueta = etiquetaPlaca(mod.nombre, fam.nombre, datos.numero, datos.cemento);
+    const codigo =
+      datos.codigo?.trim() || codigoEstanteria(mod.nombre, fam.nombre, datos.numero, datos.cemento);
+
+    // Se valida aca y no se deja al indice unico: la base frena igual, pero con
+    // un mensaje que no dice cual estanteria choca ni que hacer.
+    await verificarPlacaLibre(tx, {
+      id: datos.id,
+      modeloId: datos.modeloId,
+      familiaId: datos.familiaId,
+      numero: datos.numero,
+      codigo,
+      etiqueta,
+      cemento: datos.cemento,
+    });
 
     if (!datos.id) {
       await tx.insert(estanterias).values({
@@ -825,7 +838,7 @@ export async function guardarEstanteria(
       const [mAntes] = await tx.select().from(modelos).where(eq(modelos.id, actual.e.modeloId));
       await tx.insert(reasignaciones).values({
         estanteriaId: actual.e.id,
-        etiquetaAntes: etiquetaPlaca(mAntes.nombre, actual.familia, actual.e.numero),
+        etiquetaAntes: etiquetaPlaca(mAntes.nombre, actual.familia, actual.e.numero, actual.e.cemento),
         etiquetaDespues: etiqueta,
         familiaAntes: actual.familia,
         familiaDespues: fam.nombre,
@@ -851,6 +864,57 @@ export async function guardarEstanteria(
 
     return etiqueta;
   });
+}
+
+/**
+ * Rechaza una placa o un codigo interno que ya tiene otra estanteria.
+ *
+ * La placa es unica en modelo + familia + cemento + numero (ver el esquema):
+ * una LISTON · BIEGES · 01 gris y una blanca son estanterias distintas. Se
+ * valida aca y no se deja solo al indice unico para que el mensaje diga con
+ * cual choca y cual es el siguiente numero libre.
+ */
+async function verificarPlacaLibre(
+  tx: Tx,
+  d: {
+    id: number | null;
+    modeloId: number;
+    familiaId: number;
+    numero: number;
+    codigo: string;
+    etiqueta: string;
+    cemento: Cemento;
+  },
+) {
+  const otra = d.id ? ne(estanterias.id, d.id) : undefined;
+  const mismoGrupo = and(
+    eq(estanterias.modeloId, d.modeloId),
+    eq(estanterias.familiaId, d.familiaId),
+    eq(estanterias.cemento, d.cemento),
+  );
+  const [mismaPlaca] = await tx
+    .select({ id: estanterias.id })
+    .from(estanterias)
+    .where(and(mismoGrupo, eq(estanterias.numero, d.numero), otra));
+  if (mismaPlaca) {
+    const [{ max }] = await tx
+      .select({ max: sql<number | null>`max(${estanterias.numero})` })
+      .from(estanterias)
+      .where(mismoGrupo);
+    const libre = String((max ?? 0) + 1).padStart(2, "0");
+    fallar(
+      `Ya existe la estantería ${d.etiqueta}. El número de placa no se repite dentro ` +
+        `del mismo modelo, familia y cemento. El siguiente número libre es el ${libre}.`,
+    );
+  }
+
+  const [mismoCodigo] = await tx
+    .select({ id: estanterias.id })
+    .from(estanterias)
+    .where(and(eq(estanterias.codigo, d.codigo), otra));
+  if (mismoCodigo) {
+    fallar(`El código interno ${d.codigo} ya lo tiene otra estantería. Usá otro número de placa.`);
+  }
 }
 
 /* -------------------------------------------------------------------------- */

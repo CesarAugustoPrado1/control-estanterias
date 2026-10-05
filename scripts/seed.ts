@@ -198,11 +198,11 @@ async function cargarMaestros() {
   const faltanE: (typeof estanterias.$inferInsert)[] = [];
   const siguiente = new Map<string, number>();
   for (const g of ESTANTERIAS) {
-    const clave = `${g.modelo}|${g.familia}`;
+    const clave = `${g.modelo}|${g.familia}|${g.cemento}`;
     for (let i = 1; i <= g.cantidad; i++) {
       const numero = (siguiente.get(clave) ?? 0) + 1;
       siguiente.set(clave, numero);
-      const codigo = codigoEstanteria(g.modelo, g.familia, numero);
+      const codigo = codigoEstanteria(g.modelo, g.familia, numero, g.cemento);
       if (porCodigo.has(codigo)) continue;
       faltanE.push({
         codigo,
@@ -442,6 +442,7 @@ async function simular(maestros: Maestros) {
           modPorId.get(est.modeloId)!,
           famPorId.get(est.familiaId)!,
           est.numero,
+          est.cemento,
         ),
         piezasPorMolde: prod.piezasPorMolde,
         piezasPorPaquete: prod.piezasPorPaquete,

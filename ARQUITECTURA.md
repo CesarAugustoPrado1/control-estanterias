@@ -729,10 +729,12 @@ todos los grupos tienen dónde fijarla.
 **No se rotula molde por molde.** Se evaluó y se descartó: son miles de moldes, es
 inviable como trabajo, y con el uso cualquier marca se pierde o deja de verse.
 
-La placa dice **modelo, familia y número**. **No dice el cemento**, porque el
-cemento se reasigna más seguido que la familia y se marca de otra forma (§10.5).
-Todas las placas son del mismo color: como son iguales entre sí, el color no dice
-nada y no compite con el color de la tarjeta.
+La placa dice **modelo, familia y número**, y las de cemento blanco agregan
+**BLANCO** ("LISTON · BIEGES · 01 · BLANCO"). Las de cemento blanco son grupos de
+moldes distintos: además de los laterales pintados (§10.5) llevan su propio
+cartel. Por eso **el número es único dentro de modelo + familia + cemento**: puede
+haber una LISTON · BIEGES · 01 gris y otra blanca (migración 0005; antes el
+número era único sin contar el cemento y la blanca no se podía cargar).
 
 Lo que habilita:
 
