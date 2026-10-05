@@ -24,7 +24,7 @@ import {
   ETIQUETA_CEMENTO,
   FABRICADAS_POR_DEFECTO,
   claveFabricadas,
-  codigoEstanteria,
+  codigosEstanteria,
   etiquetaPlaca,
   letraDelDia,
   nombreTanda,
@@ -770,7 +770,8 @@ export async function guardarEstanteria(
     if (!fam) fallar("Elegí una familia que exista.");
     const etiqueta = etiquetaPlaca(mod.nombre, fam.nombre, datos.numero, datos.cemento);
     const codigo =
-      datos.codigo?.trim() || codigoEstanteria(mod.nombre, fam.nombre, datos.numero, datos.cemento);
+      datos.codigo?.trim() ||
+      (await codigoLibre(tx, datos.id, codigosEstanteria(mod.nombre, fam.nombre, datos.numero, datos.cemento)));
 
     // Se valida aca y no se deja al indice unico: la base frena igual, pero con
     // un mensaje que no dice cual estanteria choca ni que hacer.
@@ -913,8 +914,25 @@ async function verificarPlacaLibre(
     .from(estanterias)
     .where(and(eq(estanterias.codigo, d.codigo), otra));
   if (mismoCodigo) {
-    fallar(`El código interno ${d.codigo} ya lo tiene otra estantería. Usá otro número de placa.`);
+    fallar(`El código interno ${d.codigo} ya lo tiene otra estantería. Cargá otro código.`);
   }
+}
+
+/**
+ * El primer codigo candidato que no tiene otra estanteria (ver
+ * `codigosEstanteria`). Al editar, si la estanteria ya tiene uno de los
+ * candidatos se lo deja: el codigo no cambia por guardar sin tocar nada.
+ */
+async function codigoLibre(tx: Tx, id: number | null, candidatos: string[]): Promise<string> {
+  const usados = await tx
+    .select({ id: estanterias.id, codigo: estanterias.codigo })
+    .from(estanterias)
+    .where(inArray(estanterias.codigo, candidatos));
+  const propio = usados.find((u) => u.id === id);
+  if (propio) return propio.codigo;
+  const libre = candidatos.find((c) => !usados.some((u) => u.codigo === c));
+  if (!libre) fallar("No se pudo armar un código interno libre para esta estantería. Avisá al administrador.");
+  return libre;
 }
 
 /* -------------------------------------------------------------------------- */
