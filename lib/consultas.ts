@@ -14,6 +14,7 @@ import {
   tandas,
   tarjetas,
   usuarios,
+  type Arido,
   type Cemento,
   type Estado,
   type TipoMovimiento,
@@ -357,6 +358,14 @@ export async function listarEstanterias() {
         order by t.creada_en desc limit 1)`,
       reasignaciones: sql<number>`(
         select count(*)::int from ${reasignaciones} r where r.estanteria_id = ${estanterias.id})`,
+      // Productos activos que se pueden llenar en ella (misma compatibilidad que
+      // el trompo: modelo + familia + cemento). La estanteria no tiene arido
+      // propio: lo tiene cada producto, y sirve para filtrar el listado.
+      productos: sql<{ nombre: string; arido: Arido }[]>`coalesce((
+        select json_agg(json_build_object('nombre', p.nombre, 'arido', p.arido) order by p.nombre)
+        from ${productos} p
+        where p.activo and p.modelo_id = ${estanterias.modeloId}
+          and p.familia_id = ${estanterias.familiaId} and p.cemento = ${estanterias.cemento}), '[]'::json)`,
     })
     .from(estanterias)
     .innerJoin(modelos, eq(modelos.id, estanterias.modeloId))
@@ -369,6 +378,11 @@ export async function listarEstanterias() {
     etiqueta: etiquetaPlaca(f.modelo, f.familia, f.e.numero, f.e.cemento),
     ocupadaPor: f.ocupadaPor,
     reasignaciones: Number(f.reasignaciones),
+    // pg ya parsea json, pero no cuesta cubrir un driver que lo devuelva crudo.
+    productos: (typeof f.productos === "string" ? JSON.parse(f.productos) : f.productos) as {
+      nombre: string;
+      arido: Arido;
+    }[],
   }));
 }
 

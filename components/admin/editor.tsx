@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Resultado } from "@/lib/acciones/comun";
 import { usarAccion } from "@/components/usar-accion";
+import { usarFiltros, type DefFiltro, type ValoresFiltro } from "@/components/filtros";
 import {
   Aviso,
   Boton,
@@ -41,7 +42,13 @@ export type FilaEditable = {
   valores: Record<string, string | number | boolean | null>;
   /** Motivo por el que no se puede editar (por ejemplo, en uso). */
   bloqueada?: string;
+  /** Valores para los `filtros` del editor (ver components/filtros). */
+  filtro?: ValoresFiltro;
+  /** Texto donde busca el buscador. Por defecto, titulo y subtitulo. */
+  busqueda?: string;
 };
+
+const SIN_FILTROS: DefFiltro[] = [];
 
 const TONOS = {
   gris: "bg-slate-100 text-slate-700",
@@ -56,14 +63,27 @@ export function EditorFilas({
   accion,
   etiquetaNuevo = "Agregar",
   ayuda,
+  filtros,
 }: {
   campos: CampoDef[];
   filas: FilaEditable[];
   accion: (fd: FormData) => Promise<Resultado<void>>;
   etiquetaNuevo?: string;
   ayuda?: React.ReactNode;
+  /** Si se pasan, arriba de la lista aparecen el buscador y estos filtros. */
+  filtros?: DefFiltro[];
 }) {
   const [abierta, setAbierta] = useState<number | "nueva" | null>(null);
+  const filasFiltrables = useMemo(
+    () =>
+      filas.map((f) => ({
+        ...f,
+        filtro: f.filtro ?? {},
+        busqueda: f.busqueda ?? `${f.titulo} ${f.subtitulo ?? ""}`,
+      })),
+    [filas],
+  );
+  const { visibles, barra } = usarFiltros(filasFiltrables, filtros ?? SIN_FILTROS);
 
   return (
     <div>
@@ -92,11 +112,15 @@ export function EditorFilas({
         </Tarjeta>
       )}
 
+      {filtros && filas.length > 0 && barra}
+
       {filas.length === 0 ? (
         <Vacio>Todavía no hay nada cargado.</Vacio>
+      ) : visibles.length === 0 ? (
+        <Vacio>Ninguna coincide con los filtros elegidos.</Vacio>
       ) : (
         <ul className="space-y-2">
-          {filas.map((f) => (
+          {visibles.map((f) => (
             <li key={f.id}>
               <div
                 className={`rounded-xl bg-white shadow-sm ring-1 ${
