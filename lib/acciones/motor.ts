@@ -268,7 +268,7 @@ export async function llenar(
       .innerJoin(familias, eq(familias.id, bloqueada.familiaId))
       .where(eq(modelos.id, bloqueada.modeloId));
     const est = { e: bloqueada, modelo: nombres.modelo, familia: nombres.familia };
-    const etiqueta = etiquetaPlaca(est.modelo, est.familia, est.e.numero);
+    const etiqueta = etiquetaPlaca(est.modelo, est.familia, est.e.numero, est.e.cemento);
     if (!est.e.activa) fallar(`La estantería ${etiqueta} está dada de baja.`);
 
     const ocupante = await tandaQueRetiene(tx, est.e.id);
@@ -768,8 +768,9 @@ export async function guardarEstanteria(
     const [fam] = await tx.select().from(familias).where(eq(familias.id, datos.familiaId));
     if (!mod) fallar("Elegí un modelo que exista.");
     if (!fam) fallar("Elegí una familia que exista.");
-    const etiqueta = etiquetaPlaca(mod.nombre, fam.nombre, datos.numero);
-    const codigo = datos.codigo?.trim() || codigoEstanteria(mod.nombre, fam.nombre, datos.numero);
+    const etiqueta = etiquetaPlaca(mod.nombre, fam.nombre, datos.numero, datos.cemento);
+    const codigo =
+      datos.codigo?.trim() || codigoEstanteria(mod.nombre, fam.nombre, datos.numero, datos.cemento);
 
     // Se valida aca y no se deja al indice unico: la base frena igual, pero con
     // un mensaje que no dice cual estanteria choca ni que hacer.
@@ -837,7 +838,7 @@ export async function guardarEstanteria(
       const [mAntes] = await tx.select().from(modelos).where(eq(modelos.id, actual.e.modeloId));
       await tx.insert(reasignaciones).values({
         estanteriaId: actual.e.id,
-        etiquetaAntes: etiquetaPlaca(mAntes.nombre, actual.familia, actual.e.numero),
+        etiquetaAntes: etiquetaPlaca(mAntes.nombre, actual.familia, actual.e.numero, actual.e.cemento),
         etiquetaDespues: etiqueta,
         familiaAntes: actual.familia,
         familiaDespues: fam.nombre,
@@ -868,10 +869,10 @@ export async function guardarEstanteria(
 /**
  * Rechaza una placa o un codigo interno que ya tiene otra estanteria.
  *
- * La placa es unica en modelo + familia + numero SIN el cemento (ver el
- * esquema): una LISTON · BIEGES · 01 de cemento blanco choca con la de cemento
- * gris. El mensaje dice con cual choca, el siguiente numero libre y, si solo
- * difiere el cemento, que quizas lo que corresponde es editar la existente.
+ * La placa es unica en modelo + familia + cemento + numero (ver el esquema):
+ * una LISTON · BIEGES · 01 gris y una blanca son estanterias distintas. Se
+ * valida aca y no se deja solo al indice unico para que el mensaje diga con
+ * cual choca y cual es el siguiente numero libre.
  */
 async function verificarPlacaLibre(
   tx: Tx,
@@ -886,31 +887,24 @@ async function verificarPlacaLibre(
   },
 ) {
   const otra = d.id ? ne(estanterias.id, d.id) : undefined;
+  const mismoGrupo = and(
+    eq(estanterias.modeloId, d.modeloId),
+    eq(estanterias.familiaId, d.familiaId),
+    eq(estanterias.cemento, d.cemento),
+  );
   const [mismaPlaca] = await tx
-    .select({ cemento: estanterias.cemento })
+    .select({ id: estanterias.id })
     .from(estanterias)
-    .where(
-      and(
-        eq(estanterias.modeloId, d.modeloId),
-        eq(estanterias.familiaId, d.familiaId),
-        eq(estanterias.numero, d.numero),
-        otra,
-      ),
-    );
+    .where(and(mismoGrupo, eq(estanterias.numero, d.numero), otra));
   if (mismaPlaca) {
     const [{ max }] = await tx
       .select({ max: sql<number | null>`max(${estanterias.numero})` })
       .from(estanterias)
-      .where(and(eq(estanterias.modeloId, d.modeloId), eq(estanterias.familiaId, d.familiaId)));
+      .where(mismoGrupo);
     const libre = String((max ?? 0) + 1).padStart(2, "0");
     fallar(
-      `Ya existe la estantería ${d.etiqueta} (${ETIQUETA_CEMENTO[mismaPlaca.cemento]}). ` +
-        "El número de placa no se puede repetir dentro del mismo modelo y familia, " +
-        "aunque el cemento sea distinto. " +
-        (mismaPlaca.cemento !== d.cemento && !d.id
-          ? `Si es otro grupo de moldes, usá el número ${libre}. Si es esa misma estantería ` +
-            "que ahora va con otro cemento, no la cargues de nuevo: editala y cambiale el cemento."
-          : `El siguiente número libre es el ${libre}.`),
+      `Ya existe la estantería ${d.etiqueta}. El número de placa no se repite dentro ` +
+        `del mismo modelo, familia y cemento. El siguiente número libre es el ${libre}.`,
     );
   }
 

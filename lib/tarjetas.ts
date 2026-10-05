@@ -62,20 +62,37 @@ export const FABRICADAS_POR_DEFECTO: Record<Letra, number> = {
 export const claveFabricadas = (l: Letra) => `tarjetas_fabricadas_${l}`;
 
 /**
- * Lo que dice la placa: "UHMA · BEIGE · 03".
+ * Lo que dice la placa: "UHMA · BEIGE · 03", y "UHMA · BEIGE · 03 · BLANCO"
+ * para las de cemento blanco.
  *
- * El cemento NO va en la placa: se reasigna mas seguido que la familia y en
- * planta se marca pintando de blanco los laterales. Por eso la etiqueta es la
- * misma para dos grupos que solo difieren en cemento, y el numero es unico
- * dentro de modelo + familia.
+ * Las de cemento blanco son grupos de moldes distintos: llevan los laterales
+ * pintados de blanco y su propio cartel. Por eso el numero es unico dentro de
+ * modelo + familia + cemento, y puede haber una LISTON · BIEGES · 01 gris y
+ * otra blanca. El cemento tiene que figurar en la etiqueta para que no se
+ * confundan en pantalla.
  */
-export function etiquetaPlaca(modelo: string, familia: string, numero: number | null): string {
+export function etiquetaPlaca(
+  modelo: string,
+  familia: string,
+  numero: number | null,
+  cemento: Cemento,
+): string {
   const n = numero === null ? "??" : String(numero).padStart(2, "0");
-  return `${modelo.toUpperCase()} · ${familia.toUpperCase()} · ${n}`;
+  const sufijo = cemento === "blanco" ? " · BLANCO" : "";
+  return `${modelo.toUpperCase()} · ${familia.toUpperCase()} · ${n}${sufijo}`;
 }
 
-/** Codigo interno de una estanteria cuando no se carga uno: KAM-GRI-03. */
-export function codigoEstanteria(modelo: string, familia: string, numero: number): string {
+/**
+ * Codigo interno de una estanteria cuando no se carga uno: KAM-GRI-03, y
+ * KAM-GRI-BL-03 si es de cemento blanco. El numero queda al final a proposito
+ * (la migracion 0001 lo lee de ahi).
+ */
+export function codigoEstanteria(
+  modelo: string,
+  familia: string,
+  numero: number,
+  cemento: Cemento,
+): string {
   const abrev = (s: string) =>
     s
       .normalize("NFD")
@@ -83,7 +100,8 @@ export function codigoEstanteria(modelo: string, familia: string, numero: number
       .replace(/[^A-Za-z]/g, "")
       .slice(0, 3)
       .toUpperCase();
-  return `${abrev(modelo)}-${abrev(familia)}-${String(numero).padStart(2, "0")}`;
+  const bl = cemento === "blanco" ? "BL-" : "";
+  return `${abrev(modelo)}-${abrev(familia)}-${bl}${String(numero).padStart(2, "0")}`;
 }
 
 export const ETIQUETA_CEMENTO: Record<Cemento, string> = {

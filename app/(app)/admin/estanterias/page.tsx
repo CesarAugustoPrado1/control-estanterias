@@ -38,7 +38,7 @@ export default async function Estanterias() {
       etiqueta: "Número de placa",
       tipo: "numero",
       requerido: true,
-      ayuda: "El que va grabado. Único dentro del mismo modelo y familia.",
+      ayuda: "El que va grabado. Único dentro del mismo modelo, familia y cemento: una gris y una blanca pueden tener el mismo número.",
     },
     {
       clave: "cemento",

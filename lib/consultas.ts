@@ -198,6 +198,7 @@ export async function estanteriasParaTrompo() {
         asc(modelos.nombre),
         asc(familias.orden),
         asc(familias.nombre),
+        asc(estanterias.cemento),
         asc(estanterias.numero),
       ),
     db.select().from(productos).where(eq(productos.activo, true)).orderBy(asc(productos.nombre)),
@@ -205,7 +206,7 @@ export async function estanteriasParaTrompo() {
 
   return ests.map((x) => ({
     id: x.e.id,
-    etiqueta: etiquetaPlaca(x.modelo, x.familia, x.e.numero),
+    etiqueta: etiquetaPlaca(x.modelo, x.familia, x.e.numero, x.e.cemento),
     modelo: x.modelo,
     familia: x.familia,
     cemento: x.e.cemento,
@@ -360,12 +361,12 @@ export async function listarEstanterias() {
     .from(estanterias)
     .innerJoin(modelos, eq(modelos.id, estanterias.modeloId))
     .innerJoin(familias, eq(familias.id, estanterias.familiaId))
-    .orderBy(asc(modelos.orden), asc(modelos.nombre), asc(familias.orden), asc(estanterias.numero));
+    .orderBy(asc(modelos.orden), asc(modelos.nombre), asc(familias.orden), asc(estanterias.cemento), asc(estanterias.numero));
   return filas.map((f) => ({
     ...f.e,
     modelo: f.modelo,
     familia: f.familia,
-    etiqueta: etiquetaPlaca(f.modelo, f.familia, f.e.numero),
+    etiqueta: etiquetaPlaca(f.modelo, f.familia, f.e.numero, f.e.cemento),
     ocupadaPor: f.ocupadaPor,
     reasignaciones: Number(f.reasignaciones),
   }));

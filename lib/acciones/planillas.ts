@@ -393,9 +393,9 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
 
   // --- Estanterias
   //
-  // Se identifican por la placa (modelo + familia + numero), o por codigo si la
-  // planilla lo trae. Sin numero, se asigna el siguiente libre de ese modelo y
-  // familia: la planilla es tolerante con lo que falta y estricta con lo que
+  // Se identifican por la placa (modelo + familia + cemento + numero), o por
+  // codigo si la planilla lo trae. Sin numero, se asigna el siguiente libre de
+  // ese modelo, familia y cemento: la planilla es tolerante con lo que falta y estricta con lo que
   // esta mal.
   //
   // Lo que NO se hace desde la planilla: cambiar la familia o el cemento de una
@@ -403,11 +403,12 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
   // estanteria vacia, y una planilla no puede dar ninguna de las dos cosas.
   const nombreModelo = new Map(modBase.map((m) => [m.id, normalizar(m.nombre)]));
   const nombreFamilia = new Map(famBase.map((f) => [f.id, normalizar(f.nombre)]));
-  const claveGrupo = (modelo: string, familia: string) => `${normalizar(modelo)}|${normalizar(familia)}`;
+  const claveGrupo = (modelo: string, familia: string, cemento: Cemento) =>
+    `${normalizar(modelo)}|${normalizar(familia)}|${cemento}`;
   const placasUsadas = new Map<string, number>(); // "grupo|numero" -> id existente (0 = nueva)
   const maxNumero = new Map<string, number>();
   for (const e of estBase) {
-    const g = `${nombreModelo.get(e.modeloId)}|${nombreFamilia.get(e.familiaId)}`;
+    const g = `${nombreModelo.get(e.modeloId)}|${nombreFamilia.get(e.familiaId)}|${e.cemento}`;
     if (e.numero !== null) {
       placasUsadas.set(`${g}|${e.numero}`, e.id);
       maxNumero.set(g, Math.max(maxNumero.get(g) ?? 0, e.numero));
@@ -427,7 +428,7 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
     }
     const cemento = aCemento(e.datos.cemento ?? "", e.n, H);
     const activa = aBooleano(e.datos.activo ?? "", true);
-    const g = claveGrupo(modelo, familia);
+    const g = claveGrupo(modelo, familia, cemento);
 
     let numero = aEntero(e.datos.numero ?? "", "numero", e.n, H);
     const numeroAsignado = numero === null;
@@ -445,9 +446,10 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
 
     if (ya) {
       const g0 = `${nombreModelo.get(ya.modeloId)}|${nombreFamilia.get(ya.familiaId)}`;
-      if (g0 !== g || ya.cemento !== cemento) {
+      const g1 = `${normalizar(modelo)}|${normalizar(familia)}`;
+      if (g0 !== g1 || ya.cemento !== cemento) {
         fallar(
-          `${H}, fila ${e.n}: la estantería ${ya.codigo} cambiaría de ${g0 !== g ? "modelo o familia" : "cemento"}. ` +
+          `${H}, fila ${e.n}: la estantería ${ya.codigo} cambiaría de ${g0 !== g1 ? "modelo o familia" : "cemento"}. ` +
             `Eso es una reasignación: se hace desde Admin → Estanterías, con motivo y con la estantería vacía.`,
         );
       }
@@ -457,14 +459,14 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
     const duenio = placasUsadas.get(clavePlaca);
     if (duenio !== undefined && duenio !== (ya?.id ?? -1)) {
       fallar(
-        `${H}, fila ${e.n}: ya hay otra estantería ${modelo.toUpperCase()} · ${familia.toUpperCase()} · ` +
-          `${String(numero).padStart(2, "0")}. El número de placa no se puede repetir.`,
+        `${H}, fila ${e.n}: ya hay otra estantería ${etiquetaPlaca(modelo, familia, numero, cemento)}. ` +
+          `El número de placa no se puede repetir.`,
       );
     }
     placasUsadas.set(clavePlaca, ya?.id ?? 0);
     maxNumero.set(g, Math.max(maxNumero.get(g) ?? 0, numero));
 
-    const codigo = codigoPlanilla ?? ya?.codigo ?? codigoEstanteria(modelo, familia, numero);
+    const codigo = codigoPlanilla ?? ya?.codigo ?? codigoEstanteria(modelo, familia, numero, cemento);
     const cambia =
       !!ya && (ya.moldes !== moldes || ya.activa !== activa || ya.numero !== numero || ya.codigo !== codigo);
 
@@ -483,7 +485,7 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
       hoja: H,
       fila: e.n,
       accion: !ya ? "crear" : cambia ? "actualizar" : "sin cambios",
-      descripcion: etiquetaPlaca(modelo, familia, numero),
+      descripcion: etiquetaPlaca(modelo, familia, numero, cemento),
       detalle:
         `${moldes} moldes · cemento ${cemento}` + (numeroAsignado && !ya ? " · número asignado automáticamente" : ""),
     });

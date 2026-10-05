@@ -319,12 +319,13 @@ export const estanterias = esq.table(
      */
     cemento: cementoEnum("cemento").notNull().default("gris"),
     /**
-     * Numero grabado en la placa: la placa dice MODELO · FAMILIA · NUMERO.
+     * Numero grabado en la placa: la placa dice MODELO · FAMILIA · NUMERO, y
+     * las de cemento blanco agregan BLANCO (ver `etiquetaPlaca`).
      *
      * Nullable solo por las filas cargadas antes de que existieran las placas; la
-     * app lo exige al crear. Es unico dentro de modelo + familia, y no del
-     * cemento, porque el cemento no esta en la placa: dos placas iguales en el
-     * piso serian indistinguibles aunque una tenga los laterales pintados.
+     * app lo exige al crear. Es unico dentro de modelo + familia + cemento: las
+     * de cemento blanco son otros grupos de moldes, con los laterales pintados
+     * y cartel propio, y pueden repetir el numero de una gris (migracion 0005).
      */
     numero: integer("numero"),
     activa: boolean("activa").notNull().default(true),
@@ -334,7 +335,7 @@ export const estanterias = esq.table(
   },
   (t) => [
     uniqueIndex("estanterias_codigo_idx").on(t.codigo),
-    uniqueIndex("estanterias_placa_idx").on(t.modeloId, t.familiaId, t.numero),
+    uniqueIndex("estanterias_placa_idx").on(t.modeloId, t.familiaId, t.cemento, t.numero),
     index("estanterias_modelo_familia_idx").on(t.modeloId, t.familiaId, t.cemento),
   ],
 );

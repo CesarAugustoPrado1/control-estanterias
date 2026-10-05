@@ -101,7 +101,7 @@ async function Placas() {
     <Seccion
       titulo="Placas de estanterías"
       cantidad={ests.length}
-      ayuda="Para grabar. La placa dice modelo, familia y número; el cemento NO va grabado: las de cemento blanco se marcan pintando los laterales."
+      ayuda="Para grabar. La placa dice modelo, familia y número, y las de cemento blanco agregan BLANCO (además de llevar los laterales pintados): una gris y una blanca pueden tener el mismo número."
     >
       {sinNumero > 0 && (
         <p className="mb-3 text-sm font-semibold text-red-700">
