@@ -39,6 +39,7 @@ import {
   type Rol,
   type TipoMovimiento,
   type Trompo,
+  type Arido,
   type Cemento,
 } from "../lib/db/schema";
 import { codigoEstanteria, etiquetaPlaca } from "../lib/tarjetas";
@@ -72,17 +73,18 @@ const PRODUCTOS: {
   ppp: number;
   tunel: boolean;
   cemento: Cemento;
+  arido: Arido;
   m2: string;
   peso: number;
 }[] = [
-  { nombre: "Kamba Gris Perla", modelo: "Kamba", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, cemento: "gris", m2: "0.2600", peso: 10 },
-  { nombre: "Kamba Gris Basalto", modelo: "Kamba", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, cemento: "gris", m2: "0.2600", peso: 7 },
-  { nombre: "Kamba Negro Volcan", modelo: "Kamba", familia: FAMILIAS[1], ppm: 1, ppp: 1, tunel: true, cemento: "gris", m2: "0.2600", peso: 4 },
-  { nombre: "Uhma Beige Arena", modelo: "Uhma", familia: FAMILIAS[3], ppm: 1, ppp: 2, tunel: true, cemento: "gris", m2: "0.5000", peso: 8 },
-  { nombre: "Uhma Beige Trigo", modelo: "Uhma", familia: FAMILIAS[3], ppm: 1, ppp: 2, tunel: true, cemento: "blanco", m2: "0.5000", peso: 5 },
-  { nombre: "Laja Serrana Gris", modelo: "Laja Serrana", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, cemento: "gris", m2: "0.3300", peso: 6 },
-  { nombre: "Laja Serrana Beige", modelo: "Laja Serrana", familia: FAMILIAS[3], ppm: 1, ppp: 1, tunel: true, cemento: "blanco", m2: "0.3300", peso: 4 },
-  { nombre: "Ladrillo Colonial Rojo", modelo: "Ladrillo Colonial", familia: FAMILIAS[2], ppm: 2, ppp: 1, tunel: false, cemento: "gris", m2: "0.1200", peso: 6 },
+  { nombre: "Kamba Gris Perla", modelo: "Kamba", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, cemento: "gris", arido: "hormigon", m2: "0.2600", peso: 10 },
+  { nombre: "Kamba Gris Basalto", modelo: "Kamba", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, cemento: "gris", arido: "hormigon", m2: "0.2600", peso: 7 },
+  { nombre: "Kamba Negro Volcan", modelo: "Kamba", familia: FAMILIAS[1], ppm: 1, ppp: 1, tunel: true, cemento: "gris", arido: "hormigon", m2: "0.2600", peso: 4 },
+  { nombre: "Uhma Beige Arena", modelo: "Uhma", familia: FAMILIAS[3], ppm: 1, ppp: 2, tunel: true, cemento: "gris", arido: "hormigon", m2: "0.5000", peso: 8 },
+  { nombre: "Uhma Beige Trigo", modelo: "Uhma", familia: FAMILIAS[3], ppm: 1, ppp: 2, tunel: true, cemento: "blanco", arido: "hormigon", m2: "0.5000", peso: 5 },
+  { nombre: "Laja Serrana Gris", modelo: "Laja Serrana", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, cemento: "gris", arido: "alivianado", m2: "0.3300", peso: 6 },
+  { nombre: "Laja Serrana Beige", modelo: "Laja Serrana", familia: FAMILIAS[3], ppm: 1, ppp: 1, tunel: true, cemento: "blanco", arido: "alivianado", m2: "0.3300", peso: 4 },
+  { nombre: "Ladrillo Colonial Rojo", modelo: "Ladrillo Colonial", familia: FAMILIAS[2], ppm: 2, ppp: 1, tunel: false, cemento: "gris", arido: "hormigon", m2: "0.1200", peso: 6 },
 ];
 
 /**
@@ -182,6 +184,7 @@ async function cargarMaestros() {
     piezasPorPaquete: d.ppp,
     requiereTunel: d.tunel,
     cemento: d.cemento,
+    arido: d.arido,
     m2PorPaquete: d.m2,
   }));
   if (faltanP.length) {
@@ -434,6 +437,7 @@ async function simular(maestros: Maestros) {
         modeloNombre: modPorId.get(prod.modeloId)!,
         familiaNombre: famPorId.get(prod.familiaId)!,
         cemento: prod.cemento,
+        arido: prod.arido,
         estanteriaEtiqueta: etiquetaPlaca(
           modPorId.get(est.modeloId)!,
           famPorId.get(est.familiaId)!,

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui";
 import { FormularioCorreccion } from "./correccion";
 import { ChipCemento, LetraDia, Placa } from "@/components/tanda";
+import { ETIQUETA_ARIDO } from "@/lib/tarjetas";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export default async function DetalleTanda({
           {t.tarjetaPalabra && <LetraDia letra={t.tarjetaLetra} />}
           {t.tarjetaPalabra && <span className="cifra">{t.codigo}</span>}
           <span>
-            {t.productoNombre} · {t.modeloNombre} · {t.familiaNombre}
+            {t.productoNombre} · {t.modeloNombre} · {t.familiaNombre} · {ETIQUETA_ARIDO[t.arido]}
           </span>
           <Placa etiqueta={t.estanteriaEtiqueta} />
           <ChipCemento cemento={t.cemento} />

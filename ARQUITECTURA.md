@@ -325,6 +325,33 @@ su identificación fija, el trompo va a elegir la estantería concreta y la colu
 se va a llenar siempre. Se deja nullable igual, para las tandas históricas y para
 las cargadas antes de tener placas: así el cambio no obliga a inventar datos.
 
+### 6.3 Árido y códigos de Plataforma en el producto
+
+**Árido.** Hay dos fórmulas: **alivianado** (granulado volcánico + dolomita) y
+**hormigón** (arena + piedra). Es un dato propio del producto, igual que el
+cemento, y la tanda guarda una copia al llenarse para que el historial no cambie
+si después se corrige el producto. Estadísticas muestra la rotura por árido.
+
+A diferencia del cemento, **no es regla de compatibilidad**: no cambia qué
+estantería se puede usar. Lo que impide mezclar moldes es el cemento (§10.5).
+Si algún día la fórmula también obligara a separar moldes, ahí sí pasaría a la
+estantería con la misma mecánica que el cemento.
+
+No hay un árido "normal" como el cemento gris: el panel y la planilla lo exigen
+al crear un producto. La migración 0004 completa los productos que ya existían con
+`hormigon`, así que **hay que revisarlos** después de migrar.
+
+**Códigos de Plataforma.** Dos columnas reservadas para el ERP: código de
+**producto en proceso** y código de **producto terminado**. La app todavía no los
+usa. Son texto, no número, porque un código de ERP puede tener ceros a la
+izquierda o letras. Son opcionales, pero **si están cargados no se repiten** entre
+productos: dos productos con el mismo código romperían cualquier cruce futuro con
+el ERP. Lo garantiza un índice único parcial, y la planilla lo valida antes para
+decir en qué productos choca.
+
+En la planilla, un árido o un código vacío en un producto existente **deja el que
+tiene**: la planilla nunca borra.
+
 ---
 
 ## 7. Import/export Excel

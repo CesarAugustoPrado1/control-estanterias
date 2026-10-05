@@ -336,6 +336,7 @@ export async function llenar(
         modeloNombre: est.modelo,
         familiaNombre: est.familia,
         cemento: prod.cemento,
+        arido: prod.arido,
         piezasPorMolde: prod.piezasPorMolde,
         piezasPorPaquete: prod.piezasPorPaquete,
         m2PorPaquete: prod.m2PorPaquete,

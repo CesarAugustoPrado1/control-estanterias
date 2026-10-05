@@ -17,7 +17,7 @@ import {
   usuarios,
 } from "../db/schema";
 import * as motor from "./motor";
-import { ejecutar, fallar, numeroOpcional, type Resultado } from "./comun";
+import { codigoPlataforma, ejecutar, fallar, numeroOpcional, type Resultado } from "./comun";
 
 /**
  * ABM. Nada se borra nunca: se da de baja.
@@ -106,7 +106,10 @@ const esquemaProducto = z.object({
     .max(20, "¿Tantas piezas por paquete? Revisá el número."),
   requiereTunel: z.boolean(),
   cemento: z.enum(["gris", "blanco"], { message: "Elegí el cemento." }),
+  arido: z.enum(["alivianado", "hormigon"], { message: "Elegí el árido: alivianado u hormigón." }),
   m2PorPaquete: z.string().nullable(),
+  codigoPlataformaProceso: z.string().nullable(),
+  codigoPlataformaTerminado: z.string().nullable(),
 });
 
 export async function guardarProducto(fd: FormData): Promise<Resultado<void>> {
@@ -127,7 +130,10 @@ export async function guardarProducto(fd: FormData): Promise<Resultado<void>> {
       piezasPorPaquete: Number(fd.get("piezasPorPaquete")),
       requiereTunel: fd.get("requiereTunel") === "on" || fd.get("requiereTunel") === "true",
       cemento: String(fd.get("cemento") ?? "gris"),
+      arido: String(fd.get("arido") ?? ""),
       m2PorPaquete: m2 === "" ? null : m2,
+      codigoPlataformaProceso: codigoPlataforma(fd.get("codigoPlataformaProceso")),
+      codigoPlataformaTerminado: codigoPlataforma(fd.get("codigoPlataformaTerminado")),
     });
     const activo = fd.get("activo") === "on" || fd.get("activo") === "true";
 
