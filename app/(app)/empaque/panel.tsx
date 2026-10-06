@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { accionEmpaquetar } from "@/lib/acciones/flujo";
-import type { MotivoRotura, Tanda } from "@/lib/db/schema";
-import { convertir } from "@/lib/estados";
+import type { MotivoRotura, Tanda, UnidadSalida } from "@/lib/db/schema";
+import { cantidadSalida, concordar, convertir, tituloSalida, UNIDAD_SALIDA } from "@/lib/estados";
 import { haceCuanto, numero } from "@/lib/formato";
 import { usarAccion } from "@/components/usar-accion";
 import { LetraDia, NombreTanda, Relativo } from "@/components/tanda";
@@ -29,6 +29,7 @@ type Cerrada = {
   orden: number | null;
   codigo: string;
   paquetes: number;
+  unidad: UnidadSalida;
 };
 
 export function PanelEmpaque({
@@ -78,7 +79,7 @@ function Devolver({ c, alCerrar }: { c: Cerrada; alCerrar: () => void }) {
   if (!c.palabra || !c.letra || !(c.letra in DIA_DE_LETRA)) {
     return (
       <Aviso tono="ok">
-        Tanda {c.codigo} cerrada con {c.paquetes} paquetes. No tenía tarjeta del tablero: si le pusieron
+        Tanda {c.codigo} cerrada con {cantidadSalida(c.paquetes, c.unidad)}. No tenía tarjeta del tablero: si le pusieron
         una provisoria, sacala.
         <button type="button" onClick={alCerrar} className="ml-2 font-semibold underline">
           OK
@@ -90,7 +91,7 @@ function Devolver({ c, alCerrar }: { c: Cerrada; alCerrar: () => void }) {
   return (
     <div className="rounded-2xl p-5" style={{ backgroundColor: `${d.hex}22`, border: `3px solid ${d.hex}` }}>
       <div className="text-sm font-semibold text-slate-700">
-        Cerrada con {c.paquetes} paquetes. Devolvé la tarjeta:
+        Cerrada con {cantidadSalida(c.paquetes, c.unidad)}. Devolvé la tarjeta:
       </div>
       <div className="mt-2 flex items-center gap-3">
         <LetraDia letra={c.letra} tamano="grande" />
@@ -143,6 +144,7 @@ function Fila({
           orden: r.orden,
           codigo: r.codigo,
           paquetes: r.paquetes,
+          unidad: tanda.unidad,
         });
         router.refresh();
       },
@@ -172,7 +174,7 @@ function Fila({
             {tanda.rehornear && <MarcaRehornear />}
             {!tanda.piezasPorPaquete || tanda.piezasPorPaquete === 1 ? null : (
               <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">
-                {tanda.piezasPorPaquete} piezas por paquete
+                {tanda.piezasPorPaquete} piezas por {UNIDAD_SALIDA[tanda.unidad].uno}
               </span>
             )}
           </div>
@@ -188,7 +190,9 @@ function Fila({
           <div className="cifra text-2xl font-bold text-slate-900">
             {previsto.paquetes}
           </div>
-          <div className="text-xs text-slate-500">previstos</div>
+          <div className="text-xs text-slate-500">
+            {UNIDAD_SALIDA[tanda.unidad].varios} {concordar("previsto", tanda.unidad)}
+          </div>
         </div>
       </button>
 
@@ -203,13 +207,15 @@ function Fila({
           {previsto.sueltas > 0 && (
             <Aviso tono="atencion">
               De {tanda.moldesLlenados} moldes salen {previsto.piezas} piezas, y
-              este producto lleva {tanda.piezasPorPaquete} por paquete: queda{" "}
-              {previsto.sueltas} pieza suelta sin par.
+              este producto lleva {tanda.piezasPorPaquete} por {UNIDAD_SALIDA[tanda.unidad].uno}:{" "}
+              {previsto.sueltas === 1 ? "queda 1 pieza suelta" : `quedan ${previsto.sueltas} piezas sueltas`} que
+              no {previsto.sueltas === 1 ? "completa" : "completan"} {tanda.unidad === "unidad" ? "una" : "un"}{" "}
+              {UNIDAD_SALIDA[tanda.unidad].uno}.
             </Aviso>
           )}
 
           <Campo
-            etiqueta="Paquetes que salieron"
+            etiqueta={`${tituloSalida(tanda.unidad)} que salieron`}
             ayuda="Este número es el único conteo del sistema. La rotura sale de compararlo con lo que se llenó."
           >
             <Entrada
@@ -239,7 +245,7 @@ function Fila({
                       : "bg-white text-slate-700 ring-1 ring-slate-300"
                   }`}
                 >
-                  {menos === 0 ? `Todos (${v})` : `−${menos} (${v})`}
+                  {menos === 0 ? `${UNIDAD_SALIDA[tanda.unidad].femenino ? "Todas" : "Todos"} (${v})` : `−${menos} (${v})`}
                 </button>
               );
             })}
@@ -255,9 +261,9 @@ function Fila({
             >
               {rotos > 0 ? (
                 <>
-                  Rotura: <strong className="cifra">{rotos}</strong> paquete
-                  {rotos > 1 ? "s" : ""} respecto de los {previsto.paquetes} que
-                  salían de {tanda.moldesLlenados} moldes.
+                  Rotura: <strong className="cifra">{cantidadSalida(rotos, tanda.unidad)}</strong> respecto de{" "}
+                  {UNIDAD_SALIDA[tanda.unidad].femenino ? "las" : "los"} {previsto.paquetes} que salían de{" "}
+                  {tanda.moldesLlenados} moldes.
                 </>
               ) : (
                 <>Sin rotura.</>
@@ -295,7 +301,7 @@ function Fila({
           {!valido && paquetes !== "" && (
             <Aviso tono="error">
               De {tanda.moldesLlenados} moldes salen como máximo{" "}
-              {previsto.paquetes} paquetes.
+              {cantidadSalida(previsto.paquetes, tanda.unidad)}.
             </Aviso>
           )}
           {error && (

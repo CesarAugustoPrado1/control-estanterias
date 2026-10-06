@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requerirRol } from "@/lib/auth";
 import { historial, listarUsuarios, type FiltroMovimientos } from "@/lib/consultas";
 import {
+  cantidadSalida,
   ETIQUETA_MOTIVO_FRAGUADO,
   ETIQUETA_MOVIMIENTO,
   QUE_MIDE_LA_DURACION,
@@ -186,7 +187,7 @@ export default async function Movimientos({
                   </td>
                   <td className="cifra whitespace-nowrap px-3 py-2 text-right text-slate-700">
                     {m.moldesLlenados !== null && <>{m.moldesLlenados} moldes</>}
-                    {m.paquetes !== null && <>{m.paquetes} paquetes</>}
+                    {m.paquetes !== null && <>{cantidadSalida(m.paquetes, m.unidad ?? "paquete")}</>}
                   </td>
                 </tr>
               ))}

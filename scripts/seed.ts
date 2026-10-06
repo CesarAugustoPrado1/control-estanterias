@@ -40,6 +40,7 @@ import {
   type TipoMovimiento,
   type Trompo,
   type Arido,
+  type UnidadSalida,
   type Cemento,
 } from "../lib/db/schema";
 import { codigoEstanteria, etiquetaPlaca } from "../lib/tarjetas";
@@ -74,6 +75,7 @@ const PRODUCTOS: {
   tunel: boolean;
   cemento: Cemento;
   arido: Arido;
+  unidad?: UnidadSalida;
   m2: string;
   peso: number;
 }[] = [
@@ -84,7 +86,7 @@ const PRODUCTOS: {
   { nombre: "Uhma Beige Trigo", modelo: "Uhma", familia: FAMILIAS[3], ppm: 1, ppp: 2, tunel: true, cemento: "blanco", arido: "hormigon", m2: "0.5000", peso: 5 },
   { nombre: "Laja Serrana Gris", modelo: "Laja Serrana", familia: FAMILIAS[0], ppm: 1, ppp: 1, tunel: true, cemento: "gris", arido: "alivianado", m2: "0.3300", peso: 6 },
   { nombre: "Laja Serrana Beige", modelo: "Laja Serrana", familia: FAMILIAS[3], ppm: 1, ppp: 1, tunel: true, cemento: "blanco", arido: "alivianado", m2: "0.3300", peso: 4 },
-  { nombre: "Ladrillo Colonial Rojo", modelo: "Ladrillo Colonial", familia: FAMILIAS[2], ppm: 2, ppp: 1, tunel: false, cemento: "gris", arido: "hormigon", m2: "0.1200", peso: 6 },
+  { nombre: "Ladrillo Colonial Rojo", modelo: "Ladrillo Colonial", familia: FAMILIAS[2], ppm: 2, ppp: 1, tunel: false, cemento: "gris", arido: "hormigon", unidad: "unidad", m2: "0.1200", peso: 6 },
 ];
 
 /**
@@ -185,6 +187,7 @@ async function cargarMaestros() {
     requiereTunel: d.tunel,
     cemento: d.cemento,
     arido: d.arido,
+    unidad: d.unidad ?? "paquete",
     m2PorPaquete: d.m2,
   }));
   if (faltanP.length) {
@@ -438,6 +441,7 @@ async function simular(maestros: Maestros) {
         familiaNombre: famPorId.get(prod.familiaId)!,
         cemento: prod.cemento,
         arido: prod.arido,
+        unidad: prod.unidad,
         estanteriaEtiqueta: etiquetaPlaca(
           modPorId.get(est.modeloId)!,
           famPorId.get(est.familiaId)!,

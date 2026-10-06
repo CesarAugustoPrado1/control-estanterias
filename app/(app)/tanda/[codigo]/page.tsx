@@ -2,7 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requerirSesion } from "@/lib/auth";
 import { listarMotivos, tandaPorCodigo } from "@/lib/consultas";
-import { convertir, ETIQUETA_MOTIVO_FRAGUADO, ETIQUETA_MOVIMIENTO, ETIQUETA_TROMPO, QUE_MIDE_LA_DURACION } from "@/lib/estados";
+import {
+  cantidadSalida,
+  concordar,
+  convertir,
+  ETIQUETA_MOTIVO_FRAGUADO,
+  ETIQUETA_MOVIMIENTO,
+  ETIQUETA_TROMPO,
+  QUE_MIDE_LA_DURACION,
+  tituloSalida,
+  UNIDAD_SALIDA,
+} from "@/lib/estados";
 import { duracion, fechaCompleta, haceCuanto, numero } from "@/lib/formato";
 import {
   Aviso,
@@ -90,14 +100,18 @@ export default async function DetalleTanda({
             )}
           </Tarjeta>
           <Tarjeta>
-            <div className="text-sm text-slate-600">Paquetes previstos</div>
+            <div className="text-sm text-slate-600">
+              {tituloSalida(t.unidad)} {concordar("previsto", t.unidad)}
+            </div>
             <div className="cifra mt-1 text-2xl font-bold">{previsto.paquetes}</div>
             <div className="text-xs text-slate-500">
-              {t.piezasPorMolde} pza/molde · {t.piezasPorPaquete} pza/paq
+              {t.piezasPorMolde} pza/molde · {t.piezasPorPaquete} pza/{UNIDAD_SALIDA[t.unidad].corto}
             </div>
           </Tarjeta>
           <Tarjeta>
-            <div className="text-sm text-slate-600">Paquetes reales</div>
+            <div className="text-sm text-slate-600">
+              {tituloSalida(t.unidad)} reales
+            </div>
             <div className="cifra mt-1 text-2xl font-bold">
               {t.paquetes === null ? "—" : numero(t.paquetes)}
             </div>
@@ -167,7 +181,7 @@ export default async function DetalleTanda({
                 )}
                 {m.paquetes !== null && (
                   <div className="cifra text-sm text-slate-700">
-                    {m.paquetes} paquetes
+                    {cantidadSalida(m.paquetes, t.unidad)}
                   </div>
                 )}
               </div>
@@ -187,6 +201,7 @@ export default async function DetalleTanda({
             estado={t.estado}
             moldesLlenados={t.moldesLlenados}
             paquetes={t.paquetes}
+            unidad={t.unidad}
             motivos={motivos}
           />
         </Seccion>

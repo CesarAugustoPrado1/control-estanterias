@@ -1,10 +1,10 @@
-import { and, asc } from "drizzle-orm";
+import { and, asc, eq, getTableColumns } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { requerirSesion } from "@/lib/auth";
 import { condicionesMovimientos } from "@/lib/consultas";
 import { db } from "@/lib/db";
-import { movimientos, tipoMovimientoEnum, type TipoMovimiento } from "@/lib/db/schema";
-import { ETIQUETA_MOTIVO_FRAGUADO, ETIQUETA_MOVIMIENTO } from "@/lib/estados";
+import { movimientos, tandas, tipoMovimientoEnum, type TipoMovimiento } from "@/lib/db/schema";
+import { ETIQUETA_MOTIVO_FRAGUADO, ETIQUETA_MOVIMIENTO, UNIDAD_SALIDA } from "@/lib/estados";
 
 /**
  * Export CSV del historial, respetando los filtros de la pantalla.
@@ -30,8 +30,9 @@ export async function GET(req: NextRequest) {
   });
 
   const filas = await db
-    .select()
+    .select({ ...getTableColumns(movimientos), unidad: tandas.unidad })
     .from(movimientos)
+    .leftJoin(tandas, eq(tandas.id, movimientos.tandaId))
     .where(w.length ? and(...w) : undefined)
     .orderBy(asc(movimientos.creadoEn), asc(movimientos.id));
 
@@ -48,7 +49,8 @@ export async function GET(req: NextRequest) {
     "Duracion (h)",
     "Trompo",
     "Moldes llenados",
-    "Paquetes",
+    "Cantidad empaquetada",
+    "Unidad",
     "Motivo fraguado",
     "Nota",
   ];
@@ -89,6 +91,7 @@ export async function GET(req: NextRequest) {
         m.trompo ? m.trompo.toUpperCase() : "",
         m.moldesLlenados ?? "",
         m.paquetes ?? "",
+        m.paquetes === null ? "" : UNIDAD_SALIDA[m.unidad ?? "paquete"].varios,
         m.motivoFraguado ? ETIQUETA_MOTIVO_FRAGUADO[m.motivoFraguado] : "",
         m.nota ?? "",
       ]

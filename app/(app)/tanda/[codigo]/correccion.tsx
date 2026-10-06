@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { accionCorregir } from "@/lib/acciones/flujo";
-import type { Estado, MotivoRotura } from "@/lib/db/schema";
-import { ORDEN_ESTADOS, TITULO_ESTADO } from "@/lib/estados";
+import type { Estado, MotivoRotura, UnidadSalida } from "@/lib/db/schema";
+import { ORDEN_ESTADOS, TITULO_ESTADO, tituloSalida } from "@/lib/estados";
 import { usarAccion } from "@/components/usar-accion";
 import {
   Aviso,
@@ -21,12 +21,14 @@ export function FormularioCorreccion({
   estado,
   moldesLlenados,
   paquetes,
+  unidad,
 }: {
   tandaId: number;
   codigo: string;
   estado: Estado;
   moldesLlenados: number;
   paquetes: number | null;
+  unidad: UnidadSalida;
   motivos: MotivoRotura[];
 }) {
   const router = useRouter();
@@ -92,7 +94,7 @@ export function FormularioCorreccion({
             />
           </Campo>
           <Campo
-            etiqueta="Paquetes"
+            etiqueta={tituloSalida(unidad)}
             ayuda="Vacío significa «todavía no se contó», que no es lo mismo que cero."
           >
             <Entrada

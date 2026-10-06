@@ -131,6 +131,13 @@ export const cementoEnum = esq.enum("cemento", ["gris", "blanco"]);
 export const aridoEnum = esq.enum("arido", ["alivianado", "hormigon"]);
 
 /**
+ * Como se llama lo que cuenta empaque: paquete, unidad suelta (Green Deck liso)
+ * o nivel de palet. Solo cambia el NOMBRE: la cuenta sigue saliendo de
+ * `piezasPorPaquete`, que se lee como "piezas por unidad de salida".
+ */
+export const unidadSalidaEnum = esq.enum("unidad_salida", ["paquete", "unidad", "nivel"]);
+
+/**
  * Cosas que alguien en el piso vio que no cierran. No bloquean la operacion:
  * quedan abiertas para que el supervisor las resuelva en la recorrida.
  */
@@ -243,6 +250,8 @@ export const productos = esq.table(
       .references(() => familias.id),
     piezasPorMolde: integer("piezas_por_molde").notNull().default(1),
     piezasPorPaquete: integer("piezas_por_paquete").notNull().default(1),
+    /** Ver `unidadSalidaEnum`. */
+    unidad: unidadSalidaEnum("unidad").notNull().default("paquete"),
     /**
      * Si pasa o no por el tunel termocontraible.
      *
@@ -481,6 +490,8 @@ export const tandas = esq.table(
     cemento: cementoEnum("cemento").notNull().default("gris"),
     /** Snapshot del arido del producto al llenarse. */
     arido: aridoEnum("arido").notNull().default("hormigon"),
+    /** Snapshot de la unidad de salida: el conteo y su unidad van juntos. */
+    unidad: unidadSalidaEnum("unidad").notNull().default("paquete"),
     /** Snapshot de lo que dice la placa: "UHMA · BEIGE · 03". */
     estanteriaEtiqueta: text("estanteria_etiqueta"),
 
@@ -729,6 +740,7 @@ export type Movimiento = typeof movimientos.$inferSelect;
 export type MotivoRotura = typeof motivosRotura.$inferSelect;
 export type Cemento = (typeof cementoEnum.enumValues)[number];
 export type Arido = (typeof aridoEnum.enumValues)[number];
+export type UnidadSalida = (typeof unidadSalidaEnum.enumValues)[number];
 export type TipoAviso = (typeof tipoAvisoEnum.enumValues)[number];
 export type Tarjeta = typeof tarjetas.$inferSelect;
 export type Aviso = typeof avisos.$inferSelect;

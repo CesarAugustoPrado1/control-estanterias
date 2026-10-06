@@ -1,4 +1,4 @@
-import type { Estado, MotivoFraguado, TipoMovimiento, Trompo } from "./db/schema";
+import type { Estado, MotivoFraguado, TipoMovimiento, Trompo, UnidadSalida } from "./db/schema";
 
 /** Modulo sin dependencias de servidor: lo usan las paginas y el cliente. */
 
@@ -138,7 +138,39 @@ export function convertir(
   return { piezas, paquetes, sueltas };
 }
 
-/** Paquetes que deberian salir de una tanda, segun lo que se lleno. */
+/**
+ * Nombre de lo que cuenta empaque, segun el producto. `femenino` es para
+ * concordar adjetivos en pantalla: "15 unidades previstas", "40 paquetes
+ * previstos".
+ */
+export const UNIDAD_SALIDA: Record<
+  UnidadSalida,
+  { uno: string; varios: string; femenino: boolean; corto: string }
+> = {
+  paquete: { uno: "paquete", varios: "paquetes", femenino: false, corto: "paq." },
+  unidad: { uno: "unidad", varios: "unidades", femenino: true, corto: "u." },
+  nivel: { uno: "nivel de palet", varios: "niveles de palet", femenino: false, corto: "niv." },
+};
+
+/** "1 paquete", "15 unidades", "3 niveles de palet". */
+export function cantidadSalida(n: number, u: UnidadSalida, formato: (n: number) => string = String): string {
+  const d = UNIDAD_SALIDA[u];
+  return `${formato(n)} ${n === 1 ? d.uno : d.varios}`;
+}
+
+/** Concuerda un adjetivo con la unidad: ("previsto", "unidad", n) -> "previstas". */
+export function concordar(adjetivo: string, u: UnidadSalida, n = 2): string {
+  const base = UNIDAD_SALIDA[u].femenino ? adjetivo.replace(/o$/, "a") : adjetivo;
+  return n === 1 ? base : `${base}s`;
+}
+
+/** Con mayuscula inicial, para etiquetas de campo: "Unidades", "Niveles de palet". */
+export function tituloSalida(u: UnidadSalida): string {
+  const v = UNIDAD_SALIDA[u].varios;
+  return v[0].toUpperCase() + v.slice(1);
+}
+
+/** Paquetes (o unidades, o niveles) que deberian salir de una tanda. */
 export function paquetesEsperados(t: {
   moldesLlenados: number;
   piezasPorMolde: number;

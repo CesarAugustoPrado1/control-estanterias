@@ -5,7 +5,16 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { autorizar } from "../auth";
 import { db } from "../db";
-import { estanterias, familias, modelos, productos, type Arido, type Cemento } from "../db/schema";
+import {
+  estanterias,
+  familias,
+  modelos,
+  productos,
+  type Arido,
+  type Cemento,
+  type UnidadSalida,
+} from "../db/schema";
+import { UNIDAD_SALIDA } from "../estados";
 import { codigosEstanteria, ETIQUETA_ARIDO, etiquetaPlaca } from "../tarjetas";
 import { codigoPlataforma, ejecutar, fallar, type Resultado } from "./comun";
 
@@ -74,10 +83,18 @@ const ALIAS: Record<string, string> = {
   "piezas molde": "piezasPorMolde",
   "piezas por paquete": "piezasPorPaquete",
   "piezas paquete": "piezasPorPaquete",
+  "piezas por unidad de salida": "piezasPorPaquete",
+  "piezas por unidad": "piezasPorPaquete",
+  "piezas por nivel": "piezasPorPaquete",
+  unidad: "unidad",
+  "unidad de salida": "unidad",
+  "unidad de medida": "unidad",
   "pasa por tunel": "requiereTunel",
   tunel: "requiereTunel",
   "requiere tunel": "requiereTunel",
   "m2 por paquete": "m2PorPaquete",
+  "m2 por unidad de salida": "m2PorPaquete",
+  "m2 por unidad": "m2PorPaquete",
   m2: "m2PorPaquete",
   "metros por paquete": "m2PorPaquete",
   activo: "activo",
@@ -183,6 +200,16 @@ function aArido(v: string, fila: number, hoja: string): Arido | null {
   fallar(`${hoja}, fila ${fila}: "arido" tiene que ser alivianado u hormigon, y dice "${v}".`);
 }
 
+/** Vacio devuelve `null`: un producto nuevo toma "paquete", uno existente se queda con la suya. */
+function aUnidad(v: string, fila: number, hoja: string): UnidadSalida | null {
+  const n = normalizar(v);
+  if (n === "") return null;
+  if (["paquete", "paquetes", "paq", "p"].includes(n)) return "paquete";
+  if (["unidad", "unidades", "u", "un"].includes(n)) return "unidad";
+  if (["nivel", "niveles", "nivel de palet", "niveles de palet", "n"].includes(n)) return "nivel";
+  fallar(`${hoja}, fila ${fila}: "unidad" tiene que ser paquete, unidad o nivel, y dice "${v}".`);
+}
+
 function aBooleano(v: string, pordefecto: boolean): boolean {
   const n = normalizar(v);
   if (n === "") return pordefecto;
@@ -202,6 +229,7 @@ type Plan = {
     familia: string;
     piezasPorMolde: number;
     piezasPorPaquete: number;
+    unidad: UnidadSalida;
     requiereTunel: boolean;
     cemento: Cemento;
     arido: Arido;
@@ -312,7 +340,7 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
     const ppm = aEntero(p.datos.piezasPorMolde ?? "", "piezas por molde", p.n, H) ?? 1;
     const ppp = aEntero(p.datos.piezasPorPaquete ?? "", "piezas por paquete", p.n, H) ?? 1;
     if (ppm < 1 || ppp < 1) {
-      fallar(`${H}, fila ${p.n}: las piezas por molde y por paquete tienen que ser 1 o más.`);
+      fallar(`${H}, fila ${p.n}: las piezas por molde y por unidad de salida tienen que ser 1 o más.`);
     }
     const m2 = aDecimal(p.datos.m2PorPaquete ?? "", "m2 por paquete", p.n, H);
     const tunel = aBooleano(p.datos.requiereTunel ?? "", true);
@@ -326,6 +354,7 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
     if (!arido) {
       fallar(`${H}, fila ${p.n}: falta el árido del producto nuevo "${nombre}" (alivianado u hormigon).`);
     }
+    const unidad = aUnidad(p.datos.unidad ?? "", p.n, H) ?? ya?.unidad ?? "paquete";
     const cpp = codigoPlataforma(p.datos.codigoPlataformaProceso) ?? ya?.codigoPlataformaProceso ?? null;
     const cpt = codigoPlataforma(p.datos.codigoPlataformaTerminado) ?? ya?.codigoPlataformaTerminado ?? null;
 
@@ -334,6 +363,7 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
       (ya.piezasPorMolde !== ppm ||
         ya.cemento !== cemento ||
         ya.arido !== arido ||
+        ya.unidad !== unidad ||
         (ya.codigoPlataformaProceso ?? null) !== cpp ||
         (ya.codigoPlataformaTerminado ?? null) !== cpt ||
         ya.piezasPorPaquete !== ppp ||
@@ -347,6 +377,7 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
       familia,
       piezasPorMolde: ppm,
       piezasPorPaquete: ppp,
+      unidad,
       requiereTunel: tunel,
       cemento,
       arido,
@@ -362,7 +393,7 @@ async function construirPlan(buffer: ArrayBuffer): Promise<{ plan: Plan; analisi
       fila: p.n,
       accion: !ya ? "crear" : cambia ? "actualizar" : "sin cambios",
       descripcion: nombre,
-      detalle: `cemento ${cemento} · ${ETIQUETA_ARIDO[arido]} · ${ppm} pieza(s)/molde · ${ppp} pieza(s)/paquete · ${tunel ? "con túnel" : "sin túnel"}${m2 ? ` · ${m2} m²` : ""}`,
+      detalle: `cemento ${cemento} · ${ETIQUETA_ARIDO[arido]} · ${ppm} pieza(s)/molde · ${ppp} pieza(s)/${UNIDAD_SALIDA[unidad].uno} · ${tunel ? "con túnel" : "sin túnel"}${m2 ? ` · ${m2} m²` : ""}`,
     });
   }
 
@@ -593,6 +624,7 @@ export async function importarPlanilla(fd: FormData): Promise<Resultado<Analisis
           familiaId: fam.get(normalizar(p.familia))!,
           piezasPorMolde: p.piezasPorMolde,
           piezasPorPaquete: p.piezasPorPaquete,
+          unidad: p.unidad,
           requiereTunel: p.requiereTunel,
           cemento: p.cemento,
           arido: p.arido,

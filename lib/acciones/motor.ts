@@ -18,6 +18,7 @@ import {
   type TipoMovimiento,
   type Trompo,
 } from "../db/schema";
+import { cantidadSalida, UNIDAD_SALIDA } from "../estados";
 import type { Sesion } from "../session";
 import {
   DIA_DE_LETRA,
@@ -346,6 +347,7 @@ export async function llenar(
         familiaNombre: est.familia,
         cemento: prod.cemento,
         arido: prod.arido,
+        unidad: prod.unidad,
         piezasPorMolde: prod.piezasPorMolde,
         piezasPorPaquete: prod.piezasPorPaquete,
         m2PorPaquete: prod.m2PorPaquete,
@@ -629,11 +631,12 @@ export async function empaquetar(
     const [t] = await bloquear(tx, [datos.tandaId]);
     exigirEstado(t, "a_empaquetar", "esperando empaque");
 
+    const u = UNIDAD_SALIDA[t.unidad];
     if (datos.paquetes === null) {
-      fallar("Cargá cuántos paquetes salieron. Sin ese número no hay rotura.");
+      fallar(`Cargá cuántos ${u.varios} salieron. Sin ese número no hay rotura.`);
     }
     if (!Number.isInteger(datos.paquetes) || datos.paquetes < 0) {
-      fallar("Los paquetes tienen que ser un número entero de 0 o más.");
+      fallar(`Lo que salió tiene que ser un número entero de 0 o más (en ${u.varios}).`);
     }
 
     const esperados = Math.floor(
@@ -641,8 +644,8 @@ export async function empaquetar(
     );
     if (datos.paquetes > esperados) {
       fallar(
-        `De ${t.moldesLlenados} moldes salen como máximo ${esperados} ` +
-          `paquetes, y cargaste ${datos.paquetes}. Revisá el número, o corregí ` +
+        `De ${t.moldesLlenados} moldes salen como máximo ${cantidadSalida(esperados, t.unidad)}, ` +
+          `y cargaste ${datos.paquetes}. Revisá el número, o corregí ` +
           `los moldes llenados desde el panel si el error viene del trompo.`,
       );
     }
@@ -650,7 +653,7 @@ export async function empaquetar(
     const rotos = esperados - datos.paquetes;
     if (rotos > 0 && !datos.motivoRoturaId) {
       fallar(
-        `Faltan ${rotos} paquete(s) respecto de lo que se llenó: elegí el ` +
+        `Faltan ${cantidadSalida(rotos, t.unidad)} respecto de lo que se llenó: elegí el ` +
           `motivo de la rotura.`,
       );
     }

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, gte, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { db } from "./db";
 import {
   avisos,
@@ -216,6 +216,7 @@ export async function productosParaTrompo() {
     arido: x.p.arido,
     piezasPorMolde: x.p.piezasPorMolde,
     piezasPorPaquete: x.p.piezasPorPaquete,
+    unidad: x.p.unidad,
     m2PorPaquete: x.p.m2PorPaquete,
     estanterias: ests
       .filter(
@@ -310,8 +311,11 @@ export async function historial(f: FiltroMovimientos, pagina = 1, porPagina = 50
 
   const [filas, total] = await Promise.all([
     db
-      .select()
+      // La unidad sale de la tanda: el movimiento guarda el numero, y la tanda
+      // dice si eran paquetes, unidades o niveles.
+      .select({ ...getTableColumns(movimientos), unidad: tandas.unidad })
       .from(movimientos)
+      .leftJoin(tandas, eq(tandas.id, movimientos.tandaId))
       .where(where)
       .orderBy(desc(movimientos.creadoEn), desc(movimientos.id))
       .limit(porPagina)

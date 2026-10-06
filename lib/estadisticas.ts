@@ -346,6 +346,10 @@ export async function produccionDiaria(dias: Rango) {
     select to_char(date_trunc('day', estado_desde at time zone 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as dia,
            count(*)::int                                   as tandas,
            sum(paquetes)::int                              as paquetes,
+           -- Por unidad: sumar paquetes con unidades sueltas no dice nada.
+           (sum(paquetes) filter (where unidad = 'paquete'))::int as en_paquetes,
+           (sum(paquetes) filter (where unidad = 'unidad'))::int  as en_unidades,
+           (sum(paquetes) filter (where unidad = 'nivel'))::int   as en_niveles,
            round(sum(paquetes * coalesce(m2_por_paquete, 0)), 1) as m2
     from estanterias.tandas
     where estado = 'listo'
@@ -357,6 +361,9 @@ export async function produccionDiaria(dias: Rango) {
     dia: string;
     tandas: number;
     paquetes: number;
+    en_paquetes: number | null;
+    en_unidades: number | null;
+    en_niveles: number | null;
     m2: string | null;
   }[];
 }

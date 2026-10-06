@@ -168,6 +168,27 @@ Más `m2_por_paquete`, que convierte todo a la unidad comercial. Va como
 pantalla lo dice en vez de redondear en silencio: es una pieza que después
 alguien va a buscar en el piso.
 
+### 4.0 La unidad de salida: paquete, unidad o nivel de palet
+
+Lo que cuenta empaque no siempre se llama paquete. Del Green Deck liso salen
+**unidades** sueltas (una maquinada da 15 unidades, no 15 paquetes), y a veces
+conviene contar por **niveles de palet**. Cada producto tiene su `unidad`
+(`paquete`, `unidad` o `nivel`), elegida al cargarlo.
+
+**Solo cambia el nombre, no la cuenta.** `piezas_por_paquete` se lee como
+"piezas por unidad de salida" y `m2_por_paquete` como "m² por unidad de salida".
+Las columnas no se renombraron a propósito: renombrarlas obligaría a una
+migración que toca cada consulta de rotura sin cambiar ningún número.
+
+La tanda guarda una **copia** de la unidad al llenarse, igual que los factores:
+el número contado y su unidad van juntos, y cambiar la unidad de un producto no
+puede reescribir qué significaba un conteo viejo.
+
+**No se suman unidades distintas.** La rotura en porcentaje y los m² se comparan
+entre productos sin problema; un total de "paquetes" que mezcla paquetes con
+unidades sueltas no dice nada. Por eso los totales (estadísticas, llenados del
+día) se muestran separados por unidad: *"120 paquetes · 45 unidades"*.
+
 ### 4.1 `requiere_tunel` no cambia la máquina de estados
 
 Hay productos que no pasan por el túnel termocontraíble. **Igual pasan por la

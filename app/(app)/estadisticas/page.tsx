@@ -18,7 +18,7 @@ import {
   tiemposPorEtapa,
   type Rango,
 } from "@/lib/estadisticas";
-import { ETIQUETA_MOTIVO_FRAGUADO, QUE_MIDE_LA_DURACION } from "@/lib/estados";
+import { cantidadSalida, ETIQUETA_MOTIVO_FRAGUADO, QUE_MIDE_LA_DURACION } from "@/lib/estados";
 import { numero, porcentaje, soloFecha } from "@/lib/formato";
 import type { MotivoFraguado, TipoMovimiento } from "@/lib/db/schema";
 import { Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
@@ -135,7 +135,12 @@ export default async function Estadisticas({
   const conDevolucion = devolucion.find((d) => d.volvio);
   const sinDevolucion = devolucion.find((d) => !d.volvio);
   const totalM2 = diaria.reduce((a, d) => a + Number(d.m2 ?? 0), 0);
-  const totalPaq = diaria.reduce((a, d) => a + Number(d.paquetes ?? 0), 0);
+  const salida = (["paquete", "unidad", "nivel"] as const)
+    .map((u) => {
+      const col = u === "paquete" ? "en_paquetes" : u === "unidad" ? "en_unidades" : "en_niveles";
+      return { u, n: diaria.reduce((a, d) => a + Number(d[col] ?? 0), 0) };
+    })
+    .filter((x) => x.n > 0);
   const maxM2 = Math.max(1, ...diaria.map((d) => Number(d.m2 ?? 0)));
   const perdidoPorHorno = fraguado.find((f) => f.motivo === "horno_lleno");
 
@@ -169,7 +174,7 @@ export default async function Estadisticas({
               {numero(totalM2, 1)} m²
             </div>
             <div className="text-xs text-slate-500">
-              {numero(totalPaq)} paquetes
+              {salida.length ? salida.map((x) => cantidadSalida(x.n, x.u, numero)).join(" · ") : "sin conteos"}
             </div>
           </Tarjeta>
           <Tarjeta>
