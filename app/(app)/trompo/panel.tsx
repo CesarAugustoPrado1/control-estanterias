@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { accionLlenar, accionTarjetaNoEncontrada } from "@/lib/acciones/flujo";
-import type { Arido, Cemento, Trompo } from "@/lib/db/schema";
-import { convertir, TIPO_TROMPO } from "@/lib/estados";
+import type { Arido, Cemento, Trompo, UnidadSalida } from "@/lib/db/schema";
+import { cantidadSalida, convertir, TIPO_TROMPO, UNIDAD_SALIDA } from "@/lib/estados";
 import { numero } from "@/lib/formato";
 import { DIA_DE_LETRA, ETIQUETA_ARIDO, ETIQUETA_CEMENTO, type Letra } from "@/lib/tarjetas";
 import { usarAccion } from "@/components/usar-accion";
@@ -35,6 +35,7 @@ type Producto = {
   arido: Arido;
   piezasPorMolde: number;
   piezasPorPaquete: number;
+  unidad: UnidadSalida;
   m2PorPaquete: string | null;
   estanterias: EstanteriaDelProducto[];
 };
@@ -426,13 +427,12 @@ export function PanelTrompo({
 
               {previsto && (
                 <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
-                  Van a salir <strong className="cifra">{numero(previsto.paquetes)}</strong> paquete
-                  {previsto.paquetes === 1 ? "" : "s"}
+                  Van a salir <strong className="cifra">{cantidadSalida(previsto.paquetes, prod.unidad, numero)}</strong>
                   {m2 !== null && <> · {numero(m2, 1)} m²</>}
                   {previsto.sueltas > 0 && (
                     <div className="mt-1 text-amber-800">
-                      Queda {previsto.sueltas} pieza suelta sin par: este producto lleva{" "}
-                      {prod.piezasPorPaquete} piezas por paquete.
+                      {previsto.sueltas === 1 ? "Queda 1 pieza suelta" : `Quedan ${previsto.sueltas} piezas sueltas`}:
+                      este producto lleva {prod.piezasPorPaquete} piezas por {UNIDAD_SALIDA[prod.unidad].uno}.
                     </div>
                   )}
                 </div>

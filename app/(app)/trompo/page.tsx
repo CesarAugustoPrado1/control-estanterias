@@ -6,7 +6,8 @@ import {
   productosParaTrompo,
   ultimoCementoPorTrompo,
 } from "@/lib/consultas";
-import { paquetesEsperados, TIPO_TROMPO } from "@/lib/estados";
+import { cantidadSalida, paquetesEsperados, TIPO_TROMPO } from "@/lib/estados";
+import type { UnidadSalida } from "@/lib/db/schema";
 import { hora, numero } from "@/lib/formato";
 import { ChipCemento, NombreTanda, Placa } from "@/components/tanda";
 import { ChipEstado, Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
@@ -29,7 +30,13 @@ export default async function Trompo() {
   const libres = moldes.reduce((a, m) => a + m.libres, 0);
   const total = moldes.reduce((a, m) => a + m.total, 0);
   const moldesHoy = hoy.reduce((a, t) => a + t.moldesLlenados, 0);
-  const paquetesHoy = hoy.reduce((a, t) => a + paquetesEsperados(t), 0);
+  // Cada producto se cuenta en su unidad: sumar paquetes con unidades no dice
+  // nada, asi que el total va separado por unidad.
+  const salidaHoy = new Map<UnidadSalida, number>();
+  for (const t of hoy) salidaHoy.set(t.unidad, (salidaHoy.get(t.unidad) ?? 0) + paquetesEsperados(t));
+  const textoSalidaHoy = [...salidaHoy]
+    .map(([u, n]) => cantidadSalida(n, u, numero))
+    .join(" · ");
 
   return (
     <Pantalla titulo="Trompo" bajada="Verificá la placa de la estantería antes de volcar.">
@@ -40,7 +47,7 @@ export default async function Trompo() {
         cantidad={hoy.length}
         ayuda={
           hoy.length
-            ? `${numero(moldesHoy)} moldes · ${numero(paquetesHoy)} paquetes esperados.`
+            ? `${numero(moldesHoy)} moldes · se esperan ${textoSalidaHoy}.`
             : undefined
         }
       >
@@ -62,7 +69,7 @@ export default async function Trompo() {
                   <div className="flex flex-wrap items-center gap-1 text-slate-600">
                     <Placa etiqueta={t.estanteriaEtiqueta} />
                     <span>
-                      {t.moldesLlenados} moldes · Trompo {t.trompo.toUpperCase()} ({TIPO_TROMPO[t.trompo]})
+                      {t.moldesLlenados} moldes → {cantidadSalida(paquetesEsperados(t), t.unidad)} · Trompo {t.trompo.toUpperCase()} ({TIPO_TROMPO[t.trompo]})
                     </span>
                   </div>
                 </div>

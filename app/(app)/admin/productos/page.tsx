@@ -1,6 +1,6 @@
 import { guardarProducto } from "@/lib/acciones/admin";
 import { listarFamilias, listarModelos, listarProductos } from "@/lib/consultas";
-import { convertir } from "@/lib/estados";
+import { cantidadSalida, convertir, UNIDAD_SALIDA } from "@/lib/estados";
 import { ETIQUETA_ARIDO } from "@/lib/tarjetas";
 import { EditorFilas, type CampoDef } from "@/components/admin/editor";
 import { Aviso, Pantalla, Seccion } from "@/components/ui";
@@ -40,15 +40,27 @@ export default async function Productos() {
       ayuda: "Casi siempre 1. Poné 2 si de un molde salen dos piezas.",
     },
     {
+      clave: "unidad",
+      etiqueta: "Unidad de salida",
+      tipo: "select",
+      requerido: true,
+      opciones: [
+        { valor: "paquete", texto: "Paquete" },
+        { valor: "unidad", texto: "Unidad" },
+        { valor: "nivel", texto: "Nivel de palet" },
+      ],
+      ayuda: "Cómo se cuenta lo que sale de empaque. Por ejemplo, el Green Deck liso sale por unidad.",
+    },
+    {
       clave: "piezasPorPaquete",
-      etiqueta: "Piezas por paquete",
+      etiqueta: "Piezas por unidad de salida",
       tipo: "numero",
       requerido: true,
-      ayuda: "Casi siempre 1. Poné 2 si hacen falta dos moldes para un paquete.",
+      ayuda: "Cuántas piezas lleva un paquete, una unidad o un nivel de palet. Casi siempre 1 en paquete y unidad.",
     },
     {
       clave: "m2PorPaquete",
-      etiqueta: "m² por paquete",
+      etiqueta: "m² por unidad de salida",
       tipo: "decimal",
       ayuda: "Por ejemplo 0,26. Es lo que convierte la producción a m².",
     },
@@ -96,8 +108,8 @@ export default async function Productos() {
       id: x.p.id,
       titulo: x.p.nombre,
       subtitulo:
-        `${x.modelo} · ${x.familia} · ${ETIQUETA_ARIDO[x.p.arido]} · 40 moldes dan ${ej.paquetes} paquetes` +
-        (x.p.m2PorPaquete ? ` · ${x.p.m2PorPaquete} m²/paq` : "") +
+        `${x.modelo} · ${x.familia} · ${ETIQUETA_ARIDO[x.p.arido]} · 40 moldes dan ${cantidadSalida(ej.paquetes, x.p.unidad)}` +
+        (x.p.m2PorPaquete ? ` · ${x.p.m2PorPaquete} m²/${UNIDAD_SALIDA[x.p.unidad].corto}` : "") +
         (x.p.codigoPlataformaProceso || x.p.codigoPlataformaTerminado
           ? ` · Plataforma ${x.p.codigoPlataformaProceso ?? "—"} / ${x.p.codigoPlataformaTerminado ?? "—"}`
           : ""),
@@ -106,7 +118,7 @@ export default async function Productos() {
         ...(x.p.cemento === "blanco" ? [{ texto: "CEMENTO BLANCO", tono: "gris" as const }] : []),
         ...(x.p.requiereTunel ? [] : [{ texto: "sin túnel", tono: "ambar" as const }]),
         ...(x.p.piezasPorPaquete > 1
-          ? [{ texto: `${x.p.piezasPorPaquete} piezas/paquete`, tono: "gris" as const }]
+          ? [{ texto: `${x.p.piezasPorPaquete} piezas/${UNIDAD_SALIDA[x.p.unidad].uno}`, tono: "gris" as const }]
           : []),
         ...(x.p.piezasPorMolde > 1
           ? [{ texto: `${x.p.piezasPorMolde} piezas/molde`, tono: "gris" as const }]
@@ -118,6 +130,7 @@ export default async function Productos() {
         familiaId: x.p.familiaId,
         piezasPorMolde: x.p.piezasPorMolde,
         piezasPorPaquete: x.p.piezasPorPaquete,
+        unidad: x.p.unidad,
         m2PorPaquete: x.p.m2PorPaquete ?? "",
         requiereTunel: x.p.requiereTunel,
         cemento: x.p.cemento,

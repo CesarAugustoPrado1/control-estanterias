@@ -103,7 +103,8 @@ const esquemaProducto = z.object({
     .number()
     .int()
     .min(1, "Tiene que ser 1 o más.")
-    .max(20, "¿Tantas piezas por paquete? Revisá el número."),
+    .max(500, "¿Tantas piezas por unidad de salida? Revisá el número."),
+  unidad: z.enum(["paquete", "unidad", "nivel"], { message: "Elegí la unidad de salida." }),
   requiereTunel: z.boolean(),
   cemento: z.enum(["gris", "blanco"], { message: "Elegí el cemento." }),
   arido: z.enum(["alivianado", "hormigon"], { message: "Elegí el árido: alivianado u hormigón." }),
@@ -119,7 +120,7 @@ export async function guardarProducto(fd: FormData): Promise<Resultado<void>> {
 
     const m2 = String(fd.get("m2PorPaquete") ?? "").trim().replace(",", ".");
     if (m2 !== "" && !/^\d+(\.\d{1,4})?$/.test(m2)) {
-      fallar("Los m² por paquete tienen que ser un número, por ejemplo 0,26.");
+      fallar("Los m² por unidad de salida tienen que ser un número, por ejemplo 0,26.");
     }
 
     const datos = esquemaProducto.parse({
@@ -128,6 +129,7 @@ export async function guardarProducto(fd: FormData): Promise<Resultado<void>> {
       familiaId: Number(fd.get("familiaId")),
       piezasPorMolde: Number(fd.get("piezasPorMolde")),
       piezasPorPaquete: Number(fd.get("piezasPorPaquete")),
+      unidad: String(fd.get("unidad") ?? ""),
       requiereTunel: fd.get("requiereTunel") === "on" || fd.get("requiereTunel") === "true",
       cemento: String(fd.get("cemento") ?? "gris"),
       arido: String(fd.get("arido") ?? ""),

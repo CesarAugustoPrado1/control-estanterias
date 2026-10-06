@@ -45,7 +45,8 @@ export default function Planilla() {
             <div>
               <strong className="text-slate-900">Productos</strong>
               <div className="text-slate-600">
-                nombre · modelo · familia · piezas por molde · piezas por paquete
+                nombre · modelo · familia · piezas por molde · unidad (paquete/unidad/nivel)
+                · piezas por paquete (por unidad de salida)
                 · pasa por tunel (si/no) · cemento (gris/blanco) · arido
                 (alivianado/hormigon) · m2 por paquete · codigo plataforma proceso
                 · codigo plataforma terminado

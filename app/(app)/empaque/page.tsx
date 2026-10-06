@@ -21,7 +21,7 @@ export default async function Empaque() {
   return (
     <Pantalla
       titulo="Empaque"
-      bajada="Contá los paquetes y cerrá la tanda. Lo más viejo primero."
+      bajada="Contá lo que salió (paquetes, unidades o niveles) y cerrá la tanda. Lo más viejo primero."
     >
       {/* El texto relativo se arma en el servidor y viaja como prop: el cliente
           no lo recalcula, asi que no hay diferencia de hidratacion. */}

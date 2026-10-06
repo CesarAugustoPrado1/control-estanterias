@@ -158,7 +158,13 @@ async function main() {
       header: "piezas por paquete",
       key: "ppp",
       width: 20,
-      nota: "Cuántas piezas entran en UN paquete. Casi siempre 1; 2 si hacen falta dos moldes para un paquete.",
+      nota: "Cuántas piezas lleva UNA unidad de salida (paquete, unidad o nivel de palet). Casi siempre 1 en paquete y unidad.",
+    },
+    {
+      header: "unidad",
+      key: "unidad",
+      width: 12,
+      nota: "Cómo se cuenta en empaque: paquete, unidad o nivel (de palet). Vacío = paquete en un producto nuevo; en uno existente deja la que tiene.",
     },
     {
       header: "pasa por tunel",
@@ -198,10 +204,10 @@ async function main() {
     },
   ]);
   ejemplos(productos, [
-    ["Kamba Gris Perla", "Kamba", "Gris", 1, 1, "si", "gris", "hormigon", 0.26],
-    ["Kamba Gris Basalto", "Kamba", "Gris", 1, 1, "si", "gris", "hormigon", 0.26],
-    ["Uhma Beige", "Uhma", "Beige", 1, 2, "si", "gris", "alivianado", 0.5],
-    ["Uhma Beige Blanco", "Uhma", "Beige", 1, 2, "si", "blanco", "alivianado", 0.5],
+    ["Kamba Gris Perla", "Kamba", "Gris", 1, 1, "paquete", "si", "gris", "hormigon", 0.26],
+    ["Kamba Gris Basalto", "Kamba", "Gris", 1, 1, "paquete", "si", "gris", "hormigon", 0.26],
+    ["Uhma Beige", "Uhma", "Beige", 1, 2, "paquete", "si", "gris", "alivianado", 0.5],
+    ["Uhma Beige Blanco", "Uhma", "Beige", 1, 2, "paquete", "si", "blanco", "alivianado", 0.5],
   ]);
 
   /* ------------------------------------------------------------------ */
