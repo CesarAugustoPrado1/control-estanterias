@@ -3,10 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { accionLlenar, accionTarjetaNoEncontrada } from "@/lib/acciones/flujo";
-import type { Cemento, Trompo } from "@/lib/db/schema";
-import { convertir } from "@/lib/estados";
+import type { Arido, Cemento, Trompo } from "@/lib/db/schema";
+import { convertir, TIPO_TROMPO } from "@/lib/estados";
 import { numero } from "@/lib/formato";
-import { DIA_DE_LETRA, ETIQUETA_CEMENTO, type Letra } from "@/lib/tarjetas";
+import { DIA_DE_LETRA, ETIQUETA_ARIDO, ETIQUETA_CEMENTO, type Letra } from "@/lib/tarjetas";
 import { usarAccion } from "@/components/usar-accion";
 import { ChipCemento, LetraDia, Placa } from "@/components/tanda";
 import {
@@ -15,28 +15,28 @@ import {
   Campo,
   DetalleTecnico,
   Entrada,
-  Selector,
   Tarjeta,
 } from "@/components/ui";
+
+type EstanteriaDelProducto = {
+  id: number;
+  etiqueta: string;
+  numero: number | null;
+  moldes: number;
+  ocupadaPor: string | null;
+};
 
 type Producto = {
   id: number;
   nombre: string;
-  piezasPorMolde: number;
-  piezasPorPaquete: number;
-  m2PorPaquete: string | null;
-};
-
-type Estanteria = {
-  id: number;
-  etiqueta: string;
   modelo: string;
   familia: string;
   cemento: Cemento;
-  numero: number | null;
-  moldes: number;
-  ocupadaPor: string | null;
-  productos: Producto[];
+  arido: Arido;
+  piezasPorMolde: number;
+  piezasPorPaquete: number;
+  m2PorPaquete: string | null;
+  estanterias: EstanteriaDelProducto[];
 };
 
 type Resultado = {
@@ -50,52 +50,90 @@ type Resultado = {
   dia: string;
 };
 
+/** Sin acentos ni mayusculas, para que "uhma beig" encuentre "Uhma Beige". */
+function normalizar(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 /**
- * Orden de la pantalla = orden del trabajo en el piso (ARQUITECTURA.md §10.7):
- * primero se identifica la estanteria por su placa, ANTES de volcar, porque el
- * error mas caro -mezcla gris en moldes de blanco- no se arregla despues.
+ * Orden de la pantalla, a pedido de planta: cemento, producto, estanteria,
+ * trompo y moldes.
+ *
+ * El cemento va primero y viene en GRIS, que es lo comun: si nadie toca nada,
+ * se produce gris. Tildar blanco cambia la lista de productos y de estanterias,
+ * asi que la pantalla nunca ofrece una estanteria de un cemento distinto del
+ * elegido. La verificacion de la placa ANTES de volcar sigue (ARQUITECTURA.md
+ * §10.5): al elegir la estanteria se muestra en grande con su cemento.
  */
 export function PanelTrompo({
-  estanterias,
+  productos,
   ultimoCemento,
+  trompoDefecto,
 }: {
-  estanterias: Estanteria[];
+  productos: Producto[];
   ultimoCemento: Record<Trompo, Cemento | null>;
+  trompoDefecto: Trompo;
 }) {
   const router = useRouter();
-  const [modelo, setModelo] = useState("");
-  const [estanteriaId, setEstanteriaId] = useState<number | null>(null);
-  const [trompo, setTrompo] = useState<Trompo | null>(null);
-  const [lavado, setLavado] = useState(false);
+  const [cemento, setCemento] = useState<Cemento>("gris");
+  const [busqueda, setBusqueda] = useState("");
   const [productoId, setProductoId] = useState<number | null>(null);
+  const [estanteriaId, setEstanteriaId] = useState<number | null>(null);
+  const [trompo, setTrompo] = useState<Trompo>(trompoDefecto);
+  const [lavado, setLavado] = useState(false);
   const [moldes, setMoldes] = useState("");
   const [hecho, setHecho] = useState<Resultado | null>(null);
 
-  const modelos = useMemo(
-    () => [...new Set(estanterias.map((e) => e.modelo))],
-    [estanterias],
-  );
-  const delModelo = estanterias.filter((e) => e.modelo === modelo);
-  const est = estanterias.find((e) => e.id === estanteriaId) ?? null;
-  const prod = est?.productos.find((p) => p.id === productoId) ?? null;
+  const delCemento = useMemo(() => productos.filter((p) => p.cemento === cemento), [productos, cemento]);
 
-  // Si la estanteria admite un solo tono, no hay nada que elegir. El riesgo que
-  // cubria "no preseleccionar el producto" ahora lo cubre la placa.
+  // Cada palabra escrita tiene que aparecer en el nombre, el modelo o la
+  // familia, en cualquier orden: "beige uhma" encuentra lo mismo que "uhma beige".
+  const encontrados = useMemo(() => {
+    const palabras = normalizar(busqueda).split(/\s+/).filter(Boolean);
+    if (!palabras.length) return [];
+    return delCemento.filter((p) => {
+      const texto = normalizar(`${p.nombre} ${p.modelo} ${p.familia}`);
+      return palabras.every((w) => texto.includes(w));
+    });
+  }, [delCemento, busqueda]);
+
+  const prod = delCemento.find((p) => p.id === productoId) ?? null;
+  const est = prod?.estanterias.find((e) => e.id === estanteriaId) ?? null;
+  const libres = prod ? prod.estanterias.filter((e) => !e.ocupadaPor) : [];
+
   useEffect(() => {
-    setProductoId(est && est.productos.length === 1 ? est.productos[0].id : null);
     setMoldes(est ? String(est.moldes) : "");
   }, [est]);
 
-  const cambiaCemento =
-    est !== null && trompo !== null && ultimoCemento[trompo] !== null && ultimoCemento[trompo] !== est.cemento;
+  const cambiaCemento = ultimoCemento[trompo] !== null && ultimoCemento[trompo] !== cemento;
 
-  useEffect(() => setLavado(false), [trompo, estanteriaId]);
+  useEffect(() => setLavado(false), [trompo, cemento]);
+
+  const elegirCemento = (c: Cemento) => {
+    llenar.limpiar();
+    setCemento(c);
+    setProductoId(null);
+    setEstanteriaId(null);
+    setBusqueda("");
+  };
+
+  const elegirProducto = (p: Producto) => {
+    llenar.limpiar();
+    setProductoId(p.id);
+    setEstanteriaId(null);
+    setBusqueda("");
+  };
 
   const reiniciar = () => {
-    setModelo("");
-    setEstanteriaId(null);
-    setTrompo(null);
+    setCemento("gris");
+    setBusqueda("");
     setProductoId(null);
+    setEstanteriaId(null);
+    setTrompo(trompoDefecto);
     setMoldes("");
   };
 
@@ -118,8 +156,7 @@ export function PanelTrompo({
     prod && Number.isInteger(n) && n > 0 ? convertir(n, prod.piezasPorMolde, prod.piezasPorPaquete) : null;
   const m2 = previsto && prod?.m2PorPaquete ? previsto.paquetes * Number(prod.m2PorPaquete) : null;
 
-  const listo =
-    est !== null && !est.ocupadaPor && trompo !== null && prod !== null && moldes !== "" && (!cambiaCemento || lavado);
+  const listo = prod !== null && est !== null && !est.ocupadaPor && moldes !== "" && (!cambiaCemento || lavado);
 
   return (
     <div className="space-y-4">
@@ -143,93 +180,197 @@ export function PanelTrompo({
             setHecho(null);
             fd.set("estanteriaId", String(estanteriaId ?? ""));
             fd.set("productoId", String(productoId ?? ""));
-            fd.set("trompo", trompo ?? "");
+            fd.set("trompo", trompo);
             fd.set("confirmoLavado", lavado ? "true" : "false");
             llenar.enviar(fd);
           }}
-          className="space-y-5"
+          className="space-y-6"
         >
-          {/* 1. La estanteria, por su placa */}
+          {/* 1. Cemento */}
           <div className="space-y-3">
-            <h2 className="text-base font-bold text-slate-900">1. ¿Qué estantería tenés adelante?</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Campo etiqueta="Modelo">
-                <Selector
-                  value={modelo}
-                  onChange={(e) => {
+            <h2 className="text-base font-bold text-slate-900">1. Cemento</h2>
+            <label
+              className={`flex cursor-pointer items-center gap-3 rounded-xl p-4 ${
+                cemento === "blanco" ? "border-4 border-slate-900 bg-white" : "bg-slate-100 ring-1 ring-slate-300"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={cemento === "blanco"}
+                onChange={(e) => elegirCemento(e.target.checked ? "blanco" : "gris")}
+                className="h-7 w-7 shrink-0 rounded border-slate-400"
+              />
+              <span>
+                <span className="block text-lg font-bold text-slate-900">Cemento blanco</span>
+                <span className="text-sm text-slate-600">
+                  {cemento === "blanco"
+                    ? "Se va a producir con CEMENTO BLANCO."
+                    : "Sin tildar se produce con cemento gris."}
+                </span>
+              </span>
+              <span className="ml-auto">
+                <ChipCemento cemento={cemento} grande />
+              </span>
+            </label>
+          </div>
+
+          {/* 2. Producto */}
+          <div className="space-y-3">
+            <h2 className="text-base font-bold text-slate-900">2. Producto</h2>
+            {prod ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-blue-50 p-4 ring-1 ring-blue-200">
+                <div className="min-w-0">
+                  <div className="text-lg font-bold text-slate-900">{prod.nombre}</div>
+                  <div className="text-sm text-slate-600">
+                    {prod.modelo} · {prod.familia} · {ETIQUETA_ARIDO[prod.arido]}
+                  </div>
+                </div>
+                <Boton
+                  type="button"
+                  tono="neutro"
+                  onClick={() => {
                     llenar.limpiar();
-                    setModelo(e.target.value);
+                    setProductoId(null);
                     setEstanteriaId(null);
                   }}
                 >
-                  <option value="">Elegí el modelo…</option>
-                  {modelos.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
+                  Cambiar
+                </Boton>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Entrada
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Escribí el modelo o el nombre…"
+                  autoComplete="off"
+                  className="text-lg"
+                />
+                {busqueda.trim() !== "" &&
+                  (encontrados.length === 0 ? (
+                    <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 ring-1 ring-slate-200">
+                      Ningún producto de {ETIQUETA_CEMENTO[cemento]} coincide con “{busqueda.trim()}”.
+                      {cemento === "gris" && " Si es de cemento blanco, tildalo arriba."}
+                    </p>
+                  ) : (
+                    <ul className="max-h-80 divide-y divide-slate-100 overflow-y-auto rounded-xl bg-white ring-1 ring-slate-200">
+                      {encontrados.map((p) => {
+                        const lib = p.estanterias.filter((e) => !e.ocupadaPor).length;
+                        return (
+                          <li key={p.id}>
+                            <button
+                              type="button"
+                              onClick={() => elegirProducto(p)}
+                              className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-2 text-left hover:bg-slate-50"
+                            >
+                              <span className="min-w-0">
+                                <span className="block font-semibold text-slate-900">{p.nombre}</span>
+                                <span className="block text-xs text-slate-500">
+                                  {p.modelo} · {p.familia} · {ETIQUETA_ARIDO[p.arido]}
+                                </span>
+                              </span>
+                              <span
+                                className={`shrink-0 text-xs font-semibold ${lib === 0 ? "text-amber-700" : "text-emerald-700"}`}
+                              >
+                                {p.estanterias.length === 0
+                                  ? "sin estanterías"
+                                  : `${lib} libre${lib === 1 ? "" : "s"}`}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   ))}
-                </Selector>
-              </Campo>
-              <Campo etiqueta="Placa" ayuda="Lo que dice la placa: familia y número.">
-                <Selector
-                  value={estanteriaId ?? ""}
-                  disabled={!modelo}
-                  onChange={(e) => {
-                    llenar.limpiar();
-                    setEstanteriaId(e.target.value ? Number(e.target.value) : null);
-                  }}
-                >
-                  <option value="">{modelo ? "Elegí la placa…" : "Primero el modelo"}</option>
-                  {delModelo.map((e) => (
-                    <option key={e.id} value={e.id} disabled={!!e.ocupadaPor}>
-                      {e.familia} · {String(e.numero ?? "?").padStart(2, "0")}
-                      {e.cemento === "blanco" ? " · CEMENTO BLANCO" : ""}
-                      {e.ocupadaPor ? ` — llena (${e.ocupadaPor})` : ""}
-                    </option>
-                  ))}
-                </Selector>
-              </Campo>
-            </div>
-
-            {est && (
-              <div
-                className={`rounded-xl p-4 ${
-                  est.cemento === "blanco"
-                    ? "border-4 border-slate-900 bg-white"
-                    : "bg-slate-100 ring-1 ring-slate-300"
-                }`}
-              >
-                <div className="flex flex-wrap items-center gap-3">
-                  <Placa etiqueta={est.etiqueta} grande />
-                  <ChipCemento cemento={est.cemento} grande />
-                </div>
-                <p className="mt-2 text-sm text-slate-700">
-                  {est.moldes} moldes · Verificá que la placa y los laterales coincidan{" "}
-                  <strong>antes de volcar</strong>.
-                </p>
               </div>
             )}
           </div>
 
-          {/* 2. El trompo */}
+          {/* 3. Estanteria */}
+          {prod && (
+            <div className="space-y-3">
+              <h2 className="text-base font-bold text-slate-900">3. Estantería</h2>
+              {prod.estanterias.length === 0 ? (
+                <Aviso tono="atencion">
+                  No hay estanterías cargadas para {prod.modelo} · {prod.familia} · {ETIQUETA_CEMENTO[prod.cemento]}.
+                  Pedile al administrador que las cargue.
+                </Aviso>
+              ) : (
+                <>
+                  {libres.length === 0 && (
+                    <Aviso tono="atencion">
+                      Todas las estanterías de {prod.modelo} · {prod.familia} están llenas. Se liberan al desmoldarse.
+                    </Aviso>
+                  )}
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {prod.estanterias.map((e) => (
+                      <button
+                        key={e.id}
+                        type="button"
+                        disabled={!!e.ocupadaPor}
+                        onClick={() => {
+                          llenar.limpiar();
+                          setEstanteriaId(e.id);
+                        }}
+                        className={`min-h-16 rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                          estanteriaId === e.id
+                            ? "bg-blue-700 text-white"
+                            : "bg-white text-slate-800 ring-1 ring-slate-300"
+                        }`}
+                      >
+                        <span className="cifra block text-xl font-bold">
+                          N.º {String(e.numero ?? "?").padStart(2, "0")}
+                        </span>
+                        <span className="block text-xs">
+                          {e.ocupadaPor ? `llena (${e.ocupadaPor})` : `${e.moldes} moldes`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {est && (
+                <div
+                  className={`rounded-xl p-4 ${
+                    prod.cemento === "blanco"
+                      ? "border-4 border-slate-900 bg-white"
+                      : "bg-slate-100 ring-1 ring-slate-300"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Placa etiqueta={est.etiqueta} grande />
+                    <ChipCemento cemento={prod.cemento} grande />
+                  </div>
+                  <p className="mt-2 text-sm text-slate-700">
+                    {est.moldes} moldes · Verificá que la placa y los laterales coincidan{" "}
+                    <strong>antes de volcar</strong>.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 4. Trompo */}
           <div className="space-y-3">
-            <h2 className="text-base font-bold text-slate-900">2. Trompo</h2>
+            <h2 className="text-base font-bold text-slate-900">4. Trompo</h2>
             <div className="grid grid-cols-2 gap-2">
               {(["a", "b"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setTrompo(t)}
-                  className={`min-h-14 rounded-lg text-lg font-bold transition-colors ${
+                  className={`min-h-16 rounded-lg transition-colors ${
                     trompo === t ? "bg-blue-700 text-white" : "bg-white text-slate-700 ring-1 ring-slate-300"
                   }`}
                 >
-                  Trompo {t.toUpperCase()}
+                  <span className="block text-lg font-bold">Trompo {t.toUpperCase()}</span>
+                  <span className="block text-sm capitalize">{TIPO_TROMPO[t]}</span>
                 </button>
               ))}
             </div>
 
-            {cambiaCemento && est && trompo && (
+            {cambiaCemento && (
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-amber-500 bg-amber-50 p-4">
                 <input
                   type="checkbox"
@@ -241,37 +382,16 @@ export function PanelTrompo({
                   <strong className="block text-lg">
                     El trompo {trompo.toUpperCase()} viene de {ETIQUETA_CEMENTO[ultimoCemento[trompo]!]}.
                   </strong>
-                  Ahora va {ETIQUETA_CEMENTO[est.cemento]}. Tildá solo si ya se lavó.
+                  Ahora va {ETIQUETA_CEMENTO[cemento]}. Tildá solo si ya se lavó.
                 </span>
               </label>
             )}
           </div>
 
-          {/* 3. Tono y moldes */}
-          {est && (
+          {/* 5. Moldes */}
+          {prod && est && (
             <div className="space-y-3">
-              <h2 className="text-base font-bold text-slate-900">3. Tono y moldes</h2>
-              {est.productos.length === 0 ? (
-                <Aviso tono="atencion">
-                  No hay productos cargados para {est.modelo} · {est.familia} · {ETIQUETA_CEMENTO[est.cemento]}.
-                  Pedile al administrador que lo cargue.
-                </Aviso>
-              ) : (
-                <Campo etiqueta="Tono">
-                  <Selector
-                    value={productoId ?? ""}
-                    onChange={(e) => setProductoId(e.target.value ? Number(e.target.value) : null)}
-                  >
-                    {est.productos.length > 1 && <option value="">Elegí el tono…</option>}
-                    {est.productos.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nombre}
-                      </option>
-                    ))}
-                  </Selector>
-                </Campo>
-              )}
-
+              <h2 className="text-base font-bold text-slate-900">5. Moldes llenados</h2>
               <Campo
                 etiqueta="Moldes llenados"
                 ayuda={`La estantería tiene ${est.moldes} moldes. Si no alcanzó la mezcla, bajalo.`}
@@ -304,7 +424,7 @@ export function PanelTrompo({
                 })}
               </div>
 
-              {previsto && prod && (
+              {previsto && (
                 <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
                   Van a salir <strong className="cifra">{numero(previsto.paquetes)}</strong> paquete
                   {previsto.paquetes === 1 ? "" : "s"}

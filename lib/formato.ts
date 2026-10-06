@@ -14,6 +14,13 @@ export function fechaHora(d: Date | string | null | undefined): string {
   }).format(f);
 }
 
+/** Solo la hora, para listas que ya son de un mismo dia. */
+export function hora(d: Date | string | null | undefined): string {
+  if (!d) return "—";
+  const f = typeof d === "string" ? new Date(d) : d;
+  return new Intl.DateTimeFormat("es-AR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).format(f);
+}
+
 export function fechaCompleta(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const f = typeof d === "string" ? new Date(d) : d;

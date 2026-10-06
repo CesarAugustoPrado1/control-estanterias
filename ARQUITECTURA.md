@@ -800,11 +800,16 @@ más frecuente, pero también deliberado.
 
 ### 10.7 El circuito visto desde el piso
 
-1. **Trompo.** Elige una estantería **sin tarjeta** y la identifica por su placa
-   *antes de volcar*. La app muestra modelo, familia y cemento en grande y, si el
-   trompo cambió de cemento, pregunta por el lavado. El operario llena, carga
-   cuántos moldes llenó y la app indica la tarjeta: *"ABEJA — colgala en la
-   estantería"*. Toma la primera del tablero del día y la cuelga.
+1. **Trompo.** La pantalla sigue este orden, a pedido de planta: **cemento**
+   (viene en gris, que es lo común; se tilda solo para blanco), **producto**
+   (se escribe y la lista se va filtrando), **estantería** (solo las de ese
+   producto y ese cemento, las llenas aparecen bloqueadas), **trompo** (A
+   horizontal o B vertical; el que viene elegido se configura en Admin →
+   Parámetros) y **moldes**. Al elegir la estantería la app muestra la placa y el
+   cemento en grande para verificarla *antes de volcar* y, si el trompo cambió de
+   cemento, pregunta por el lavado. Al registrar, la app indica la tarjeta:
+   *"ABEJA — colgala en la estantería"*. Toma la primera del tablero del día y la
+   cuelga. Debajo, la pantalla lista todo lo llenado en el día.
 2. **Patio.** Nadie registra nada. El color de la tarjeta dice el día.
 3. **Entrada al horno.** El hornero ve el patio por palabra y antigüedad, marca las
    que entran y confirma. Las tarjetas entran con las estanterías.

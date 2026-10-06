@@ -226,6 +226,21 @@ export async function guardarConfig(fd: FormData): Promise<Resultado<void>> {
   });
 }
 
+export async function guardarTrompoDefecto(fd: FormData): Promise<Resultado<void>> {
+  return ejecutar(async () => {
+    await autorizar();
+    const trompo = z
+      .enum(["a", "b"], { message: "Elegí el trompo A o el B." })
+      .parse(String(fd.get("trompo") ?? ""));
+    await db
+      .insert(config)
+      .values({ clave: "trompo_defecto", valor: trompo })
+      .onConflictDoUpdate({ target: config.clave, set: { valor: trompo } });
+    refrescarAdmin();
+    revalidatePath("/trompo");
+  });
+}
+
 /* -------------------------------------------------------------------------- */
 /* Usuarios                                                                   */
 /* -------------------------------------------------------------------------- */

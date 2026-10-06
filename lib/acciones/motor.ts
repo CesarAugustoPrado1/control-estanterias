@@ -88,6 +88,15 @@ export async function capacidadHorno(): Promise<number> {
   return Number.isInteger(n) && n > 0 ? n : CAPACIDAD_HORNO_DEFECTO;
 }
 
+/**
+ * Trompo que la pantalla del trompo trae elegido. Es solo una comodidad: el
+ * operario lo cambia con un toque, y se configura en Admin -> Parametros.
+ */
+export async function trompoPorDefecto(): Promise<Trompo> {
+  const [c] = await db.select().from(config).where(eq(config.clave, "trompo_defecto"));
+  return c?.valor === "b" ? "b" : "a";
+}
+
 /** Cuantas tarjetas de una letra existen fisicamente. */
 export async function tarjetasFabricadas(tx: Tx | typeof db, letra: Letra): Promise<number> {
   const [c] = await tx.select().from(config).where(eq(config.clave, claveFabricadas(letra)));
