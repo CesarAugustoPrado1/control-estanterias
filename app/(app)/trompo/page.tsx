@@ -1,13 +1,15 @@
 import { requerirRol } from "@/lib/auth";
+import { trompoPorDefecto } from "@/lib/acciones/motor";
 import {
-  cola,
   disponibilidadDeMoldes,
-  estanteriasParaTrompo,
+  llenadosDeHoy,
+  productosParaTrompo,
   ultimoCementoPorTrompo,
 } from "@/lib/consultas";
-import { haceCuanto, numero } from "@/lib/formato";
+import { paquetesEsperados, TIPO_TROMPO } from "@/lib/estados";
+import { hora, numero } from "@/lib/formato";
 import { ChipCemento, NombreTanda, Placa } from "@/components/tanda";
-import { Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
+import { ChipEstado, Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
 import { PanelTrompo } from "./panel";
 
 export const metadata = { title: "Trompo · Control de Estanterías" };
@@ -16,20 +18,63 @@ export const dynamic = "force-dynamic";
 export default async function Trompo() {
   await requerirRol("trompo");
 
-  const [estanterias, ultimoCemento, moldes, enPatio] = await Promise.all([
-    estanteriasParaTrompo(),
+  const [productos, ultimoCemento, moldes, hoy, trompoDefecto] = await Promise.all([
+    productosParaTrompo(),
     ultimoCementoPorTrompo(),
     disponibilidadDeMoldes(),
-    cola("patio"),
+    llenadosDeHoy(),
+    trompoPorDefecto(),
   ]);
 
   const libres = moldes.reduce((a, m) => a + m.libres, 0);
   const total = moldes.reduce((a, m) => a + m.total, 0);
-  const recientes = [...enPatio].sort((a, b) => b.creadaEn.getTime() - a.creadaEn.getTime()).slice(0, 8);
+  const moldesHoy = hoy.reduce((a, t) => a + t.moldesLlenados, 0);
+  const paquetesHoy = hoy.reduce((a, t) => a + paquetesEsperados(t), 0);
 
   return (
-    <Pantalla titulo="Trompo" bajada="Identificá la estantería por su placa antes de volcar.">
-      <PanelTrompo estanterias={estanterias} ultimoCemento={ultimoCemento} />
+    <Pantalla titulo="Trompo" bajada="Verificá la placa de la estantería antes de volcar.">
+      <PanelTrompo productos={productos} ultimoCemento={ultimoCemento} trompoDefecto={trompoDefecto} />
+
+      <Seccion
+        titulo="Llenados de hoy"
+        cantidad={hoy.length}
+        ayuda={
+          hoy.length
+            ? `${numero(moldesHoy)} moldes · ${numero(paquetesHoy)} paquetes esperados.`
+            : undefined
+        }
+      >
+        {hoy.length === 0 ? (
+          <Vacio>Todavía no se llenó nada hoy.</Vacio>
+        ) : (
+          <ul className="space-y-2">
+            {hoy.map((t) => (
+              <li
+                key={t.id}
+                className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 text-sm shadow-sm ring-1 ring-slate-200"
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <NombreTanda palabra={t.tarjetaPalabra} letra={t.tarjetaLetra} codigo={t.codigo} />
+                    {t.cemento === "blanco" && <ChipCemento cemento="blanco" />}
+                  </div>
+                  <div className="font-semibold text-slate-800">{t.productoNombre}</div>
+                  <div className="flex flex-wrap items-center gap-1 text-slate-600">
+                    <Placa etiqueta={t.estanteriaEtiqueta} />
+                    <span>
+                      {t.moldesLlenados} moldes · Trompo {t.trompo.toUpperCase()} ({TIPO_TROMPO[t.trompo]})
+                    </span>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="cifra text-xs text-slate-500">{hora(t.creadaEn)}</span>
+                  <ChipEstado estado={t.estado} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Seccion>
 
       <Seccion
         titulo="Estanterías libres ahora"
@@ -57,29 +102,6 @@ export default async function Trompo() {
         </div>
       </Seccion>
 
-      <Seccion titulo="Últimas que mandaste al patio" cantidad={enPatio.length}>
-        {recientes.length === 0 ? (
-          <Vacio>No hay nada fraguando en el patio.</Vacio>
-        ) : (
-          <ul className="space-y-2">
-            {recientes.map((t) => (
-              <li
-                key={t.id}
-                className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 text-sm shadow-sm ring-1 ring-slate-200"
-              >
-                <div className="min-w-0 space-y-1">
-                  <NombreTanda palabra={t.tarjetaPalabra} letra={t.tarjetaLetra} codigo={t.codigo} />
-                  <div className="flex flex-wrap items-center gap-1 text-slate-600">
-                    <Placa etiqueta={t.estanteriaEtiqueta} />
-                    <span className="truncate">{t.productoNombre}</span>
-                  </div>
-                </div>
-                <span className="shrink-0 text-xs text-slate-500">{haceCuanto(t.creadaEn)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Seccion>
     </Pantalla>
   );
 }

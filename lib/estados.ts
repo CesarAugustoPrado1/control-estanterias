@@ -98,7 +98,13 @@ export const ETIQUETA_MOTIVO_FRAGUADO: Record<MotivoFraguado, string> = {
   otro: "Otro",
 };
 
-export const ETIQUETA_TROMPO: Record<Trompo, string> = { a: "Trompo A", b: "Trompo B" };
+/** El A es horizontal y el B vertical: asi los nombran en planta. */
+export const TIPO_TROMPO: Record<Trompo, string> = { a: "horizontal", b: "vertical" };
+
+export const ETIQUETA_TROMPO: Record<Trompo, string> = {
+  a: "Trompo A (horizontal)",
+  b: "Trompo B (vertical)",
+};
 
 /**
  * Cuanto dura el estado ANTERIOR a cada movimiento. Es lo que hace legible la

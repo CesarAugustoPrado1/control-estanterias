@@ -26,6 +26,7 @@ import {
   LETRAS,
   claveFabricadas,
   etiquetaPlaca,
+  TZ,
   type Letra,
 } from "./tarjetas";
 
@@ -168,22 +169,24 @@ export async function disponibilidadDeMoldes() {
 }
 
 /**
- * Lo que necesita la pantalla del trompo: todas las estanterias activas, si
- * estan libres, y para cada una los tonos que se pueden llenar en ella.
+ * Lo que necesita la pantalla del trompo: los productos activos y, para cada
+ * uno, las estanterias activas donde se puede llenar y si estan libres.
  *
- * "Se pueden llenar" es exactamente la regla del motor: mismo modelo, misma
+ * "Se puede llenar" es exactamente la regla del motor: mismo modelo, misma
  * familia y MISMO CEMENTO. Se calcula aca con el mismo criterio para que la
  * pantalla nunca ofrezca algo que el motor despues rechaza.
+ *
+ * Van tambien los productos sin ninguna estanteria: si el operario lo busca y
+ * no aparece, no sabe si lo escribio mal; si aparece "sin estanterias", sabe a
+ * quien avisarle.
  */
-export async function estanteriasParaTrompo() {
+export async function productosParaTrompo() {
   const [ests, prods] = await Promise.all([
     db
       .select({
         e: estanterias,
         modelo: modelos.nombre,
-        modeloOrden: modelos.orden,
         familia: familias.nombre,
-        familiaOrden: familias.orden,
         ocupadaPor: sql<string | null>`(
           select coalesce(upper(t.tarjeta_palabra), t.codigo) from ${tandas} t
           where t.estanteria_id = ${estanterias.id}
@@ -194,41 +197,55 @@ export async function estanteriasParaTrompo() {
       .innerJoin(modelos, eq(modelos.id, estanterias.modeloId))
       .innerJoin(familias, eq(familias.id, estanterias.familiaId))
       .where(eq(estanterias.activa, true))
-      .orderBy(
-        asc(modelos.orden),
-        asc(modelos.nombre),
-        asc(familias.orden),
-        asc(familias.nombre),
-        asc(estanterias.cemento),
-        asc(estanterias.numero),
-      ),
-    db.select().from(productos).where(eq(productos.activo, true)).orderBy(asc(productos.nombre)),
+      .orderBy(asc(estanterias.numero)),
+    db
+      .select({ p: productos, modelo: modelos.nombre, familia: familias.nombre })
+      .from(productos)
+      .innerJoin(modelos, eq(modelos.id, productos.modeloId))
+      .innerJoin(familias, eq(familias.id, productos.familiaId))
+      .where(eq(productos.activo, true))
+      .orderBy(asc(productos.nombre)),
   ]);
 
-  return ests.map((x) => ({
-    id: x.e.id,
-    etiqueta: etiquetaPlaca(x.modelo, x.familia, x.e.numero, x.e.cemento),
+  return prods.map((x) => ({
+    id: x.p.id,
+    nombre: x.p.nombre,
     modelo: x.modelo,
     familia: x.familia,
-    cemento: x.e.cemento,
-    numero: x.e.numero,
-    moldes: x.e.moldes,
-    ocupadaPor: x.ocupadaPor,
-    productos: prods
+    cemento: x.p.cemento,
+    arido: x.p.arido,
+    piezasPorMolde: x.p.piezasPorMolde,
+    piezasPorPaquete: x.p.piezasPorPaquete,
+    m2PorPaquete: x.p.m2PorPaquete,
+    estanterias: ests
       .filter(
-        (p) =>
-          p.modeloId === x.e.modeloId &&
-          p.familiaId === x.e.familiaId &&
-          p.cemento === x.e.cemento,
+        (e) =>
+          e.e.modeloId === x.p.modeloId &&
+          e.e.familiaId === x.p.familiaId &&
+          e.e.cemento === x.p.cemento,
       )
-      .map((p) => ({
-        id: p.id,
-        nombre: p.nombre,
-        piezasPorMolde: p.piezasPorMolde,
-        piezasPorPaquete: p.piezasPorPaquete,
-        m2PorPaquete: p.m2PorPaquete,
+      .map((e) => ({
+        id: e.e.id,
+        etiqueta: etiquetaPlaca(e.modelo, e.familia, e.e.numero, e.e.cemento),
+        numero: e.e.numero,
+        moldes: e.e.moldes,
+        ocupadaPor: e.ocupadaPor,
       })),
   }));
+}
+
+/**
+ * Lo que se lleno hoy, en hora argentina, sin importar por donde va ahora: el
+ * trompo quiere ver su dia completo, no solo lo que sigue en el patio.
+ */
+export async function llenadosDeHoy() {
+  return db
+    .select()
+    .from(tandas)
+    .where(
+      sql`${tandas.creadaEn} >= (date_trunc('day', now() at time zone ${TZ}) at time zone ${TZ})`,
+    )
+    .orderBy(desc(tandas.creadaEn));
 }
 
 /**
