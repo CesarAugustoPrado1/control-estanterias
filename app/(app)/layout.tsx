@@ -23,7 +23,7 @@ export default async function LayoutApp({
   const sesion = await requerirSesion();
   return (
     <>
-      <Navegacion rol={sesion.rol} nombre={sesion.nombre} />
+      <Navegacion roles={sesion.roles} nombre={sesion.nombre} />
       <main>{children}</main>
     </>
   );

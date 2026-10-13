@@ -43,6 +43,7 @@ import {
   type UnidadSalida,
   type Cemento,
 } from "../lib/db/schema";
+import { rolesDe } from "../lib/permisos";
 import { codigoEstanteria, etiquetaPlaca } from "../lib/tarjetas";
 import { cargarPalabras, repartirTarjetasHistoricas } from "./_tarjetas";
 
@@ -240,7 +241,7 @@ async function cargarMaestros() {
     const hash = await bcrypt.hash(process.env.ADMIN_PIN ?? "1234", 10);
     await db
       .insert(usuarios)
-      .values(faltanU.map((u) => ({ ...u, pinHash: hash })));
+      .values(faltanU.map((u) => ({ ...u, roles: [u.rol], pinHash: hash })));
   }
 
   await db
@@ -274,7 +275,7 @@ type Maestros = Awaited<ReturnType<typeof cargarMaestros>>;
 async function simular(maestros: Maestros) {
   const users = await db.select().from(usuarios);
   const porRol = (r: Rol) => {
-    const c = users.filter((u) => u.rol === r);
+    const c = users.filter((u) => rolesDe(u).includes(r));
     return c[entre(0, c.length - 1)];
   };
   const mots = await db.select().from(motivosRotura);
@@ -536,6 +537,7 @@ async function soloAdmin() {
       usuario: "admin",
       nombre: "Administrador",
       rol: "admin",
+      roles: ["admin"],
       pinHash: hash,
     });
     console.log(`\nAdmin creado. Usuario admin / PIN ${process.env.ADMIN_PIN ?? "1234"}`);

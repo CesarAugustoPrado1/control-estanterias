@@ -54,7 +54,7 @@ export default async function DetalleTanda({
     t.paquetes !== null && t.m2PorPaquete ? t.paquetes * Number(t.m2PorPaquete) : null;
   const total = movs.reduce((a, m) => a + (m.duracionMin ?? 0), 0);
 
-  const motivos = sesion.rol === "admin" ? await listarMotivos() : [];
+  const motivos = sesion.roles.includes("admin") ? await listarMotivos() : [];
 
   return (
     <Pantalla
@@ -191,7 +191,7 @@ export default async function DetalleTanda({
         </ol>
       </Seccion>
 
-      {sesion.rol === "admin" && (
+      {sesion.roles.includes("admin") && (
         <Seccion
           titulo="Corregir"
           ayuda="Para arreglar un error de carga. Queda registrado como movimiento con su nota: nada se edita en silencio."

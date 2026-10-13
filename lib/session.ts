@@ -10,14 +10,15 @@ import { ErrorDeConfiguracion } from "./errores";
  *
  * Lo que va adentro del token es lo minimo para dibujar la pantalla. El rol se
  * REVALIDA contra la base en cada page y en cada action (ver auth.ts): si el
- * admin da de baja a alguien o le cambia el rol, no queremos esperar 30 dias a
- * que venza el token.
+ * admin da de baja a alguien o le cambia los roles, no queremos esperar 30 dias
+ * a que venza el token. El middleware, que no puede leer la base, renueva el
+ * token cuando le falta un permiso (ver app/api/sesion/renovar).
  */
 
 export const COOKIE = "sesion";
 const DIAS = 30;
 
-export type Sesion = { id: number; usuario: string; nombre: string; rol: Rol };
+export type Sesion = { id: number; usuario: string; nombre: string; roles: Rol[] };
 
 function clave(): Uint8Array {
   const s = process.env.SESSION_SECRET;
@@ -44,24 +45,29 @@ export async function firmar(s: Sesion): Promise<string> {
 export async function verificar(token: string): Promise<Sesion | null> {
   try {
     const { payload } = await jwtVerify(token, clave());
-    const { id, usuario, nombre, rol } = payload as unknown as Sesion;
-    if (typeof id !== "number" || !usuario || !rol) return null;
-    return { id, usuario, nombre, rol };
+    const p = payload as unknown as Partial<Sesion> & { rol?: Rol };
+    // Los tokens de antes de los varios roles traen `rol` suelto y siguen
+    // valiendo hasta que vencen.
+    const roles = Array.isArray(p.roles) ? p.roles : p.rol ? [p.rol] : [];
+    if (typeof p.id !== "number" || !p.usuario || !roles.length) return null;
+    return { id: p.id, usuario: p.usuario, nombre: p.nombre ?? "", roles };
   } catch {
     return null;
   }
 }
 
+export const OPCIONES_COOKIE = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: DIAS * 24 * 3600,
+} as const;
+
 export async function guardarSesion(s: Sesion): Promise<void> {
   const token = await firmar(s);
   const c = await cookies();
-  c.set(COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: DIAS * 24 * 3600,
-  });
+  c.set(COOKIE, token, OPCIONES_COOKIE);
 }
 
 export async function borrarSesion(): Promise<void> {

@@ -44,8 +44,49 @@ export const INICIO_POR_ROL: Record<Rol, string> = {
   auditor: "/tablero",
 };
 
-export function navegacionDe(rol: Rol): Entrada[] {
-  return NAVEGACION.filter((e) => e.roles.includes(rol));
+/**
+ * Prioridad para elegir el rol principal de alguien con varios: el admin
+ * primero, despues los puestos en orden del circuito, y al final los que solo
+ * miran. Decide donde cae al entrar.
+ */
+export const ORDEN_ROLES: Rol[] = ["admin", "trompo", "horno", "desmolde", "empaque", "oficina", "auditor"];
+
+/** Sin repetidos y en el orden de ORDEN_ROLES. */
+export function ordenarRoles(roles: readonly Rol[]): Rol[] {
+  return ORDEN_ROLES.filter((r) => roles.includes(r));
+}
+
+export function rolPrincipal(roles: readonly Rol[]): Rol {
+  return ordenarRoles(roles)[0] ?? "oficina";
+}
+
+export function inicioDe(roles: readonly Rol[]): string {
+  return INICIO_POR_ROL[rolPrincipal(roles)];
+}
+
+/** "Trompo · Horno". */
+export function etiquetaRoles(roles: readonly Rol[]): string {
+  return ordenarRoles(roles)
+    .map((r) => ETIQUETA_ROL[r])
+    .join(" · ");
+}
+
+/**
+ * Los usuarios anteriores a la migracion 0008 tienen la lista vacia y solo el
+ * rol de siempre. No deberia quedar ninguno, pero si quedara, que no pierda el
+ * acceso.
+ */
+export function rolesDe(u: { rol: Rol; roles: readonly Rol[] | null }): Rol[] {
+  return u.roles?.length ? ordenarRoles(u.roles) : [u.rol];
+}
+
+/** El admin pasa siempre; si no, alcanza con tener uno de los roles pedidos. */
+export function tieneAlguno(roles: readonly Rol[], pedidos: readonly Rol[]): boolean {
+  return roles.includes("admin") || pedidos.some((r) => roles.includes(r));
+}
+
+export function navegacionDe(roles: readonly Rol[]): Entrada[] {
+  return NAVEGACION.filter((e) => e.roles.some((r) => roles.includes(r)));
 }
 
 /**
@@ -63,11 +104,11 @@ export const RUTAS_EXTRA: Entrada[] = [
   },
 ];
 
-export function puedeVer(rol: Rol, ruta: string): boolean {
-  if (rol === "admin") return true;
+export function puedeVer(roles: readonly Rol[], ruta: string): boolean {
+  if (roles.includes("admin")) return true;
   const entrada = [...NAVEGACION, ...RUTAS_EXTRA]
     .filter((e) => ruta === e.href || ruta.startsWith(e.href + "/"))
     // La ruta mas especifica gana: /admin/productos antes que /admin.
     .sort((a, b) => b.href.length - a.href.length)[0];
-  return entrada ? entrada.roles.includes(rol) : false;
+  return entrada ? entrada.roles.some((r) => roles.includes(r)) : false;
 }

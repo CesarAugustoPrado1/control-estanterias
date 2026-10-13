@@ -8,7 +8,7 @@ import { db } from "../db";
 import { usuarios } from "../db/schema";
 import { borrarSesion, guardarSesion } from "../session";
 import { ejecutar, fallar, type Resultado } from "./comun";
-import { INICIO_POR_ROL } from "../permisos";
+import { inicioDe, rolesDe } from "../permisos";
 
 const esquema = z.object({
   usuario: z.string().trim().min(1, "Escribí tu usuario."),
@@ -63,14 +63,15 @@ export async function accionEntrar(fd: FormData): Promise<Resultado<string>> {
       .set({ intentosFallidos: 0, bloqueadoHasta: null })
       .where(eq(usuarios.id, u.id));
 
+    const roles = rolesDe(u);
     await guardarSesion({
       id: u.id,
       usuario: u.usuario,
       nombre: u.nombre,
-      rol: u.rol,
+      roles,
     });
 
-    return INICIO_POR_ROL[u.rol];
+    return inicioDe(roles);
   });
 }
 
