@@ -147,6 +147,13 @@ importante de inversión que va a producir esta app.
 Desmolde y empaque son **puestos separados** y registran cosas distintas, a
 pedido de planta.
 
+Un usuario puede tener **varios roles** (por ejemplo trompo y horno): ve la
+suma de las pantallas de cada uno. Al entrar cae en la del rol principal, que es
+el primero de la lista de arriba. Si el admin le suma un rol con la sesión
+abierta, el middleware renueva el token contra la base la primera vez que entra
+a una pantalla nueva (`/api/sesion/renovar`), sin tener que salir y volver a
+entrar.
+
 ---
 
 ## 4. Unidades: molde → pieza → paquete
@@ -249,7 +256,7 @@ respuesta a dónde se va la mayor pérdida, sin agregar un campo de carga.
 ## 6. Esquema
 
 ```
-usuarios         usuario, nombre, pin_hash, rol, activo,
+usuarios         usuario, nombre, pin_hash, roles[], rol (principal), activo,
                  intentos_fallidos, bloqueado_hasta
 modelos          nombre, activo, orden                      -- la forma
 familias         nombre, activa, orden                      -- el color

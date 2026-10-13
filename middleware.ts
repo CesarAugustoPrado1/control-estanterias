@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { INICIO_POR_ROL, puedeVer } from "./lib/permisos";
+import { inicioDe, puedeVer } from "./lib/permisos";
 import { COOKIE, verificar } from "./lib/session";
 
 /**
@@ -11,11 +11,18 @@ import { COOKIE, verificar } from "./lib/session";
  */
 
 /**
+ * Valida la sesion por su cuenta (lee la base): por eso puede ir en PUBLICAS.
+ * Tiene que estar ahi, porque si no, el redireccionamiento de abajo la mandaria
+ * a si misma.
+ */
+const RENOVAR = "/api/sesion/renovar";
+
+/**
  * `/api/estado` va aca porque su razon de ser es diagnosticar por que alguien
  * NO puede entrar: si exigiera sesion seria inservible justo cuando hace falta.
  * Solo devuelve booleanos y conteos, nunca valores de configuracion.
  */
-const PUBLICAS = ["/login", "/sin-permiso", "/api/estado"];
+const PUBLICAS = ["/login", "/sin-permiso", "/api/estado", RENOVAR];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -26,7 +33,7 @@ export async function middleware(req: NextRequest) {
   if (PUBLICAS.some((p) => pathname.startsWith(p))) {
     // Ya logueado entrando al login: mandarlo a su puesto.
     if (sesion && pathname.startsWith("/login")) {
-      return NextResponse.redirect(new URL(INICIO_POR_ROL[sesion.rol], req.url));
+      return NextResponse.redirect(new URL(inicioDe(sesion.roles), req.url));
     }
     return NextResponse.next();
   }
@@ -40,11 +47,16 @@ export async function middleware(req: NextRequest) {
 
   // La raiz no tiene pantalla propia: cada rol cae en su puesto.
   if (pathname === "/") {
-    return NextResponse.redirect(new URL(INICIO_POR_ROL[sesion.rol], req.url));
+    return NextResponse.redirect(new URL(inicioDe(sesion.roles), req.url));
   }
 
-  if (!puedeVer(sesion.rol, pathname)) {
-    return NextResponse.redirect(new URL("/sin-permiso", req.url));
+  // El token puede tener roles viejos: si el admin le acaba de sumar un puesto,
+  // el menu (que sale de la base) ya lo muestra pero el token todavia no lo
+  // trae. Antes de mandarlo a "sin permiso", se renueva el token contra la base.
+  if (!puedeVer(sesion.roles, pathname)) {
+    const url = new URL(RENOVAR, req.url);
+    url.searchParams.set("volver", pathname + req.nextUrl.search);
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();

@@ -45,7 +45,7 @@ const DONDE: Record<Exclude<Estado, "listo">, string> = {
  */
 export default async function Recorrida() {
   const sesion = await requerirRol("oficina", "auditor");
-  const esAdmin = sesion.rol === "admin";
+  const esAdmin = sesion.roles.includes("admin");
   const [{ vivas, avisos, perdidas }, { tarjetas }] = await Promise.all([
     datosRecorrida(),
     estadoDeTarjetas(),

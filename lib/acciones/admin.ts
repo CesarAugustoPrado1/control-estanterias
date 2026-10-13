@@ -17,6 +17,7 @@ import {
   tandas,
   usuarios,
 } from "../db/schema";
+import { ordenarRoles, rolPrincipal } from "../permisos";
 import * as motor from "./motor";
 import { codigoPlataforma, ejecutar, fallar, numeroOpcional, type Resultado } from "./comun";
 
@@ -282,7 +283,13 @@ export async function guardarUsuario(fd: FormData): Promise<Resultado<void>> {
       .regex(/^[a-z0-9._-]{2,20}$/, "El usuario son 2 a 20 letras, números, punto o guion.")
       .parse(fd.get("usuario"));
     const nombre = texto(2).parse(fd.get("nombre"));
-    const rol = z.enum(rolEnum.enumValues, { message: "Elegí un rol." }).parse(fd.get("rol"));
+    const roles = ordenarRoles(
+      z
+        .array(z.enum(rolEnum.enumValues))
+        .min(1, "Tildá al menos un rol.")
+        .parse(fd.getAll("roles").map(String)),
+    );
+    const rol = rolPrincipal(roles);
     const activo = fd.get("activo") === "on" || fd.get("activo") === "true";
     const pin = String(fd.get("pin") ?? "").trim();
 
@@ -299,7 +306,7 @@ export async function guardarUsuario(fd: FormData): Promise<Resultado<void>> {
     if (id) {
       // Que un admin se saque a si mismo el rol o se desactive deja el sistema
       // sin nadie que pueda arreglarlo.
-      if (id === yo.id && (rol !== "admin" || !activo)) {
+      if (id === yo.id && (!roles.includes("admin") || !activo)) {
         fallar(
           "No podés quitarte a vos mismo el rol de administrador ni darte de baja. " +
             "Pedile a otro admin que lo haga.",
@@ -311,6 +318,7 @@ export async function guardarUsuario(fd: FormData): Promise<Resultado<void>> {
           usuario,
           nombre,
           rol,
+          roles,
           activo,
           ...(pin ? { pinHash: await hashearPin(pin), intentosFallidos: 0, bloqueadoHasta: null } : {}),
         })
@@ -319,7 +327,7 @@ export async function guardarUsuario(fd: FormData): Promise<Resultado<void>> {
       if (!pin) fallar("Poné un PIN inicial de 4 a 8 dígitos.");
       await db
         .insert(usuarios)
-        .values({ usuario, nombre, rol, pinHash: await hashearPin(pin) });
+        .values({ usuario, nombre, rol, roles, pinHash: await hashearPin(pin) });
     }
     refrescarAdmin();
   });

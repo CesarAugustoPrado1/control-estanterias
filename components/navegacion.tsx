@@ -4,19 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { accionSalir } from "@/lib/acciones/sesion";
-import { ETIQUETA_ROL, navegacionDe } from "@/lib/permisos";
+import { etiquetaRoles, navegacionDe } from "@/lib/permisos";
 import type { Rol } from "@/lib/db/schema";
 
 export function Navegacion({
-  rol,
+  roles,
   nombre,
 }: {
-  rol: Rol;
+  roles: Rol[];
   nombre: string;
 }) {
   const ruta = usePathname();
   const [abierto, setAbierto] = useState(false);
-  const entradas = navegacionDe(rol);
+  const entradas = navegacionDe(roles);
 
   const activa = (href: string) =>
     ruta === href || ruta.startsWith(href + "/");
@@ -54,7 +54,7 @@ export function Navegacion({
               {nombre}
             </div>
             <div className="text-xs leading-tight text-slate-500">
-              {ETIQUETA_ROL[rol]}
+              {etiquetaRoles(roles)}
             </div>
           </div>
           <button
@@ -80,7 +80,7 @@ export function Navegacion({
       {abierto && (
         <nav className="border-t border-slate-200 bg-white px-3 pb-3 md:hidden">
           <div className="border-b border-slate-100 py-2 text-sm text-slate-600">
-            {nombre} · {ETIQUETA_ROL[rol]}
+            {nombre} · {etiquetaRoles(roles)}
           </div>
           {entradas.map((e) => (
             <Link

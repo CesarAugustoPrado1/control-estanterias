@@ -1,7 +1,6 @@
 import { guardarUsuario } from "@/lib/acciones/admin";
 import { listarUsuarios } from "@/lib/consultas";
-import { rolEnum } from "@/lib/db/schema";
-import { ETIQUETA_ROL } from "@/lib/permisos";
+import { ETIQUETA_ROL, etiquetaRoles, ORDEN_ROLES, rolesDe } from "@/lib/permisos";
 import { fechaHora } from "@/lib/formato";
 import { EditorFilas, type CampoDef } from "@/components/admin/editor";
 import { Aviso, Pantalla, Seccion } from "@/components/ui";
@@ -23,11 +22,13 @@ export default async function Usuarios() {
     },
     { clave: "nombre", etiqueta: "Nombre y apellido", tipo: "texto", requerido: true },
     {
-      clave: "rol",
-      etiqueta: "Rol",
-      tipo: "select",
+      clave: "roles",
+      etiqueta: "Roles",
+      tipo: "varios",
       requerido: true,
-      opciones: rolEnum.enumValues.map((r) => ({ valor: r, texto: ETIQUETA_ROL[r] })),
+      ayuda:
+        "Tildá todos los puestos que hace. Al entrar cae en la pantalla del primero (admin, trompo, horno, desmolde, empaque, oficina, auditoría).",
+      opciones: ORDEN_ROLES.map((r) => ({ valor: r, texto: ETIQUETA_ROL[r] })),
     },
     {
       clave: "pin",
@@ -58,7 +59,7 @@ export default async function Usuarios() {
             return {
               id: u.id,
               titulo: u.nombre,
-              subtitulo: `${u.usuario} · ${ETIQUETA_ROL[u.rol]}`,
+              subtitulo: `${u.usuario} · ${etiquetaRoles(rolesDe(u))}`,
               etiquetas: [
                 ...(u.activo ? [] : [{ texto: "de baja", tono: "rojo" as const }]),
                 ...(bloqueado
@@ -73,7 +74,7 @@ export default async function Usuarios() {
               valores: {
                 usuario: u.usuario,
                 nombre: u.nombre,
-                rol: u.rol,
+                roles: rolesDe(u).join(","),
                 pin: "",
                 activo: u.activo,
               },

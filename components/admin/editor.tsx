@@ -26,7 +26,12 @@ import {
 export type CampoDef = {
   clave: string;
   etiqueta: string;
-  tipo: "texto" | "numero" | "decimal" | "select" | "check" | "pin";
+  /**
+   * `varios`: una casilla por opcion, se pueden tildar varias. Viaja como un
+   * valor por casilla tildada (leer con `fd.getAll`); en `valores` va separado
+   * por comas.
+   */
+  tipo: "texto" | "numero" | "decimal" | "select" | "check" | "varios" | "pin";
   opciones?: { valor: string | number; texto: string }[];
   requerido?: boolean;
   ayuda?: string;
@@ -233,6 +238,32 @@ function Formulario({
                   {c.etiqueta}
                 </span>
               </label>
+            );
+          }
+          if (c.tipo === "varios") {
+            const elegidos = new Set(String(v ?? "").split(",").filter(Boolean));
+            return (
+              <fieldset key={c.clave} className="space-y-1.5 sm:col-span-2">
+                <legend className="text-sm font-semibold text-slate-700">{c.etiqueta}</legend>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {c.opciones?.map((o) => (
+                    <label
+                      key={o.valor}
+                      className="flex min-h-12 items-center gap-3 rounded-lg bg-slate-50 px-3 ring-1 ring-slate-200"
+                    >
+                      <input
+                        type="checkbox"
+                        name={c.clave}
+                        value={o.valor}
+                        defaultChecked={elegidos.has(String(o.valor))}
+                        className="h-6 w-6 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+                      />
+                      <span className="text-sm font-medium text-slate-700">{o.texto}</span>
+                    </label>
+                  ))}
+                </div>
+                {c.ayuda && <p className="text-xs text-slate-500">{c.ayuda}</p>}
+              </fieldset>
             );
           }
           if (c.tipo === "select") {

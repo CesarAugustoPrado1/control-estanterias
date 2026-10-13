@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { requerirRol } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { rolesDe } from "@/lib/permisos";
 import {
   config,
   estanterias,
@@ -163,7 +164,7 @@ export async function GET(req: NextRequest) {
       [
         { header: "usuario", key: "usuario", width: 18 },
         { header: "nombre", key: "nombre", width: 26 },
-        { header: "rol", key: "rol", width: 16 },
+        { header: "roles", key: "rol", width: 28 },
         { header: "activo", key: "activo", width: 10 },
       ],
       // Sin pin_hash: un hash bcrypt en una planilla que despues se manda por
@@ -171,7 +172,7 @@ export async function GET(req: NextRequest) {
       us.map((u) => ({
         usuario: u.usuario,
         nombre: u.nombre,
-        rol: u.rol,
+        rol: rolesDe(u).join(", "),
         activo: u.activo ? "si" : "no",
       })),
     );

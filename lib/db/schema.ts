@@ -179,7 +179,13 @@ export const usuarios = esq.table(
     usuario: text("usuario").notNull(),
     nombre: text("nombre").notNull(),
     pinHash: text("pin_hash").notNull(),
+    /**
+     * Rol principal: el de la pantalla donde cae al entrar. Se deriva de
+     * `roles` al guardar (ver `rolPrincipal` en lib/permisos.ts).
+     */
     rol: rolEnum("rol").notNull(),
+    /** Todos los puestos que puede operar. Es lo que decide los permisos. */
+    roles: rolEnum("roles").array().notNull().default(sql`'{}'`),
     activo: boolean("activo").notNull().default(true),
     /**
      * Un PIN de 4 digitos son 10.000 combinaciones: sin freno se prueba entero
