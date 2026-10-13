@@ -7,6 +7,7 @@ import {
   estanterias,
   familias,
   modelos,
+  maquinistas,
   motivosRotura,
   movimientos,
   productos,
@@ -247,6 +248,15 @@ export async function llenadosDeHoy() {
       sql`${tandas.creadaEn} >= (date_trunc('day', now() at time zone ${TZ}) at time zone ${TZ})`,
     )
     .orderBy(desc(tandas.creadaEn));
+}
+
+/** Los que se pueden elegir en el trompo: solo los activos. */
+export async function maquinistasActivos() {
+  return db
+    .select({ id: maquinistas.id, nombre: maquinistas.nombre })
+    .from(maquinistas)
+    .where(eq(maquinistas.activo, true))
+    .orderBy(asc(maquinistas.nombre));
 }
 
 /**

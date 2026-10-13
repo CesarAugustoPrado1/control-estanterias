@@ -6,6 +6,7 @@ import {
   config,
   estanterias,
   familias,
+  maquinistas,
   modelos,
   movimientos,
   productos,
@@ -255,6 +256,7 @@ export async function llenar(
     estanteriaId: number;
     productoId: number;
     trompo: Trompo;
+    maquinistaId: number;
     moldesLlenados: number | null;
     confirmoLavado: boolean;
   },
@@ -304,6 +306,10 @@ export async function llenar(
       );
     }
 
+    const [maq] = await tx.select().from(maquinistas).where(eq(maquinistas.id, datos.maquinistaId));
+    if (!maq) fallar("Ese maquinista no existe.");
+    if (!maq.activo) fallar(`${maq.nombre} está marcado como inactivo. Elegí otro maquinista.`);
+
     // Aviso de lavado: si la ultima tanda de este trompo fue de otro cemento.
     const [ultima] = await tx
       .select({ cemento: tandas.cemento, creadaEn: tandas.creadaEn })
@@ -352,6 +358,8 @@ export async function llenar(
         piezasPorPaquete: prod.piezasPorPaquete,
         m2PorPaquete: prod.m2PorPaquete,
         trompo: datos.trompo,
+        maquinistaId: maq.id,
+        maquinistaNombre: maq.nombre,
         moldesNominal: est.e.moldes,
         moldesLlenados: moldes,
         tarjetaId: tarjeta?.id ?? null,
