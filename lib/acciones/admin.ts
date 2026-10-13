@@ -9,6 +9,7 @@ import {
   config,
   estanterias,
   familias,
+  maquinistas,
   modelos,
   motivosRotura,
   productos,
@@ -201,6 +202,29 @@ export async function guardarMotivo(fd: FormData): Promise<Resultado<void>> {
       await db.update(motivosRotura).set({ nombre, activo }).where(eq(motivosRotura.id, id));
     } else {
       await db.insert(motivosRotura).values({ nombre });
+    }
+    refrescarAdmin();
+  });
+}
+
+/** Lo que el operario del trompo elige al registrar cada llenado. */
+export async function guardarMaquinista(fd: FormData): Promise<Resultado<void>> {
+  return ejecutar(async () => {
+    await autorizar();
+    const id = numeroOpcional(fd.get("id"));
+    const nombre = texto().parse(fd.get("nombre"));
+    const activo = fd.get("activo") === "on" || fd.get("activo") === "true";
+
+    const repetido = await db
+      .select()
+      .from(maquinistas)
+      .where(id ? and(eq(maquinistas.nombre, nombre), ne(maquinistas.id, id)) : eq(maquinistas.nombre, nombre));
+    if (repetido.length) fallar(`Ya existe un maquinista llamado "${nombre}".`);
+
+    if (id) {
+      await db.update(maquinistas).set({ nombre, activo }).where(eq(maquinistas.id, id));
+    } else {
+      await db.insert(maquinistas).values({ nombre });
     }
     refrescarAdmin();
   });

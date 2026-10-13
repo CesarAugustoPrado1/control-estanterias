@@ -6,6 +6,7 @@ import {
   fraguadoNaturalPorMotivo,
   moldesSinLlenar,
   produccionDiaria,
+  roturaPorMaquinista,
   roturaPorProducto,
   roturaPorResponsable,
   roturaPorTrompo,
@@ -106,6 +107,7 @@ export default async function Estadisticas({
     devolucion,
     porProducto,
     porTrompo,
+    porMaquinista,
     porLlenado,
     porDesmolde,
     segunHorno,
@@ -121,6 +123,7 @@ export default async function Estadisticas({
     efectoDeLaDevolucion(dias),
     roturaPorProducto(dias),
     roturaPorTrompo(dias),
+    roturaPorMaquinista(dias),
     roturaPorResponsable(dias, "llenado"),
     roturaPorResponsable(dias, "desmolde"),
     roturaSegunHorno(dias),
@@ -404,10 +407,17 @@ export default async function Estadisticas({
         <Seccion titulo="Rotura por trompo">
           <TablaRotura filas={porTrompo} encabezado="Trompo" />
         </Seccion>
-        <Seccion titulo="Rotura por responsable del llenado">
-          <TablaRotura filas={porLlenado} encabezado="Quién llenó" />
+        <Seccion titulo="Rotura por maquinista">
+          <TablaRotura filas={porMaquinista} encabezado="Maquinista" />
         </Seccion>
       </div>
+
+      <Seccion
+        titulo="Rotura por quién registró el llenado"
+        ayuda="El usuario de la app que cargó el llenado, no necesariamente el maquinista."
+      >
+        <TablaRotura filas={porLlenado} encabezado="Quién registró" />
+      </Seccion>
 
       <Seccion
         titulo="Rotura por quién desmoldó"

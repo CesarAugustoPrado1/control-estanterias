@@ -391,6 +391,20 @@ export const motivosRotura = esq.table("motivos_rotura", {
   activo: boolean("activo").notNull().default(true),
 });
 
+/**
+ * Quien maneja el trompo. NO es usuario de la app: no entra ni tiene PIN. El
+ * operario lo elige al registrar cada llenado. Se da de baja, no se borra.
+ */
+export const maquinistas = esq.table(
+  "maquinistas",
+  {
+    id: serial("id").primaryKey(),
+    nombre: text("nombre").notNull(),
+    activo: boolean("activo").notNull().default(true),
+  },
+  (t) => [uniqueIndex("maquinistas_nombre_idx").on(t.nombre)],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Tandas                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -445,6 +459,12 @@ export const tandas = esq.table(
     m2PorPaquete: numeric("m2_por_paquete", { precision: 8, scale: 4 }),
 
     trompo: trompoEnum("trompo").notNull(),
+    /**
+     * Maquinista del trompo en este llenado, con su nombre como snapshot.
+     * Nullable: las tandas de antes de que existiera la lista no tienen.
+     */
+    maquinistaId: integer("maquinista_id").references(() => maquinistas.id),
+    maquinistaNombre: text("maquinista_nombre"),
 
     /** Nominal de la estanteria al momento del llenado. */
     moldesNominal: integer("moldes_nominal"),

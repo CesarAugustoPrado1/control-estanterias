@@ -3,6 +3,7 @@ import { trompoPorDefecto } from "@/lib/acciones/motor";
 import {
   disponibilidadDeMoldes,
   llenadosDeHoy,
+  maquinistasActivos,
   productosParaTrompo,
   ultimoCementoPorTrompo,
 } from "@/lib/consultas";
@@ -19,12 +20,13 @@ export const dynamic = "force-dynamic";
 export default async function Trompo() {
   await requerirRol("trompo");
 
-  const [productos, ultimoCemento, moldes, hoy, trompoDefecto] = await Promise.all([
+  const [productos, ultimoCemento, moldes, hoy, trompoDefecto, maquinistas] = await Promise.all([
     productosParaTrompo(),
     ultimoCementoPorTrompo(),
     disponibilidadDeMoldes(),
     llenadosDeHoy(),
     trompoPorDefecto(),
+    maquinistasActivos(),
   ]);
 
   const libres = moldes.reduce((a, m) => a + m.libres, 0);
@@ -40,7 +42,12 @@ export default async function Trompo() {
 
   return (
     <Pantalla titulo="Trompo" bajada="Verificá la placa de la estantería antes de volcar.">
-      <PanelTrompo productos={productos} ultimoCemento={ultimoCemento} trompoDefecto={trompoDefecto} />
+      <PanelTrompo
+        productos={productos}
+        ultimoCemento={ultimoCemento}
+        trompoDefecto={trompoDefecto}
+        maquinistas={maquinistas}
+      />
 
       <Seccion
         titulo="Llenados de hoy"
@@ -70,6 +77,7 @@ export default async function Trompo() {
                     <Placa etiqueta={t.estanteriaEtiqueta} />
                     <span>
                       {t.moldesLlenados} moldes → {cantidadSalida(paquetesEsperados(t), t.unidad)} · Trompo {t.trompo.toUpperCase()} ({TIPO_TROMPO[t.trompo]})
+                      {t.maquinistaNombre && <> · {t.maquinistaNombre}</>}
                     </span>
                   </div>
                 </div>

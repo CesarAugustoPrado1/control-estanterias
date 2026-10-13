@@ -22,6 +22,7 @@ const esquemaLlenado = z.object({
   estanteriaId: z.number().int().positive("Elegí la estantería por su placa."),
   productoId: z.number().int().positive("Elegí el tono."),
   trompo: z.enum(["a", "b"], { message: "Elegí el trompo." }),
+  maquinistaId: z.number().int().positive("Elegí el maquinista."),
   moldesLlenados: z
     .number()
     .int("Los moldes se cuentan de a uno.")
@@ -39,6 +40,7 @@ export async function accionLlenar(
       estanteriaId: Number(fd.get("estanteriaId")),
       productoId: Number(fd.get("productoId")),
       trompo: String(fd.get("trompo") ?? ""),
+      maquinistaId: Number(fd.get("maquinistaId")),
       moldesLlenados: numeroOpcional(fd.get("moldesLlenados")),
       confirmoLavado: fd.get("confirmoLavado") === "on" || fd.get("confirmoLavado") === "true",
     });

@@ -15,6 +15,7 @@ import {
   Campo,
   DetalleTecnico,
   Entrada,
+  Selector,
   Tarjeta,
 } from "@/components/ui";
 
@@ -62,22 +63,27 @@ function normalizar(s: string): string {
 
 /**
  * Orden de la pantalla, a pedido de planta: cemento, producto, estanteria,
- * trompo y moldes.
+ * trompo con su maquinista, y moldes.
  *
  * El cemento va primero y viene en GRIS, que es lo comun: si nadie toca nada,
  * se produce gris. Tildar blanco cambia la lista de productos y de estanterias,
  * asi que la pantalla nunca ofrece una estanteria de un cemento distinto del
  * elegido. La verificacion de la placa ANTES de volcar sigue (ARQUITECTURA.md
  * §10.5): al elegir la estanteria se muestra en grande con su cemento.
+ *
+ * El maquinista no se limpia al registrar: casi siempre es el mismo toda la
+ * jornada, y obligar a elegirlo en cada llenado invita a tocar cualquiera.
  */
 export function PanelTrompo({
   productos,
   ultimoCemento,
   trompoDefecto,
+  maquinistas,
 }: {
   productos: Producto[];
   ultimoCemento: Record<Trompo, Cemento | null>;
   trompoDefecto: Trompo;
+  maquinistas: { id: number; nombre: string }[];
 }) {
   const router = useRouter();
   const [cemento, setCemento] = useState<Cemento>("gris");
@@ -85,6 +91,7 @@ export function PanelTrompo({
   const [productoId, setProductoId] = useState<number | null>(null);
   const [estanteriaId, setEstanteriaId] = useState<number | null>(null);
   const [trompo, setTrompo] = useState<Trompo>(trompoDefecto);
+  const [maquinistaId, setMaquinistaId] = useState("");
   const [lavado, setLavado] = useState(false);
   const [moldes, setMoldes] = useState("");
   const [hecho, setHecho] = useState<Resultado | null>(null);
@@ -157,7 +164,17 @@ export function PanelTrompo({
     prod && Number.isInteger(n) && n > 0 ? convertir(n, prod.piezasPorMolde, prod.piezasPorPaquete) : null;
   const m2 = previsto && prod?.m2PorPaquete ? previsto.paquetes * Number(prod.m2PorPaquete) : null;
 
-  const listo = prod !== null && est !== null && !est.ocupadaPor && moldes !== "" && (!cambiaCemento || lavado);
+  // Si el admin dio de baja al maquinista elegido, la lista ya no lo trae y
+  // hay que volver a elegir.
+  const maquinista = maquinistas.find((m) => String(m.id) === maquinistaId) ?? null;
+
+  const listo =
+    prod !== null &&
+    est !== null &&
+    !est.ocupadaPor &&
+    moldes !== "" &&
+    maquinista !== null &&
+    (!cambiaCemento || lavado);
 
   return (
     <div className="space-y-4">
@@ -182,6 +199,7 @@ export function PanelTrompo({
             fd.set("estanteriaId", String(estanteriaId ?? ""));
             fd.set("productoId", String(productoId ?? ""));
             fd.set("trompo", trompo);
+            fd.set("maquinistaId", maquinista ? String(maquinista.id) : "");
             fd.set("confirmoLavado", lavado ? "true" : "false");
             llenar.enviar(fd);
           }}
@@ -352,9 +370,9 @@ export function PanelTrompo({
             </div>
           )}
 
-          {/* 4. Trompo */}
+          {/* 4. Trompo y maquinista */}
           <div className="space-y-3">
-            <h2 className="text-base font-bold text-slate-900">4. Trompo</h2>
+            <h2 className="text-base font-bold text-slate-900">4. Trompo y maquinista</h2>
             <div className="grid grid-cols-2 gap-2">
               {(["a", "b"] as const).map((t) => (
                 <button
@@ -370,6 +388,30 @@ export function PanelTrompo({
                 </button>
               ))}
             </div>
+
+            {maquinistas.length === 0 ? (
+              <Aviso tono="atencion">
+                No hay maquinistas activos cargados. Pedile al administrador que los cargue en Parámetros.
+              </Aviso>
+            ) : (
+              <Campo etiqueta="Maquinista" ayuda="Quién maneja el trompo en este llenado.">
+                <Selector
+                  value={maquinista ? maquinistaId : ""}
+                  onChange={(e) => {
+                    llenar.limpiar();
+                    setMaquinistaId(e.target.value);
+                  }}
+                  className="text-lg"
+                >
+                  <option value="">Elegí el maquinista…</option>
+                  {maquinistas.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nombre}
+                    </option>
+                  ))}
+                </Selector>
+              </Campo>
+            )}
 
             {cambiaCemento && (
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-amber-500 bg-amber-50 p-4">

@@ -133,6 +133,7 @@ export default async function DetalleTanda({
         </div>
         <p className="mt-2 text-xs text-slate-500">
           {ETIQUETA_TROMPO[t.trompo]}
+          {t.maquinistaNombre && <> · maquinista {t.maquinistaNombre}</>}
           {estanteria && <> · estantería {t.estanteriaEtiqueta ?? estanteria.codigo}</>}
           {t.tarjetaPalabra && t.tarjetaOrden && <> · gancho {t.tarjetaOrden}</>} · en este estado{" "}
           {haceCuanto(t.estadoDesde)}
