@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
   hoja(
     "Llenado",
     [
-      { header: "modelo", key: "modelo", width: 18 },
       { header: "producto", key: "producto", width: 30 },
       { header: "codigo plataforma proceso", key: "codigo", width: 26 },
       { header: "tandas", key: "tandas", width: 10 },
@@ -45,7 +44,6 @@ export async function GET(req: NextRequest) {
       { header: "m2", key: "m2", width: 12 },
     ],
     llenado.map((f) => ({
-      modelo: f.modelo,
       producto: f.producto,
       codigo: f.codigo ?? "",
       tandas: f.tandas,
@@ -59,7 +57,6 @@ export async function GET(req: NextRequest) {
   hoja(
     "Empaquetado",
     [
-      { header: "modelo", key: "modelo", width: 18 },
       { header: "producto", key: "producto", width: 30 },
       { header: "codigo plataforma terminado", key: "codigo", width: 28 },
       { header: "tandas", key: "tandas", width: 10 },
@@ -71,7 +68,6 @@ export async function GET(req: NextRequest) {
       { header: "m2 empaquetados", key: "m2o", width: 16 },
     ],
     empaque.map((f) => ({
-      modelo: f.modelo,
       producto: f.producto,
       codigo: f.codigo ?? "",
       tandas: f.tandas,
