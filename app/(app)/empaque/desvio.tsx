@@ -42,7 +42,7 @@ function Abrir() {
           onClick={() => setAbierto(true)}
           className="text-sm font-semibold text-violet-700 hover:underline"
         >
-          El empaque está parado
+          Avisar que el empaque está parado
         </button>
       </div>
     );
