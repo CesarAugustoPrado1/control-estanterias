@@ -150,7 +150,7 @@ pedido de planta.
 La pantalla **Producción** (`/produccion`) la ven admin, oficina, auditor y
 trompo: por período (por defecto, el último día con producción antes de hoy)
 muestra lo llenado (producto en proceso, por fecha de llenado) y lo empaquetado
-(producto terminado, por fecha de empaquetado) agrupado por modelo, con los
+(producto terminado, por fecha de empaquetado) por producto final, con los
 códigos de Plataforma y descarga a Excel. Ver `lib/produccion.ts`.
 
 Un usuario puede tener **varios roles** (por ejemplo trompo y horno): ve la

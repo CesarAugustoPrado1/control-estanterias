@@ -84,7 +84,7 @@ export async function llenadoPorProducto(desde: string, hasta: string): Promise<
     left join estanterias.productos p on p.id = t.producto_id
     where (t.creada_en at time zone ${TZ})::date between ${desde}::date and ${hasta}::date
     group by t.modelo_nombre, t.producto_id, t.unidad
-    order by t.modelo_nombre, producto`);
+    order by producto`);
   return r.rows as FilaLlenado[];
 }
 
@@ -121,19 +121,8 @@ export async function empaquePorProducto(desde: string, hasta: string): Promise<
     where t.paquetes is not null
       and (emp.creado_en at time zone ${TZ})::date between ${desde}::date and ${hasta}::date
     group by t.modelo_nombre, t.producto_id, t.unidad
-    order by t.modelo_nombre, producto`);
+    order by producto`);
   return r.rows as FilaEmpaque[];
-}
-
-/** Agrupa filas por modelo, conservando el orden en que vienen. */
-export function porModelo<T extends { modelo: string }>(filas: T[]): { modelo: string; filas: T[] }[] {
-  const grupos = new Map<string, T[]>();
-  for (const f of filas) {
-    const g = grupos.get(f.modelo);
-    if (g) g.push(f);
-    else grupos.set(f.modelo, [f]);
-  }
-  return [...grupos].map(([modelo, filas]) => ({ modelo, filas }));
 }
 
 /** Suma por unidad: sumar paquetes con unidades sueltas no dice nada. */
