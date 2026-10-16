@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requerirRol } from "@/lib/auth";
 import type { UnidadSalida } from "@/lib/db/schema";
-import { cantidadSalida, UNIDAD_SALIDA } from "@/lib/estados";
+import { cantidadSalida, concordar, UNIDAD_SALIDA } from "@/lib/estados";
 import { m2, numero, porcentaje } from "@/lib/formato";
 import {
   empaquePorProducto,
@@ -311,15 +311,18 @@ function TablaLlenado({ modelo, filas }: { modelo: string; filas: FilaLlenado[] 
           )}
         </table>
       </div>
-      <ListaMovil
+      <TarjetaMovil
         modelo={modelo}
+        total={
+          <span className="text-lg font-bold">{numero(filas.reduce((a, f) => a + f.moldes, 0))} moldes</span>
+        }
+        bajada={m2Texto(sumaM2(filas.map((f) => f.m2)))}
         filas={filas.map((f) => ({
           f,
-          detalle: `${numero(f.moldes)} moldes · ${cantidadSalida(f.esperados, f.unidad, numero)}`,
+          detalle: `${cantidadSalida(f.esperados, f.unidad, numero)} ${concordar("esperado", f.unidad, f.esperados)}`,
+          valor: <span className="font-bold">{numero(f.moldes)} moldes</span>,
           m2: f.m2,
         }))}
-        total={`${numero(filas.reduce((a, f) => a + f.moldes, 0))} moldes · ${textoPorUnidad(porUnidad(filas, (f) => f.esperados))}`}
-        m2Total={sumaM2(filas.map((f) => f.m2))}
       />
     </>
   );
@@ -335,23 +338,23 @@ function TablaEmpaque({ modelo, filas }: { modelo: string; filas: FilaEmpaque[] 
               <th className={`${TH} text-slate-900`}>{modelo}</th>
               <th className={`${TH} text-right`}>Tandas</th>
               <th className={`${TH} text-right`}>Esperado</th>
-              <th className={`${TH} text-right`}>Obtenido</th>
-              <th className={`${TH} text-right`}>Diferencia</th>
+              <th className={`${TH} text-right`}>Empaquetado</th>
+              <th className={`${TH} text-right`}>Rotos</th>
               <th className={`${TH} text-right`}>m² esperados</th>
-              <th className={`${TH} text-right`}>m² obtenidos</th>
+              <th className={`${TH} text-right`}>m² empaquetados</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filas.map((f) => {
-              const dif = f.obtenidos - f.esperados;
+              const rotos = f.esperados - f.obtenidos;
               return (
                 <tr key={`${f.productoId}-${f.unidad}`}>
                   <Producto f={f} />
                   <td className={NUM}>{numero(f.tandas)}</td>
                   <td className={NUM}>{cantidadSalida(f.esperados, f.unidad, numero)}</td>
                   <td className={`${NUM} font-semibold`}>{cantidadSalida(f.obtenidos, f.unidad, numero)}</td>
-                  <td className={`${NUM} ${dif < 0 ? "text-red-700" : "text-slate-500"}`}>
-                    {dif === 0 ? "—" : numero(dif)}
+                  <td className={`${NUM} ${rotos ? "font-semibold text-red-700" : "text-slate-400"}`}>
+                    {numero(rotos)}
                   </td>
                   <td className={NUM}>{m2(f.m2)}</td>
                   <td className={`${NUM} font-semibold`}>{m2(f.m2Obtenidos)}</td>
@@ -366,7 +369,9 @@ function TablaEmpaque({ modelo, filas }: { modelo: string; filas: FilaEmpaque[] 
                 <td className={NUM}>{numero(filas.reduce((a, f) => a + f.tandas, 0))}</td>
                 <td className={NUM}>{textoPorUnidad(porUnidad(filas, (f) => f.esperados))}</td>
                 <td className={NUM}>{textoPorUnidad(porUnidad(filas, (f) => f.obtenidos))}</td>
-                <td className={NUM} />
+                <td className={`${NUM} text-red-700`}>
+                  {textoPorUnidad(porUnidad(filas, (f) => f.esperados - f.obtenidos))}
+                </td>
                 <td className={NUM}>{m2(sumaM2(filas.map((f) => f.m2)))}</td>
                 <td className={NUM}>{m2(sumaM2(filas.map((f) => f.m2Obtenidos)))}</td>
               </tr>
@@ -374,62 +379,109 @@ function TablaEmpaque({ modelo, filas }: { modelo: string; filas: FilaEmpaque[] 
           )}
         </table>
       </div>
-      <ListaMovil
+      <TarjetaMovil
         modelo={modelo}
-        filas={filas.map((f) => {
-          const dif = f.obtenidos - f.esperados;
-          return {
-            f,
-            detalle: `${cantidadSalida(f.obtenidos, f.unidad, numero)} de ${numero(f.esperados)} esperad${UNIDAD_SALIDA[f.unidad].femenino ? "as" : "os"}${dif ? ` (${numero(dif)})` : ""}`,
-            m2: f.m2Obtenidos,
-            alerta: dif < 0,
-          };
-        })}
-        total={`${textoPorUnidad(porUnidad(filas, (f) => f.obtenidos))} de ${textoPorUnidad(porUnidad(filas, (f) => f.esperados))}`}
-        m2Total={sumaM2(filas.map((f) => f.m2Obtenidos))}
+        total={
+          <span className="flex flex-col items-end text-lg">
+            {[...porUnidad(filas, (f) => f.esperados)].map(([u, esp]) => (
+              <Ecuacion
+                key={u}
+                esperados={esp}
+                empaquetados={porUnidad(filas, (f) => f.obtenidos).get(u) ?? 0}
+                unidad={u}
+                conUnidad={porUnidad(filas, (f) => f.esperados).size > 1}
+              />
+            ))}
+          </span>
+        }
+        bajada={m2Texto(sumaM2(filas.map((f) => f.m2Obtenidos)), "empaquetados")}
+        filas={filas.map((f) => ({
+          f,
+          detalle: UNIDAD_SALIDA[f.unidad].varios,
+          valor: <Ecuacion esperados={f.esperados} empaquetados={f.obtenidos} unidad={f.unidad} />,
+          m2: f.m2Obtenidos,
+        }))}
       />
     </>
   );
 }
 
-/** En el celular la tabla no entra: una linea por producto con lo importante. */
-function ListaMovil({
+const m2Texto = (n: number | null, que = "") => (n === null ? undefined : `${m2(n)}${que ? ` ${que}` : ""}`);
+
+/**
+ * "70 = 67 + 3 rotos": lo que tendria que haber salido, igual a lo empaquetado
+ * mas lo roto. Mismo formato que la app de secaderos, para que se lean igual.
+ */
+function Ecuacion({
+  esperados,
+  empaquetados,
+  unidad,
+  conUnidad,
+}: {
+  esperados: number;
+  empaquetados: number;
+  unidad: UnidadSalida;
+  /** Solo hace falta cuando un mismo modelo mezcla unidades. */
+  conUnidad?: boolean;
+}) {
+  const rotos = esperados - empaquetados;
+  return (
+    <span className="cifra whitespace-nowrap">
+      <span className="font-bold text-slate-900">{numero(esperados)}</span>
+      <span className="text-slate-400"> = </span>
+      <span className="text-slate-800">{numero(empaquetados)}</span>
+      <span className="text-slate-400"> + </span>
+      <span className={rotos ? "font-bold text-red-700" : "text-slate-400"}>{numero(rotos)}</span>{" "}
+      <span className={`text-[0.8em] ${rotos ? "text-red-700" : "text-slate-400"}`}>
+        {concordar("roto", unidad, rotos)}
+      </span>
+      {conUnidad && <span className="text-[0.8em] text-slate-500"> {UNIDAD_SALIDA[unidad].corto}</span>}
+    </span>
+  );
+}
+
+/**
+ * En el celular la tabla no entra. Misma diagramacion que la app de secaderos:
+ * el modelo con su total a la derecha, y una fila por producto alternando fondo.
+ */
+function TarjetaMovil({
   modelo,
-  filas,
   total,
-  m2Total,
+  bajada,
+  filas,
 }: {
   modelo: string;
-  filas: { f: FilaLlenado; detalle: string; m2: string | null; alerta?: boolean }[];
-  total: string;
-  m2Total: number | null;
+  total: React.ReactNode;
+  bajada?: string;
+  filas: { f: FilaLlenado; detalle: string; valor: React.ReactNode; m2: string | null }[];
 }) {
   return (
-    <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200 sm:hidden">
-      <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900">
-        {modelo}
+    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:hidden">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-lg font-bold text-slate-900">{modelo}</div>
+        <div className="text-right">{total}</div>
       </div>
-      <ul className="divide-y divide-slate-100">
-        {filas.map(({ f, detalle, m2: valor, alerta }) => (
+      {bajada && <div className="cifra mb-2 text-sm text-slate-500">{bajada}</div>}
+      <ul className="mt-2 space-y-1">
+        {filas.map(({ f, detalle, valor, m2: superficie }, i) => (
           <li
             key={`${f.productoId}-${f.unidad}`}
-            className="flex items-start justify-between gap-3 px-3 py-2 text-sm"
+            className={`flex items-start justify-between gap-3 rounded-lg px-3 py-2 ${i % 2 === 0 ? "bg-slate-50" : ""}`}
           >
             <div className="min-w-0">
-              <div className="font-medium text-slate-900">{f.producto}</div>
-              <div className={`cifra text-xs ${alerta ? "text-red-700" : "text-slate-600"}`}>{detalle}</div>
-              {f.codigo && <div className="cifra text-xs text-slate-400">{f.codigo}</div>}
+              <div className="font-semibold text-slate-900">{f.producto}</div>
+              <div className="cifra text-xs text-slate-500">
+                {detalle}
+                {f.codigo && <> · <span className="whitespace-nowrap">{f.codigo}</span></>}
+              </div>
             </div>
-            <div className="cifra shrink-0 font-semibold text-slate-900">{m2(valor)}</div>
+            <div className="shrink-0 text-right">
+              <div>{valor}</div>
+              <div className="cifra text-xs text-slate-500">{m2(superficie)}</div>
+            </div>
           </li>
         ))}
       </ul>
-      {filas.length > 1 && (
-        <div className="flex items-start justify-between gap-3 border-t border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold">
-          <div className="cifra min-w-0 text-xs text-slate-700">{total}</div>
-          <div className="cifra shrink-0">{m2(m2Total)}</div>
-        </div>
-      )}
     </div>
   );
 }
