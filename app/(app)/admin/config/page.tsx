@@ -38,9 +38,9 @@ export default async function Config() {
         <FormularioTrompo trompo={trompo} accion={guardarTrompoDefecto} />
       </Seccion>
       <Seccion
-        titulo="Maquinistas"
+        titulo="Maquinistas y desmoldadores"
         cantidad={maqs.length}
-        ayuda="Los que manejan el trompo. No son usuarios de la app: el operario elige uno de la lista en cada llenado. Solo aparecen los activos."
+        ayuda="Una sola lista, porque rotan de puesto: de acá se elige el maquinista en cada llenado del trompo y el desmoldador en cada desmolde. No son usuarios de la app. Solo aparecen los activos."
       >
         <EditorFilas
           campos={[
@@ -48,7 +48,7 @@ export default async function Config() {
             { clave: "activo", etiqueta: "Activo", tipo: "check", soloEdicion: true },
           ]}
           accion={guardarMaquinista}
-          etiquetaNuevo="Nuevo maquinista"
+          etiquetaNuevo="Nueva persona"
           filas={maqs.map((m) => ({
             id: m.id,
             titulo: m.nombre,

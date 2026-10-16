@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   const cabecera = [
     "Fecha",
     "Hora",
-    "Tanda",
+    "Maquinada",
     "Producto",
     "Movimiento",
     "Estado desde",

@@ -51,7 +51,7 @@ function Abrir() {
   return (
     <div className="mb-4 space-y-3 rounded-xl bg-violet-50 p-4 ring-1 ring-violet-200">
       <p className="text-sm text-violet-900">
-        Esto no mueve ninguna tanda: los palets se quedan donde están. Sirve para que en la
+        Esto no mueve ninguna maquinada: los palets se quedan donde están. Sirve para que en la
         recorrida se entienda por qué están todos esperando, en vez de que parezca que falta
         registrar movimientos.
       </p>

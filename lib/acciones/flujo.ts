@@ -171,7 +171,18 @@ export async function accionDevolverAlHorno(fd: FormData): Promise<Resultado<num
 export async function accionDesmoldar(fd: FormData): Promise<Resultado<number>> {
   return ejecutar(async () => {
     const sesion = await autorizar("desmolde");
-    const n = await motor.desmoldar(sesion, ids(fd.getAll("tandas")));
+    // Un desmoldador por maquinada: viaja como `desmoldador_<id de tanda>`.
+    const desmoldadores = new Map<number, number>();
+    for (const id of ids(fd.getAll("tandas"))) {
+      const quien = Number(fd.get(`desmoldador_${id}`));
+      if (!Number.isInteger(quien) || quien <= 0) {
+        throw new z.ZodError([
+          { code: "custom", path: ["desmoldador"], message: "Elegí quién desmoldó cada maquinada." },
+        ]);
+      }
+      desmoldadores.set(id, quien);
+    }
+    const n = await motor.desmoldar(sesion, desmoldadores);
     refrescar("/desmolde", "/empaque", "/trompo", "/recorrida");
     return n;
   });
@@ -185,7 +196,7 @@ export async function accionEmpaquetar(
     const tandaId = Number(fd.get("tandaId"));
     if (!Number.isInteger(tandaId) || tandaId <= 0) {
       throw new z.ZodError([
-        { code: "custom", path: ["tandaId"], message: "Falta la tanda." },
+        { code: "custom", path: ["tandaId"], message: "Falta la maquinada." },
       ]);
     }
     const motivoId = numeroOpcional(fd.get("motivoRoturaId"));

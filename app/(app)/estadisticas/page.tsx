@@ -6,6 +6,7 @@ import {
   fraguadoNaturalPorMotivo,
   moldesSinLlenar,
   produccionDiaria,
+  roturaPorDesmoldador,
   roturaPorMaquinista,
   roturaPorProducto,
   roturaPorResponsable,
@@ -49,7 +50,7 @@ function TablaRotura({
         <thead className="border-b border-slate-200 text-left text-slate-600">
           <tr>
             <th className="px-4 py-2 font-medium">{encabezado}</th>
-            <th className="px-4 py-2 text-right font-medium">Tandas</th>
+            <th className="px-4 py-2 text-right font-medium">Maquinadas</th>
             <th className="px-4 py-2 text-right font-medium">Esperados</th>
             <th className="px-4 py-2 text-right font-medium">Reales</th>
             <th className="px-4 py-2 text-right font-medium">Rotura</th>
@@ -108,6 +109,7 @@ export default async function Estadisticas({
     porProducto,
     porTrompo,
     porMaquinista,
+    porDesmoldador,
     porLlenado,
     porDesmolde,
     segunHorno,
@@ -124,6 +126,7 @@ export default async function Estadisticas({
     roturaPorProducto(dias),
     roturaPorTrompo(dias),
     roturaPorMaquinista(dias),
+    roturaPorDesmoldador(dias),
     roturaPorResponsable(dias, "llenado"),
     roturaPorResponsable(dias, "desmolde"),
     roturaSegunHorno(dias),
@@ -193,7 +196,7 @@ export default async function Estadisticas({
               {perdidoPorHorno ? `${numero(Number(perdidoPorHorno.m2), 1)} m²` : "0 m²"}
             </div>
             <div className="text-xs text-slate-500">
-              {perdidoPorHorno?.tandas ?? 0} tandas fuera del horno
+              {perdidoPorHorno?.tandas ?? 0} maquinadas fuera del horno
             </div>
           </Tarjeta>
           <Tarjeta>
@@ -251,7 +254,7 @@ export default async function Estadisticas({
         <Seccion titulo="Cuánto hay que hornear de verdad">
           <Tarjeta>
             <p className="text-sm text-slate-700">
-              Las tandas que <strong>no</strong> necesitaron devolución estuvieron{" "}
+              Las maquinadas que <strong>no</strong> necesitaron devolución estuvieron{" "}
               <strong className="cifra">{sinDevolucion.prom} h</strong> en el horno
               ({sinDevolucion.n} ciclos). Las que{" "}
               <strong>sí</strong> necesitaron volver habían estado{" "}
@@ -261,7 +264,7 @@ export default async function Estadisticas({
             <p className="mt-2 text-sm text-slate-600">
               Esa diferencia es el tiempo mínimo real de horno:{" "}
               <strong>medido, no estimado</strong>. Por debajo de ese número, la
-              tanda vuelve.
+              maquinada vuelve.
             </p>
           </Tarjeta>
         </Seccion>
@@ -318,7 +321,7 @@ export default async function Estadisticas({
                   {numero(Number(f?.m2 ?? 0), 1)} m²
                 </div>
                 <div className="text-xs text-slate-500">
-                  {f?.tandas ?? 0} tandas
+                  {f?.tandas ?? 0} maquinadas
                 </div>
               </Tarjeta>
             );
@@ -348,7 +351,7 @@ export default async function Estadisticas({
       <Seccion
         titulo="Costo de las reasignaciones"
         cantidad={reasignaciones.length}
-        ayuda={`Cuando una estantería cambia de familia o de cemento, las primeras tandas salen manchadas. Acá se mide cuánto: la rotura de las primeras ${TANDAS_DESPUES_DE_REASIGNAR} tandas contadas después del cambio contra la habitual de ese modelo, familia y cemento. No depende del rango de días elegido arriba.`}
+        ayuda={`Cuando una estantería cambia de familia o de cemento, las primeras maquinadas salen manchadas. Acá se mide cuánto: la rotura de las primeras ${TANDAS_DESPUES_DE_REASIGNAR} maquinadas contadas después del cambio contra la habitual de ese modelo, familia y cemento. No depende del rango de días elegido arriba.`}
       >
         {reasignaciones.length === 0 ? (
           <Vacio>No hubo reasignaciones.</Vacio>
@@ -359,7 +362,7 @@ export default async function Estadisticas({
                 <tr>
                   <th className="px-4 py-2 font-medium">Cambio</th>
                   <th className="px-4 py-2 font-medium">Motivo</th>
-                  <th className="px-4 py-2 text-right font-medium">Tandas medidas</th>
+                  <th className="px-4 py-2 text-right font-medium">Maquinadas medidas</th>
                   <th className="px-4 py-2 text-right font-medium">Rotura después</th>
                   <th className="px-4 py-2 text-right font-medium">Habitual</th>
                   <th className="px-4 py-2 text-right font-medium">m² perdidos</th>
@@ -413,6 +416,13 @@ export default async function Estadisticas({
       </div>
 
       <Seccion
+        titulo="Rotura por desmoldador"
+        ayuda="El grueso de la rotura pasa en el desmolde. El empaque no la genera: solo la evidencia, así que nunca se le atribuye a quien contó."
+      >
+        <TablaRotura filas={porDesmoldador} encabezado="Desmoldador" />
+      </Seccion>
+
+      <Seccion
         titulo="Rotura por quién registró el llenado"
         ayuda="El usuario de la app que cargó el llenado, no necesariamente el maquinista."
       >
@@ -420,15 +430,15 @@ export default async function Estadisticas({
       </Seccion>
 
       <Seccion
-        titulo="Rotura por quién desmoldó"
-        ayuda="El grueso de la rotura pasa en el desmolde. El empaque no la genera: solo la evidencia, así que nunca se le atribuye a quien contó."
+        titulo="Rotura por quién registró el desmolde"
+        ayuda="El usuario de la app que cargó el desmolde, no necesariamente el desmoldador."
       >
-        <TablaRotura filas={porDesmolde} encabezado="Quién desmoldó" />
+        <TablaRotura filas={porDesmolde} encabezado="Quién registró" />
       </Seccion>
 
       <Seccion titulo="Producción diaria">
         {diaria.length === 0 ? (
-          <Vacio>Sin tandas terminadas en este período.</Vacio>
+          <Vacio>Sin maquinadas terminadas en este período.</Vacio>
         ) : (
           <Tarjeta>
             <ul className="space-y-1.5">

@@ -100,7 +100,7 @@ export function navegacionDe(roles: readonly Rol[]): Entrada[] {
 export const RUTAS_EXTRA: Entrada[] = [
   {
     href: "/tanda",
-    etiqueta: "Detalle de tanda",
+    etiqueta: "Detalle de maquinada",
     roles: ["admin", "oficina", "auditor", "trompo", "horno", "desmolde", "empaque"],
   },
 ];

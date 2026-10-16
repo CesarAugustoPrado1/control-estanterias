@@ -204,7 +204,7 @@ export default async function Produccion({
 
 const tandasDe = (filas: { tandas: number }[]) => {
   const n = filas.reduce((a, f) => a + f.tandas, 0);
-  return `${numero(n)} tanda${n === 1 ? "" : "s"}`;
+  return `${numero(n)} maquinada${n === 1 ? "" : "s"}`;
 };
 
 /** ▾ que gira al abrir. */
@@ -279,7 +279,7 @@ function TablaLlenado({ filas }: { filas: FilaLlenado[] }) {
           <thead className="border-b border-slate-200 bg-slate-50">
             <tr>
               <th className={`${TH} min-w-48`}>Producto</th>
-              <th className={`${TH} text-right`}>Tandas</th>
+              <th className={`${TH} text-right`}>Maquinadas</th>
               <th className={`${TH} text-right`}>Moldes</th>
               <th className={`${TH} text-right`}>Salida esperada</th>
               <th className={`${TH} text-right`}>m²</th>
@@ -335,7 +335,7 @@ function TablaEmpaque({ filas }: { filas: FilaEmpaque[] }) {
           <thead className="border-b border-slate-200 bg-slate-50">
             <tr>
               <th className={`${TH} min-w-48`}>Producto</th>
-              <th className={`${TH} text-right`}>Tandas</th>
+              <th className={`${TH} text-right`}>Maquinadas</th>
               <th className={`${TH} text-right`}>Esperado</th>
               <th className={`${TH} text-right`}>Empaquetado</th>
               <th className={`${TH} text-right`}>Rotos</th>

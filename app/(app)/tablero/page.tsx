@@ -57,7 +57,7 @@ export default async function Tablero({
       titulo="Tablero"
       bajada={
         <>
-          {numero(totalEnCurso)} tandas en el circuito ·{" "}
+          {numero(totalEnCurso)} maquinadas en el circuito ·{" "}
           {numero(resumen.listasSemana)} terminadas en los últimos 7 días
         </>
       }
@@ -100,14 +100,14 @@ export default async function Tablero({
           }
         >
           {detalle.length === 0 ? (
-            <Vacio>No hay tandas en este estado.</Vacio>
+            <Vacio>No hay maquinadas en este estado.</Vacio>
           ) : (
             <Tarjeta className="overflow-x-auto p-0">
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">
                   <tr>
                     <th className="px-4 py-2 font-medium">Producto</th>
-                    <th className="px-4 py-2 text-right font-medium">Tandas</th>
+                    <th className="px-4 py-2 text-right font-medium">Maquinadas</th>
                     <th className="px-4 py-2 text-right font-medium">Moldes</th>
                     <th className="px-4 py-2 text-right font-medium">
                       La más vieja

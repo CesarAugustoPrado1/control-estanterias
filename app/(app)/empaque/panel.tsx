@@ -51,7 +51,7 @@ export function PanelEmpaque({
     <div className="space-y-3">
       {cerrada && <Devolver c={cerrada} alCerrar={() => setCerrada(null)} />}
       {!tandas.length ? (
-        <Vacio>No hay tandas esperando empaque.</Vacio>
+        <Vacio>No hay maquinadas esperando empaque.</Vacio>
       ) : (
     <ul className="space-y-3">
       {tandas.map((t) => (
@@ -79,7 +79,7 @@ function Devolver({ c, alCerrar }: { c: Cerrada; alCerrar: () => void }) {
   if (!c.palabra || !c.letra || !(c.letra in DIA_DE_LETRA)) {
     return (
       <Aviso tono="ok">
-        Tanda {c.codigo} cerrada con {cantidadSalida(c.paquetes, c.unidad)}. No tenía tarjeta del tablero: si le pusieron
+        Maquinada {c.codigo} cerrada con {cantidadSalida(c.paquetes, c.unidad)}. No tenía tarjeta del tablero: si le pusieron
         una provisoria, sacala.
         <button type="button" onClick={alCerrar} className="ml-2 font-semibold underline">
           OK

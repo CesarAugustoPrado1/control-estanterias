@@ -102,7 +102,7 @@ export default async function Recorrida() {
           </div>
         </Tarjeta>
         <Tarjeta>
-          <div className="text-sm text-slate-600">Tandas en el piso</div>
+          <div className="text-sm text-slate-600">Maquinadas en el patio</div>
           <div className="cifra text-3xl font-bold">{vivas.length}</div>
         </Tarjeta>
       </div>
@@ -143,7 +143,7 @@ export default async function Recorrida() {
         <Seccion
           titulo="¿Falta registrar algo?"
           cantidad={sospechosas.length}
-          ayuda="Tandas que llevan en su estado mucho más de lo normal. Casi siempre es un movimiento que no se cargó: fijate dónde están de verdad."
+          ayuda="Maquinadas que llevan en su estado mucho más de lo normal. Casi siempre es un movimiento que no se cargó: fijate dónde están de verdad."
         >
           <ListaTandas tandas={sospechosas} exentos={exentos} />
         </Seccion>

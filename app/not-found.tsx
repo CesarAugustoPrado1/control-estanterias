@@ -6,7 +6,7 @@ export default function NoEncontrado() {
       <div className="max-w-md text-center">
         <h1 className="text-2xl font-bold text-slate-900">No existe eso</h1>
         <p className="mt-2 text-slate-600">
-          Si buscabas una tanda por su código, fijate que esté bien escrito: son
+          Si buscabas una maquinada por su código, fijate que esté bien escrito: son
           una E, un guion y cinco dígitos, como <strong>E-00042</strong>.
         </p>
         <Link

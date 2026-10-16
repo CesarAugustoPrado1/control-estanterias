@@ -132,6 +132,9 @@ diarias, **el horno está trabajando cerca del 90%**. La serie de
 `fraguado_natural` por `horno_lleno` es probablemente el indicador más
 importante de inversión que va a producir esta app.
 
+> **Nombre en planta.** En el código y en la base la unidad se llama `tanda`; en
+> pantalla se dice **maquinada**, que es como se la nombra en planta.
+
 ### 3.4 Roles
 
 | Rol | Qué hace |
@@ -139,7 +142,7 @@ importante de inversión que va a producir esta app.
 | `admin` | Todo. ABM, parámetros y corrección de cualquier tanda |
 | `trompo` | Crea la tanda: producto, trompo A/B, **maquinista** y **cuántos moldes llenó** |
 | `horno` | Entrada y salida de horno, fraguado natural, devolución |
-| `desmolde` | Marca que se desmoldó. **No carga cantidades** |
+| `desmolde` | Marca que se desmoldó y **quién desmoldó cada maquinada**. **No carga cantidades** |
 | `empaque` | Cuenta los paquetes y cierra la tanda |
 | `oficina` | Ve el resumen del día y el de **Producción** para el ERP. No opera |
 | `auditor` | Ve todo, no modifica nada |
@@ -275,7 +278,8 @@ tandas           codigo, estanteria_id?, producto_id + snapshots,
                  cemento y etiqueta de placa (snapshot),
                  tarjeta_id? + palabra, letra y orden (snapshot),
                  factores de conversión (snapshot), trompo,
-                 maquinista_id? + nombre (snapshot), moldes_nominal,
+                 maquinista_id? + nombre (snapshot),
+                 desmoldador_id? + nombre (snapshot), moldes_nominal,
                  moldes_llenados, paquetes?, motivo_rotura, estado,
                  estado_desde, estanteria_liberada_en, rehornear
 movimientos      tanda_id + codigo y palabra (snapshot), tipo, estado_desde,
@@ -287,7 +291,8 @@ avisos           tipo, tanda_id?, tarjeta_id?, texto, usuario, creado_en,
 reasignaciones   estanteria_id, etiqueta, familia y cemento antes/después,
                  motivo, usuario, creado_en                          (§10.6)
 motivos_rotura   nombre, activo
-maquinistas      nombre, activo      -- no son usuarios: se eligen en el trompo
+maquinistas      nombre, activo      -- no son usuarios: maquinista en el trompo
+                                     -- y desmoldador en el desmolde (rotan)
 config           clave (PK), valor (text)
 migraciones      nombre (PK), aplicada_en                            (§9.5)
 ```

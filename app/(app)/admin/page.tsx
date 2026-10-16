@@ -35,7 +35,7 @@ export default async function Admin() {
     { t: "Estanterías", v: `${n.estanteriasActivas} / ${n.estanterias}`, p: "activas" },
     { t: "Modelos", v: numero(n.modelos), p: `${n.familias} familias` },
     { t: "Usuarios", v: numero(n.usuarios), p: "activos" },
-    { t: "Tandas", v: numero(n.tandas), p: "históricas" },
+    { t: "Maquinadas", v: numero(n.tandas), p: "históricas" },
     { t: "Movimientos", v: numero(n.movimientos), p: "registrados" },
   ];
 

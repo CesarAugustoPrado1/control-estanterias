@@ -199,7 +199,7 @@ export async function GET(req: NextRequest) {
 
     hoja(
       libro,
-      "Tandas",
+      "Maquinadas",
       [
         { header: "codigo", key: "codigo", width: 14 },
         { header: "tarjeta", key: "tarjeta", width: 16 },
@@ -211,6 +211,7 @@ export async function GET(req: NextRequest) {
         { header: "familia", key: "familia", width: 24 },
         { header: "trompo", key: "trompo", width: 10 },
         { header: "maquinista", key: "maquinista", width: 22 },
+        { header: "desmoldador", key: "desmoldador", width: 22 },
         { header: "moldes nominal", key: "nominal", width: 16 },
         { header: "moldes llenados", key: "llenados", width: 16 },
         { header: "piezas por molde", key: "ppm", width: 16 },
@@ -240,6 +241,7 @@ export async function GET(req: NextRequest) {
           familia: t.familiaNombre,
           trompo: t.trompo.toUpperCase(),
           maquinista: t.maquinistaNombre ?? "",
+          desmoldador: t.desmoldadorNombre ?? "",
           nominal: t.moldesNominal ?? "",
           llenados: t.moldesLlenados,
           ppm: t.piezasPorMolde,
@@ -263,7 +265,7 @@ export async function GET(req: NextRequest) {
       "Movimientos",
       [
         { header: "cuando", key: "cuando", width: 20 },
-        { header: "tanda", key: "tanda", width: 14 },
+        { header: "maquinada", key: "tanda", width: 14 },
         { header: "tarjeta", key: "tarjeta", width: 16 },
         { header: "producto", key: "producto", width: 28 },
         { header: "tipo", key: "tipo", width: 20 },

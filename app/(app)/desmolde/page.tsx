@@ -1,5 +1,5 @@
 import { requerirRol } from "@/lib/auth";
-import { cola } from "@/lib/consultas";
+import { cola, maquinistasActivos } from "@/lib/consultas";
 import { numero } from "@/lib/formato";
 import { Pantalla, Seccion, Vacio } from "@/components/ui";
 import { haceCuanto } from "@/lib/formato";
@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
 
 export default async function Desmolde() {
   await requerirRol("desmolde");
-  const [aDesmoldar, aEmpaquetar] = await Promise.all([
+  const [aDesmoldar, aEmpaquetar, desmoldadores] = await Promise.all([
     cola("a_desmoldar"),
     cola("a_empaquetar"),
+    maquinistasActivos(),
   ]);
 
   return (
@@ -21,7 +22,7 @@ export default async function Desmolde() {
       titulo="Desmolde"
       bajada="Separá moldes y piezas. Los moldes quedan libres apenas registrás el desmolde."
     >
-      <PanelDesmolde aDesmoldar={aDesmoldar} />
+      <PanelDesmolde aDesmoldar={aDesmoldar} desmoldadores={desmoldadores} />
 
       <Seccion
         titulo="Desmoldadas, esperando empaque"
