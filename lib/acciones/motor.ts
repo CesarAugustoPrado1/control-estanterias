@@ -56,14 +56,14 @@ export const CAPACIDAD_HORNO_DEFECTO = 18;
  * de la misma tanda escribirian dos movimientos y el conteo quedaria duplicado.
  */
 export async function bloquear(tx: Tx, ids: number[]) {
-  if (!ids.length) fallar("No seleccionaste ninguna tanda.");
+  if (!ids.length) fallar("No seleccionaste ninguna maquinada.");
   const filas = await tx
     .select()
     .from(tandas)
     .where(inArray(tandas.id, ids))
     .for("update");
   if (filas.length !== ids.length) {
-    fallar("Alguna de las tandas ya no existe. Actualizá la pantalla.");
+    fallar("Alguna de las maquinadas ya no existe. Actualizá la pantalla.");
   }
   // Orden estable para que los mensajes de error sean reproducibles.
   return filas.sort((a, b) => a.id - b.id);
@@ -76,7 +76,7 @@ export function exigirEstado(
 ) {
   if (t.estado === esperado) return;
   fallar(
-    `La tanda ${nombreTanda(t)} ya no está ${comoLlego}: alguien la movió a ` +
+    `La maquinada ${nombreTanda(t)} ya no está ${comoLlego}: alguien la movió a ` +
       `"${t.estado.replace(/_/g, " ")}". Actualizá la pantalla.`,
   );
 }
@@ -286,8 +286,8 @@ export async function llenar(
     const ocupante = await tandaQueRetiene(tx, est.e.id);
     if (ocupante) {
       fallar(
-        `La estantería ${etiqueta} todavía tiene la tanda ${nombreTanda(ocupante)} ` +
-          `sin desmoldar. Si en el piso está vacía, falta registrar el desmolde.`,
+        `La estantería ${etiqueta} todavía tiene la maquinada ${nombreTanda(ocupante)} ` +
+          `sin desmoldar. Si en el patio está vacía, falta registrar el desmolde.`,
       );
     }
 
@@ -423,7 +423,7 @@ export async function llenar(
 export async function tarjetaNoEncontrada(sesion: Sesion, tandaId: number) {
   return db.transaction(async (tx) => {
     const [t] = await bloquear(tx, [tandaId]);
-    if (!t.tarjetaId || !t.tarjetaLetra) fallar("Esa tanda no tiene tarjeta asignada.");
+    if (!t.tarjetaId || !t.tarjetaLetra) fallar("Esa maquinada no tiene tarjeta asignada.");
     if (t.estado !== "patio") {
       fallar(
         "Solo se puede cambiar la tarjeta recién llenada, mientras está en el patio. " +
@@ -460,7 +460,7 @@ export async function tarjetaNoEncontrada(sesion: Sesion, tandaId: number) {
       sinDuracion: true,
       nota: nueva
         ? `${vieja} no estaba en el tablero; se usó ${nueva.palabra.toUpperCase()}.`
-        : `${vieja} no estaba en el tablero y no quedan tarjetas libres: la tanda sigue con su código.`,
+        : `${vieja} no estaba en el tablero y no quedan tarjetas libres: la maquinada sigue con su código.`,
       parche,
     });
     await tx
@@ -575,17 +575,38 @@ export async function devolverAlHorno(
  * aca, ademas del cambio de estado, es que la estanteria queda LIBRE: por eso
  * se sella `estanteriaLiberadaEn`. La tarjeta pasa de la estanteria al palet.
  */
-export async function desmoldar(sesion: Sesion, idsTanda: number[]) {
+/**
+ * Cada maquinada la desmolda una persona, de la misma lista que los
+ * maquinistas: `desmoldadores` dice quien desmoldo cada una (id de tanda ->
+ * id de maquinista).
+ */
+export async function desmoldar(sesion: Sesion, desmoldadores: Map<number, number>) {
   return db.transaction(async (tx) => {
-    const filas = await bloquear(tx, idsTanda);
+    const filas = await bloquear(tx, [...desmoldadores.keys()]);
     for (const t of filas) exigirEstado(t, "a_desmoldar", "esperando desmolde");
+
+    const personas = new Map(
+      (
+        await tx
+          .select()
+          .from(maquinistas)
+          .where(inArray(maquinistas.id, [...new Set(desmoldadores.values())]))
+      ).map((m) => [m.id, m]),
+    );
+    for (const t of filas) {
+      const m = personas.get(desmoldadores.get(t.id)!);
+      if (!m) fallar(`Elegí quién desmoldó ${nombreTanda(t)}.`);
+      if (!m.activo) fallar(`${m.nombre} está marcado como inactivo. Elegí otro desmoldador.`);
+    }
+
     const ahora = new Date();
     for (const t of filas) {
+      const m = personas.get(desmoldadores.get(t.id)!)!;
       await aplicar(tx, t, {
         tipo: "desmolde",
         hasta: "a_empaquetar",
         sesion,
-        parche: { estanteriaLiberadaEn: ahora },
+        parche: { estanteriaLiberadaEn: ahora, desmoldadorId: m.id, desmoldadorNombre: m.nombre },
       });
     }
     return filas.length;
@@ -717,7 +738,7 @@ export async function corregir(
       if (otra) {
         fallar(
           `No se puede volver ${nombreTanda(t)} a "${datos.estado.replace(/_/g, " ")}": su estantería ` +
-            `ya tiene la tanda ${nombreTanda(otra)} sin desmoldar.`,
+            `ya tiene la maquinada ${nombreTanda(otra)} sin desmoldar.`,
         );
       }
     }
@@ -729,8 +750,8 @@ export async function corregir(
         .limit(1);
       if (otra) {
         fallar(
-          `No se puede reabrir esta tanda con la tarjeta ${t.tarjetaPalabra}: ya está colgada en ` +
-            `la tanda ${otra.codigo}.`,
+          `No se puede reabrir esta maquinada con la tarjeta ${t.tarjetaPalabra}: ya está colgada en ` +
+            `la maquinada ${otra.codigo}.`,
         );
       }
     }
@@ -841,7 +862,7 @@ export async function guardarEstanteria(
       const ocupante = await tandaQueRetiene(tx, actual.e.id);
       if (ocupante) {
         fallar(
-          `La estantería tiene la tanda ${nombreTanda(ocupante)} sin desmoldar. ` +
+          `La estantería tiene la maquinada ${nombreTanda(ocupante)} sin desmoldar. ` +
             (reasigna
               ? "Cambiar familia o cemento solo se puede con la estantería vacía."
               : "Desmoldala antes de darla de baja."),

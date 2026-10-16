@@ -103,10 +103,10 @@ function mensajeDeChoque(e: unknown): string | null {
   const constraint = err?.constraint ?? err?.cause?.constraint ?? "";
   if (code !== "23505") return null;
   if (constraint.includes("tandas_estanteria_retenida")) {
-    return "Esa estantería ya tiene una tanda sin desmoldar. Actualizá la pantalla y elegí otra.";
+    return "Esa estantería ya tiene una maquinada sin desmoldar. Actualizá la pantalla y elegí otra.";
   }
   if (constraint.includes("tandas_tarjeta_en_uso")) {
-    return "Esa tarjeta ya está colgada en otra tanda que no se empaquetó. Actualizá la pantalla.";
+    return "Esa tarjeta ya está colgada en otra maquinada que no se empaquetó. Actualizá la pantalla.";
   }
   if (constraint.includes("avisos_empaque_parado")) {
     return "Alguien acaba de avisar que el empaque está parado. Actualizá la pantalla.";

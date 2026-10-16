@@ -135,7 +135,7 @@ export default async function Movimientos({
             <thead className="border-b border-slate-200 text-left text-slate-600">
               <tr>
                 <th className="px-3 py-2 font-medium">Cuándo</th>
-                <th className="px-3 py-2 font-medium">Tanda</th>
+                <th className="px-3 py-2 font-medium">Maquinada</th>
                 <th className="px-3 py-2 font-medium">Producto</th>
                 <th className="px-3 py-2 font-medium">Qué pasó</th>
                 <th className="px-3 py-2 font-medium">Quién</th>

@@ -47,7 +47,7 @@ export function FormularioCorreccion({
         {ok && <Aviso tono="ok">Corrección registrada en {ok}.</Aviso>}
         <div className="mt-2">
           <Boton type="button" tono="neutro" onClick={() => setAbierto(true)}>
-            Corregir la tanda {codigo}
+            Corregir la maquinada {codigo}
           </Boton>
         </div>
       </>
@@ -121,7 +121,7 @@ export function FormularioCorreccion({
         )}
         {vuelveAlCircuito && (
           <Aviso tono="atencion">
-            Estás devolviendo una tanda cerrada al circuito. Va a volver a
+            Estás devolviendo una maquinada cerrada al circuito. Va a volver a
             retener una estantería.
           </Aviso>
         )}

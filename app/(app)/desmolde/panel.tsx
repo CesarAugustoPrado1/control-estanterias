@@ -12,7 +12,9 @@ import { duracion, desde } from "@/lib/formato";
 import { SelectorTandas } from "@/components/selector-tandas";
 import { ChipCemento, NombreTanda, Placa, Relativo } from "@/components/tanda";
 import { usarAccion } from "@/components/usar-accion";
-import { Aviso, Boton, Campo, DetalleTecnico, Entrada, Seccion } from "@/components/ui";
+import { Aviso, Boton, Campo, DetalleTecnico, Entrada, Seccion, Selector } from "@/components/ui";
+
+type Persona = { id: number; nombre: string };
 
 function conIds(ids: number[]): FormData {
   const fd = new FormData();
@@ -20,7 +22,13 @@ function conIds(ids: number[]): FormData {
   return fd;
 }
 
-export function PanelDesmolde({ aDesmoldar }: { aDesmoldar: Tanda[] }) {
+export function PanelDesmolde({
+  aDesmoldar,
+  desmoldadores,
+}: {
+  aDesmoldar: Tanda[];
+  desmoldadores: Persona[];
+}) {
   const router = useRouter();
   const [mostrarDevolver, setMostrarDevolver] = useState(false);
   const [nota, setNota] = useState("");
@@ -55,11 +63,16 @@ export function PanelDesmolde({ aDesmoldar }: { aDesmoldar: Tanda[] }) {
     return (
       <Verificacion
         tandas={aDesmoldar.filter((t) => verificando.includes(t.id))}
+        desmoldadores={desmoldadores}
         cargando={desmoldar.cargando}
         error={desmoldar.error}
         detalle={desmoldar.detalle}
         alQuitar={(id) => setVerificando((v) => (v ? v.filter((x) => x !== id) : v))}
-        alConfirmar={(ids) => desmoldar.enviar(conIds(ids))}
+        alConfirmar={(quien) => {
+          const fd = conIds([...quien.keys()]);
+          for (const [id, persona] of quien) fd.set(`desmoldador_${id}`, String(persona));
+          desmoldar.enviar(fd);
+        }}
         alCancelar={() => setVerificando(null)}
       />
     );
@@ -76,7 +89,7 @@ export function PanelDesmolde({ aDesmoldar }: { aDesmoldar: Tanda[] }) {
       {desmoldar.ok !== null && desmoldar.ok > 0 && (
         <div className="mb-4">
           <Aviso tono="ok">
-            {desmoldar.ok} tanda{desmoldar.ok > 1 ? "s" : ""} desmoldada{desmoldar.ok > 1 ? "s" : ""}.
+            {desmoldar.ok} maquinada{desmoldar.ok > 1 ? "s" : ""} desmoldada{desmoldar.ok > 1 ? "s" : ""}.
             Las tarjetas van con las piezas al palet, y esas estanterías ya están libres para el
             trompo.
           </Aviso>
@@ -151,6 +164,7 @@ export function PanelDesmolde({ aDesmoldar }: { aDesmoldar: Tanda[] }) {
 
 function Verificacion({
   tandas,
+  desmoldadores,
   cargando,
   error,
   detalle,
@@ -159,13 +173,19 @@ function Verificacion({
   alCancelar,
 }: {
   tandas: Tanda[];
+  desmoldadores: Persona[];
   cargando: boolean;
   error: string | null;
   detalle: string | null;
   alQuitar: (id: number) => void;
-  alConfirmar: (ids: number[]) => void;
+  /** Id de tanda -> id de quien la desmoldo. */
+  alConfirmar: (quien: Map<number, number>) => void;
   alCancelar: () => void;
 }) {
+  // Cada maquinada la desmolda una persona, y rotan: se elige en cada fila.
+  const [quien, setQuien] = useState<Record<number, string>>({});
+  const faltan = tandas.filter((t) => !desmoldadores.some((d) => String(d.id) === quien[t.id])).length;
+
   return (
     <Seccion
       titulo="Antes de desmoldar: ¿coinciden?"
@@ -173,9 +193,23 @@ function Verificacion({
     >
       <ul className="space-y-3">
         {tandas.map((t) => (
-          <FilaVerificacion key={t.id} tanda={t} alInformado={() => alQuitar(t.id)} />
+          <FilaVerificacion
+            key={t.id}
+            tanda={t}
+            desmoldadores={desmoldadores}
+            desmoldador={quien[t.id] ?? ""}
+            alElegir={(v) => setQuien((q) => ({ ...q, [t.id]: v }))}
+            alInformado={() => alQuitar(t.id)}
+          />
         ))}
       </ul>
+
+      {desmoldadores.length === 0 && (
+        <Aviso tono="atencion">
+          No hay desmoldadores activos cargados. Pedile al administrador que los cargue en Parámetros
+          (es la misma lista de maquinistas).
+        </Aviso>
+      )}
 
       {tandas.length === 0 && (
         <Aviso tono="info">No quedó ninguna para desmoldar. Las que no coincidían quedaron avisadas.</Aviso>
@@ -191,10 +225,14 @@ function Verificacion({
       <div className="mt-4 flex flex-wrap gap-2">
         <Boton
           type="button"
-          disabled={cargando || tandas.length === 0}
-          onClick={() => alConfirmar(tandas.map((t) => t.id))}
+          disabled={cargando || tandas.length === 0 || faltan > 0}
+          onClick={() => alConfirmar(new Map(tandas.map((t) => [t.id, Number(quien[t.id])])))}
         >
-          {cargando ? "Registrando…" : `Coinciden: desmoldar (${tandas.length})`}
+          {cargando
+            ? "Registrando…"
+            : faltan > 0
+              ? `Falta elegir el desmoldador (${faltan})`
+              : `Coinciden: desmoldar (${tandas.length})`}
         </Boton>
         <Boton type="button" tono="fantasma" onClick={alCancelar}>
           Volver
@@ -204,7 +242,19 @@ function Verificacion({
   );
 }
 
-function FilaVerificacion({ tanda: t, alInformado }: { tanda: Tanda; alInformado: () => void }) {
+function FilaVerificacion({
+  tanda: t,
+  desmoldadores,
+  desmoldador,
+  alElegir,
+  alInformado,
+}: {
+  tanda: Tanda;
+  desmoldadores: Persona[];
+  desmoldador: string;
+  alElegir: (id: string) => void;
+  alInformado: () => void;
+}) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [placa, setPlaca] = useState("");
@@ -224,6 +274,21 @@ function FilaVerificacion({ tanda: t, alInformado }: { tanda: Tanda; alInformado
         {t.cemento === "blanco" && <ChipCemento cemento="blanco" />}
       </div>
       <div className="mt-1 text-sm text-slate-600">{t.productoNombre}</div>
+
+      {desmoldadores.length > 0 && (
+        <div className="mt-3">
+          <Campo etiqueta="Desmoldador">
+            <Selector value={desmoldador} onChange={(e) => alElegir(e.target.value)}>
+              <option value="">¿Quién la desmolda?</option>
+              {desmoldadores.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.nombre}
+                </option>
+              ))}
+            </Selector>
+          </Campo>
+        </div>
+      )}
 
       {!abierto ? (
         <button

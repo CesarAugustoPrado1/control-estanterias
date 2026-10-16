@@ -64,7 +64,7 @@ export default async function Recorrida() {
   return (
     <Pantalla
       titulo="Recorrida"
-      bajada="Lo que debería haber en el piso ahora. Caminá, compará y anotá lo que no coincida."
+      bajada="Lo que debería haber en el patio ahora. Caminá, compará y anotá lo que no coincida."
     >
       {parado && (
         <div className="mb-6 rounded-2xl border-4 border-violet-500 bg-violet-50 p-5">
@@ -102,15 +102,15 @@ export default async function Recorrida() {
           </div>
         </Tarjeta>
         <Tarjeta>
-          <div className="text-sm text-slate-600">Tandas en el piso</div>
+          <div className="text-sm text-slate-600">Maquinadas en el patio</div>
           <div className="cifra text-3xl font-bold">{vivas.length}</div>
         </Tarjeta>
       </div>
 
       <Seccion
-        titulo="Avisos del piso"
+        titulo="Avisos del patio"
         cantidad={avisos.length}
-        ayuda="Cosas que alguien vio que no cierran. Se resuelven mirando el piso, no la pantalla."
+        ayuda="Cosas que alguien vio que no cierran. Se resuelven mirando el patio, no la pantalla."
       >
         {avisos.length === 0 ? (
           <Vacio>No hay avisos abiertos.</Vacio>
@@ -143,7 +143,7 @@ export default async function Recorrida() {
         <Seccion
           titulo="¿Falta registrar algo?"
           cantidad={sospechosas.length}
-          ayuda="Tandas que llevan en su estado mucho más de lo normal. Casi siempre es un movimiento que no se cargó: fijate dónde están de verdad."
+          ayuda="Maquinadas que llevan en su estado mucho más de lo normal. Casi siempre es un movimiento que no se cargó: fijate dónde están de verdad."
         >
           <ListaTandas tandas={sospechosas} exentos={exentos} />
         </Seccion>
@@ -172,7 +172,7 @@ export default async function Recorrida() {
 
       <Seccion
         titulo="Tableros de ganchos"
-        ayuda="Estos ganchos tienen que estar VACÍOS: su tarjeta está en el piso. Un gancho de la lista con tarjeta, o uno vacío que no está en la lista, es algo sin registrar."
+        ayuda="Estos ganchos tienen que estar VACÍOS: su tarjeta está en el patio. Un gancho de la lista con tarjeta, o uno vacío que no está en la lista, es algo sin registrar."
       >
         <div className="grid gap-3 sm:grid-cols-2">
           {LETRAS.map((l) => {

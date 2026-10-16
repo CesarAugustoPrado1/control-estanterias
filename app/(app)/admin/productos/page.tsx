@@ -147,7 +147,7 @@ export default async function Productos() {
       <div className="mb-4">
         <Aviso>
           Cambiar las conversiones de un producto <strong>no toca el pasado</strong>:
-          cada tanda guarda las suyas al llenarse. Si no fuera así, corregir un
+          cada maquinada guarda las suyas al llenarse. Si no fuera así, corregir un
           factor reescribiría en silencio la rotura de todos los meses anteriores.
         </Aviso>
       </div>

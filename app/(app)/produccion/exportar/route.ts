@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     [
       { header: "producto", key: "producto", width: 30 },
       { header: "codigo plataforma proceso", key: "codigo", width: 26 },
-      { header: "tandas", key: "tandas", width: 10 },
+      { header: "maquinadas", key: "tandas", width: 12 },
       { header: "moldes", key: "moldes", width: 10 },
       { header: "salida esperada", key: "esperados", width: 16 },
       { header: "unidad", key: "unidad", width: 16 },
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     [
       { header: "producto", key: "producto", width: 30 },
       { header: "codigo plataforma terminado", key: "codigo", width: 28 },
-      { header: "tandas", key: "tandas", width: 10 },
+      { header: "maquinadas", key: "tandas", width: 12 },
       { header: "esperado", key: "esperados", width: 12 },
       { header: "empaquetado", key: "obtenidos", width: 14 },
       { header: "rotos", key: "rotos", width: 10 },

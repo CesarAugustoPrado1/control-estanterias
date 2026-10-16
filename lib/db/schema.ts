@@ -471,6 +471,12 @@ export const tandas = esq.table(
      */
     maquinistaId: integer("maquinista_id").references(() => maquinistas.id),
     maquinistaNombre: text("maquinista_nombre"),
+    /**
+     * Quien desmoldo, de la misma lista que los maquinistas (rotan de puesto).
+     * Nullable: lo desmoldado antes de que se registrara no tiene dato.
+     */
+    desmoldadorId: integer("desmoldador_id").references(() => maquinistas.id),
+    desmoldadorNombre: text("desmoldador_nombre"),
 
     /** Nominal de la estanteria al momento del llenado. */
     moldesNominal: integer("moldes_nominal"),

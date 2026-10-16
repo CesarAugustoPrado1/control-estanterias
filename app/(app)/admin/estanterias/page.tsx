@@ -161,7 +161,7 @@ export default async function Estanterias() {
               activa: e.activa,
             },
             bloqueada: e.ocupadaPor
-              ? `La tanda ${e.ocupadaPor} está usando esta estantería. Podés corregir moldes o número, pero no cambiar familia ni cemento, ni darla de baja, hasta que se desmolde.`
+              ? `La maquinada ${e.ocupadaPor} está usando esta estantería. Podés corregir moldes o número, pero no cambiar familia ni cemento, ni darla de baja, hasta que se desmolde.`
               : undefined,
           }))}
           accion={guardarEstanteria}
