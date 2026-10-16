@@ -287,7 +287,7 @@ export async function llenar(
     if (ocupante) {
       fallar(
         `La estantería ${etiqueta} todavía tiene la maquinada ${nombreTanda(ocupante)} ` +
-          `sin desmoldar. Si en el piso está vacía, falta registrar el desmolde.`,
+          `sin desmoldar. Si en el patio está vacía, falta registrar el desmolde.`,
       );
     }
 
