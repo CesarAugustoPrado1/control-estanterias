@@ -9,7 +9,6 @@ import {
   roturaPorDesmoldador,
   roturaPorMaquinista,
   roturaPorProducto,
-  roturaPorResponsable,
   roturaPorTrompo,
   roturaSegunHorno,
   roturaPorCemento,
@@ -110,8 +109,6 @@ export default async function Estadisticas({
     porTrompo,
     porMaquinista,
     porDesmoldador,
-    porLlenado,
-    porDesmolde,
     segunHorno,
     fraguado,
     sinLlenar,
@@ -127,8 +124,6 @@ export default async function Estadisticas({
     roturaPorTrompo(dias),
     roturaPorMaquinista(dias),
     roturaPorDesmoldador(dias),
-    roturaPorResponsable(dias, "llenado"),
-    roturaPorResponsable(dias, "desmolde"),
     roturaSegunHorno(dias),
     fraguadoNaturalPorMotivo(dias),
     moldesSinLlenar(dias),
@@ -420,20 +415,6 @@ export default async function Estadisticas({
         ayuda="El grueso de la rotura pasa en el desmolde. El empaque no la genera: solo la evidencia, así que nunca se le atribuye a quien contó."
       >
         <TablaRotura filas={porDesmoldador} encabezado="Desmoldador" />
-      </Seccion>
-
-      <Seccion
-        titulo="Rotura por quién registró el llenado"
-        ayuda="El usuario de la app que cargó el llenado, no necesariamente el maquinista."
-      >
-        <TablaRotura filas={porLlenado} encabezado="Quién registró" />
-      </Seccion>
-
-      <Seccion
-        titulo="Rotura por quién registró el desmolde"
-        ayuda="El usuario de la app que cargó el desmolde, no necesariamente el desmoldador."
-      >
-        <TablaRotura filas={porDesmolde} encabezado="Quién registró" />
       </Seccion>
 
       <Seccion titulo="Producción diaria">

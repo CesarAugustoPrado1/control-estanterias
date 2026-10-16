@@ -12,8 +12,8 @@ import { db } from "./db";
  * 2. La rotura NUNCA se agrupa por el usuario del empaque. El empaque no genera
  *    rotura, solo la evidencia -el grueso se rompe en el desmolde-, asi que
  *    atribuirsela seria culpar justo al unico que no la causo. Se abre por
- *    producto, trompo, maquinista, desmoldador y usuario que registro el
- *    llenado o el desmolde.
+ *    producto, trompo, maquinista y desmoldador: quien hizo la tarea, no el
+ *    usuario de la app que la registro.
  *
  * 3. Los m2 se suman en SQL con `numeric`. Pasarlos por float antes de sumar
  *    es exactamente lo que se quiso evitar al elegir el tipo de la columna.
@@ -166,19 +166,6 @@ export async function roturaPorDesmoldador(dias: Rango) {
 export async function roturaPorMaquinista(dias: Rango) {
   const r = await db.execute(sql`
     ${roturaPor(sql`coalesce(maquinista_nombre, 'Sin dato')`)}
-      and estado_desde >= ${desdeSql(dias)}
-    group by 1 order by pct desc nulls last
-  `);
-  return r.rows as FilaRotura[];
-}
-
-/** Por quien lleno el trompo, y por quien desmoldo. Nunca por quien empaco. */
-export async function roturaPorResponsable(dias: Rango, tipo: "llenado" | "desmolde") {
-  const r = await db.execute(sql`
-    ${roturaPor(sql`(
-      select mv.usuario_nombre from estanterias.movimientos mv
-      where mv.tanda_id = t.id and mv.tipo = ${tipo}::estanterias.tipo_movimiento
-      order by mv.creado_en limit 1)`)}
       and estado_desde >= ${desdeSql(dias)}
     group by 1 order by pct desc nulls last
   `);
