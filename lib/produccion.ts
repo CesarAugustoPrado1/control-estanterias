@@ -2,6 +2,7 @@ import "server-only";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
 import type { UnidadSalida } from "./db/schema";
+import { hoy, leerPeriodo, sumarDias } from "./periodo";
 import { TZ } from "./tarjetas";
 
 /**
@@ -20,21 +21,6 @@ import { TZ } from "./tarjetas";
  * `convertir` en lib/estados.ts): moldes * piezas por molde / piezas por
  * paquete, truncado.
  */
-
-/** "2026-10-15": formato de los <input type="date"> y de la URL. */
-export const FORMATO_DIA = /^\d{4}-\d{2}-\d{2}$/;
-
-export function hoy(): string {
-  // en-CA formatea como AAAA-MM-DD.
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
-}
-
-/** Suma dias a un "AAAA-MM-DD" sin pasar por la zona horaria del servidor. */
-export function sumarDias(dia: string, n: number): string {
-  const d = new Date(`${dia}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
 
 /**
  * El ultimo dia ANTERIOR a hoy en que hubo llenados o empaquetados. Un lunes
@@ -141,21 +127,13 @@ export function sumaM2(valores: (string | null)[]): number | null {
   return con.length ? con.reduce((a, v) => a + Number(v), 0) : null;
 }
 
-/**
- * Periodo pedido en la URL. Sin fechas validas, el dia productivo anterior. Con
- * una sola, ese dia. Si vienen al reves, se dan vuelta.
- */
+/** Periodo pedido en la URL; sin fechas, el dia productivo anterior. */
 export async function resolverPeriodo(p: {
   desde?: string | null;
   hasta?: string | null;
 }): Promise<{ desde: string; hasta: string; porDefecto: boolean }> {
-  const d = p.desde && FORMATO_DIA.test(p.desde) ? p.desde : null;
-  const h = p.hasta && FORMATO_DIA.test(p.hasta) ? p.hasta : null;
-  if (!d && !h) {
-    const dia = await diaProductivoAnterior();
-    return { desde: dia, hasta: dia, porDefecto: true };
-  }
-  const a = d ?? h!;
-  const b = h ?? d!;
-  return a <= b ? { desde: a, hasta: b, porDefecto: false } : { desde: b, hasta: a, porDefecto: false };
+  const elegido = leerPeriodo(p);
+  if (elegido) return { ...elegido, porDefecto: false };
+  const dia = await diaProductivoAnterior();
+  return { desde: dia, hasta: dia, porDefecto: true };
 }

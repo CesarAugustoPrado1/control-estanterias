@@ -1,36 +1,22 @@
-import Link from "next/link";
 import { requerirRol } from "@/lib/auth";
 import type { UnidadSalida } from "@/lib/db/schema";
 import { cantidadSalida, concordar, UNIDAD_SALIDA } from "@/lib/estados";
 import { m2, numero, porcentaje } from "@/lib/formato";
 import {
   empaquePorProducto,
-  hoy,
   llenadoPorProducto,
   porUnidad,
   resolverPeriodo,
   sumaM2,
-  sumarDias,
   type FilaEmpaque,
   type FilaLlenado,
 } from "@/lib/produccion";
-import { Boton, Campo, Entrada, Pantalla, Vacio } from "@/components/ui";
+import { Plegable, SelectorPeriodo } from "@/components/plegable";
+import { Pantalla, Vacio } from "@/components/ui";
 
 export const metadata = { title: "Producción · Control de Estanterías" };
 export const dynamic = "force-dynamic";
 
-/** "jueves 15/10/2026". El dia viene como texto: se formatea sin zona. */
-function nombreDia(dia: string, conDiaSemana = true): string {
-  return new Intl.DateTimeFormat("es-AR", {
-    timeZone: "UTC",
-    weekday: conDiaSemana ? "long" : undefined,
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(`${dia}T12:00:00Z`));
-}
-
-/** "120 paquetes · 8 unidades". */
 /** Un total por unidad, uno debajo del otro: sumar paquetes con unidades no dice nada. */
 function PorUnidad({ m }: { m: Map<UnidadSalida, number> }) {
   if (!m.size) return <>—</>;
@@ -42,9 +28,6 @@ function PorUnidad({ m }: { m: Map<UnidadSalida, number> }) {
     </>
   );
 }
-
-const href = (desde: string, hasta: string) =>
-  desde === hasta ? `/produccion?desde=${desde}` : `/produccion?desde=${desde}&hasta=${hasta}`;
 
 export default async function Produccion({
   searchParams,
@@ -61,26 +44,6 @@ export default async function Produccion({
     llenadoPorProducto(desde, hasta),
     empaquePorProducto(desde, hasta),
   ]);
-
-  const unDia = desde === hasta;
-  const h = hoy();
-  const primeroDeMes = `${h.slice(0, 8)}01`;
-  const primeroMesAnterior = `${sumarDias(primeroDeMes, -1).slice(0, 8)}01`;
-  const atajos = [
-    { texto: "Día productivo anterior", url: "/produccion?periodo=anterior", activo: porDefecto },
-    { texto: "Hoy", url: href(h, h), activo: !porDefecto && unDia && desde === h },
-    {
-      texto: "Últimos 7 días",
-      url: href(sumarDias(h, -6), h),
-      activo: desde === sumarDias(h, -6) && hasta === h,
-    },
-    { texto: "Este mes", url: href(primeroDeMes, h), activo: desde === primeroDeMes && hasta === h },
-    {
-      texto: "Mes anterior",
-      url: href(primeroMesAnterior, sumarDias(primeroDeMes, -1)),
-      activo: desde === primeroMesAnterior && hasta === sumarDias(primeroDeMes, -1),
-    },
-  ];
 
   const moldes = llenado.reduce((a, f) => a + f.moldes, 0);
   const m2Llenado = sumaM2(llenado.map((f) => f.m2));
@@ -101,66 +64,15 @@ export default async function Produccion({
         </a>
       }
     >
-      {/* La clave por periodo vuelve a montar el bloque al cambiar de periodo:
-          asi se pliega solo despues de elegir, y los campos no quedan mostrando
-          las fechas anteriores. */}
-      <details key={`${desde}-${hasta}`} open={eligiendo} className={`${PLEGABLE} mb-3`}>
-        <summary className={RESUMEN}>
-          {unDia && (
-            <Link
-              href={href(sumarDias(desde, -1), sumarDias(desde, -1))}
-              aria-label="Día anterior"
-              className={FLECHA}
-            >
-              ‹
-            </Link>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Período</div>
-            <div className="truncate font-semibold text-slate-900 first-letter:uppercase">
-              {unDia ? nombreDia(desde) : `Del ${nombreDia(desde, false)} al ${nombreDia(hasta, false)}`}
-            </div>
-          </div>
-          {unDia && desde < h && (
-            <Link
-              href={href(sumarDias(desde, 1), sumarDias(desde, 1))}
-              aria-label="Día siguiente"
-              className={FLECHA}
-            >
-              ›
-            </Link>
-          )}
-          <Flechita />
-        </summary>
-        <div className="space-y-3 border-t border-slate-100 p-4">
-          <div className="flex flex-wrap gap-2">
-            {atajos.map((a) => (
-              <Link
-                key={a.texto}
-                href={a.url}
-                className={`inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold ${
-                  a.activo
-                    ? "bg-blue-700 text-white"
-                    : "bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                {a.texto}
-              </Link>
-            ))}
-          </div>
-          <form className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap">
-            <Campo etiqueta="Desde">
-              <Entrada type="date" name="desde" defaultValue={desde} />
-            </Campo>
-            <Campo etiqueta="Hasta">
-              <Entrada type="date" name="hasta" defaultValue={hasta} />
-            </Campo>
-            <Boton type="submit" className="col-span-2 sm:col-span-1">
-              Ver
-            </Boton>
-          </form>
-        </div>
-      </details>
+      <SelectorPeriodo
+        ruta="/produccion"
+        periodo={{ desde, hasta }}
+        eligiendo={eligiendo}
+        nota={porDefecto ? "Último día con producción" : undefined}
+        extras={[
+          { texto: "Día productivo anterior", url: "/produccion?periodo=anterior", activo: porDefecto },
+        ]}
+      />
 
       <Plegable
         titulo="Llenado en el trompo"
@@ -207,56 +119,6 @@ const tandasDe = (filas: { tandas: number }[]) => {
   return `${numero(n)} maquinada${n === 1 ? "" : "s"}`;
 };
 
-/** ▾ que gira al abrir. */
-function Flechita() {
-  return (
-    <span
-      aria-hidden
-      className="shrink-0 text-xl leading-none text-slate-400 transition-transform group-open:rotate-180"
-    >
-      ▾
-    </span>
-  );
-}
-
-/**
- * Seccion que se pliega con un toque en el titulo. `<details>` nativo: anda sin
- * JavaScript y el navegador recuerda si quedo abierta mientras se cambia de
- * periodo. Plegada muestra el resumen, para leer todo de un vistazo.
- */
-function Plegable({
-  titulo,
-  resumen,
-  ayuda,
-  children,
-}: {
-  titulo: string;
-  resumen: React.ReactNode;
-  ayuda: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <details open className={`${PLEGABLE} mb-3`}>
-      <summary className={RESUMEN}>
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold text-slate-900">{titulo}</div>
-          <div className="cifra text-sm text-slate-600">{resumen}</div>
-        </div>
-        <Flechita />
-      </summary>
-      <div className="space-y-3 border-t border-slate-100 p-3">
-        <p className="text-sm text-slate-600">{ayuda}</p>
-        {children}
-      </div>
-    </details>
-  );
-}
-
-const PLEGABLE = "group rounded-xl bg-slate-50 shadow-sm ring-1 ring-slate-200";
-const RESUMEN =
-  "flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl bg-white px-4 py-2 select-none group-open:rounded-b-none [&::-webkit-details-marker]:hidden";
-const FLECHA =
-  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-xl font-bold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50";
 const CAJA_TABLA = "overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-slate-200";
 const TH = "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500";
 const TD = "px-3 py-2";
