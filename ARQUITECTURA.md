@@ -427,6 +427,12 @@ incluido.
 
 ## 8. Estadísticas
 
+Todo se consulta por **período de calendario** (un día o un rango, en hora de
+Argentina, con atajos: hoy, ayer, semana actual/pasada, últimos 7 días, mes
+actual/anterior, últimos 30 días, año). El selector es el mismo que el de
+Producción (`components/plegable.tsx`, `lib/periodo.ts`). La rotura cuenta por
+**fecha de empaquetado**, igual que Producción: los dos números coinciden.
+
 - Tiempo por etapa del circuito → dónde se hacen las colas. El tramo
   `a_empaquetar` es el que motivó la app.
 - Tiempo de horno real, promedio/mín/máx, abierto por producto.
@@ -434,8 +440,9 @@ incluido.
   devolución contra los que no. Esa diferencia es el tiempo mínimo real de horno,
   **medido y no estimado**.
 - **m² fraguados fuera del horno por `horno_lleno`** → capacidad perdida.
-- Rotura por producto, por trompo, por responsable de llenado, por desmoldador, y
-  con horno vs. sin horno. **Nunca por empaquetador** (§5.2).
+- Rotura general del período, y abierta por producto, maquinista, desmoldador,
+  trompo, cemento, árido y con horno vs. sin horno. Por quien hizo la tarea, no
+  por el usuario que la cargó. **Nunca por empaquetador** (§5.2).
 - Moldes sin llenar por falta de mezcla, en moldes y en m².
 - Producción diaria en paquetes y en m².
 - Ocupación del horno contra los 18 lugares.

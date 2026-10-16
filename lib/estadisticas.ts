@@ -1,6 +1,8 @@
 import "server-only";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { db } from "./db";
+import type { Periodo } from "./periodo";
+import { TZ } from "./tarjetas";
 
 /**
  * Agregaciones. Tres criterios que atraviesan todo el modulo:
@@ -19,14 +21,16 @@ import { db } from "./db";
  *    es exactamente lo que se quiso evitar al elegir el tipo de la columna.
  */
 
-export const RANGOS = [7, 30, 90, 365] as const;
-export type Rango = (typeof RANGOS)[number];
-
-const desdeSql = (dias: number) => sql`now() - ${`${dias} days`}::interval`;
+/**
+ * Todo se consulta por periodo de calendario (dias en hora de Argentina, los
+ * dos extremos incluidos). Ver lib/periodo.ts.
+ */
+const enPeriodo = (columna: SQL, { desde, hasta }: Periodo) =>
+  sql`(${columna} at time zone ${TZ})::date between ${desde}::date and ${hasta}::date`;
 
 /* -------------------------------------------------------------------------- */
 
-export async function tiemposPorEtapa(dias: Rango) {
+export async function tiemposPorEtapa(p: Periodo) {
   const r = await db.execute(sql`
     select tipo,
            count(*)::int                                as n,
@@ -36,7 +40,7 @@ export async function tiemposPorEtapa(dias: Rango) {
            round((percentile_cont(0.5) within group (order by duracion_min))::numeric / 60, 1) as mediana
     from estanterias.movimientos
     where duracion_min is not null
-      and creado_en >= ${desdeSql(dias)}
+      and ${enPeriodo(sql`creado_en`, p)}
       and tipo in ('entrada_horno','salida_horno','desmolde','empaquetado','fraguado_natural')
     group by tipo
   `);
@@ -55,7 +59,7 @@ export async function tiemposPorEtapa(dias: Rango) {
  * natural nunca estuvo adentro y meterlo aca arruinaria el unico numero que
  * dice cuanto hay que hornear de verdad.
  */
-export async function tiempoDeHorno(dias: Rango) {
+export async function tiempoDeHorno(p: Periodo) {
   const r = await db.execute(sql`
     select producto_nombre                              as producto,
            count(*)::int                                as ciclos,
@@ -65,7 +69,7 @@ export async function tiempoDeHorno(dias: Rango) {
     from estanterias.movimientos
     where tipo = 'salida_horno'
       and duracion_min is not null
-      and creado_en >= ${desdeSql(dias)}
+      and ${enPeriodo(sql`creado_en`, p)}
     group by producto_nombre
     order by producto_nombre
   `);
@@ -84,7 +88,7 @@ export async function tiempoDeHorno(dias: Rango) {
  * La diferencia entre las dos duraciones es el tiempo MINIMO REAL de horno,
  * medido y no estimado: por debajo de ese numero hay que volver a meterlas.
  */
-export async function efectoDeLaDevolucion(dias: Rango) {
+export async function efectoDeLaDevolucion(p: Periodo) {
   const r = await db.execute(sql`
     with ciclos as (
       select m.tanda_id,
@@ -96,7 +100,7 @@ export async function efectoDeLaDevolucion(dias: Rango) {
       from estanterias.movimientos m
       where m.tipo = 'salida_horno'
         and m.duracion_min is not null
-        and m.creado_en >= ${desdeSql(dias)}
+        and ${enPeriodo(sql`m.creado_en`, p)}
     )
     select volvio,
            count(*)::int                             as n,
@@ -110,7 +114,14 @@ export async function efectoDeLaDevolucion(dias: Rango) {
 /* Rotura                                                                     */
 /* -------------------------------------------------------------------------- */
 
-const roturaPor = (campo: ReturnType<typeof sql>) => sql`
+/**
+ * Base de todas las roturas. La fecha que cuenta es la del EMPAQUETADO (el
+ * ultimo, si una correccion la reabrio): es cuando la rotura se conoce, y es la
+ * misma que usa la pantalla de Produccion, asi los dos numeros coinciden.
+ *
+ * Devuelve el SELECT con su WHERE ya armado: cada consulta agrega su GROUP BY.
+ */
+const roturaPor = (campo: SQL, p: Periodo) => sql`
   select ${campo}                                       as clave,
          count(*)::int                                  as tandas,
          -- Sin floor(): en Postgres la division entre enteros ya trunca, y
@@ -121,83 +132,96 @@ const roturaPor = (campo: ReturnType<typeof sql>) => sql`
          round(
            100.0 * (sum(moldes_llenados * piezas_por_molde / piezas_por_paquete) - sum(paquetes))
            / nullif(sum(moldes_llenados * piezas_por_molde / piezas_por_paquete), 0)
-         , 2)                                           as pct
+         , 2)                                           as pct,
+         round(sum(
+           (moldes_llenados * piezas_por_molde / piezas_por_paquete - paquetes) * m2_por_paquete
+         ), 1)                                          as m2
   from estanterias.tandas t
-  where paquetes is not null
+  cross join lateral (
+    select max(mv.creado_en) as empaquetada_en
+    from estanterias.movimientos mv
+    where mv.tanda_id = t.id and mv.tipo = 'empaquetado'
+  ) e
+  where t.paquetes is not null
+    and ${enPeriodo(sql`e.empaquetada_en`, p)}
 `;
 
-type FilaRotura = {
+export type FilaRotura = {
   clave: string | null;
   tandas: number;
   esperados: number;
   reales: number;
   pct: string | null;
+  /** m2 rotos; null si ningun producto del grupo tiene m2 por paquete. */
+  m2: string | null;
 };
 
-export async function roturaPorProducto(dias: Rango) {
+/** Rotura de todo el periodo: una sola fila, para el resumen. */
+export async function roturaGeneral(p: Periodo): Promise<FilaRotura> {
+  const r = await db.execute(sql`${roturaPor(sql`'Total'`, p)}`);
+  return r.rows[0] as FilaRotura;
+}
+
+export async function roturaPorProducto(p: Periodo) {
   const r = await db.execute(sql`
-    ${roturaPor(sql`producto_nombre`)}
-      and estado_desde >= ${desdeSql(dias)}
+    ${roturaPor(sql`producto_nombre`, p)}
     group by producto_nombre order by pct desc nulls last
   `);
   return r.rows as FilaRotura[];
 }
 
-export async function roturaPorTrompo(dias: Rango) {
+export async function roturaPorTrompo(p: Periodo) {
   const r = await db.execute(sql`
-    ${roturaPor(sql`upper(trompo::text)`)}
-      and estado_desde >= ${desdeSql(dias)}
+    ${roturaPor(sql`upper(trompo::text)`, p)}
     group by upper(trompo::text) order by clave
   `);
   return r.rows as FilaRotura[];
 }
 
 /** Por desmoldador, igual que por maquinista. Lo de antes del registro, "sin dato". */
-export async function roturaPorDesmoldador(dias: Rango) {
+export async function roturaPorDesmoldador(p: Periodo) {
   const r = await db.execute(sql`
-    ${roturaPor(sql`coalesce(desmoldador_nombre, 'Sin dato')`)}
-      and estado_desde >= ${desdeSql(dias)}
+    ${roturaPor(sql`coalesce(desmoldador_nombre, 'Sin dato')`, p)}
     group by 1 order by pct desc nulls last
   `);
   return r.rows as FilaRotura[];
 }
 
 /** Por maquinista. Las tandas de antes de la lista quedan como "sin dato". */
-export async function roturaPorMaquinista(dias: Rango) {
+export async function roturaPorMaquinista(p: Periodo) {
   const r = await db.execute(sql`
-    ${roturaPor(sql`coalesce(maquinista_nombre, 'Sin dato')`)}
-      and estado_desde >= ${desdeSql(dias)}
+    ${roturaPor(sql`coalesce(maquinista_nombre, 'Sin dato')`, p)}
     group by 1 order by pct desc nulls last
   `);
   return r.rows as FilaRotura[];
 }
 
 /** Con horno contra sin horno: ¿el fraguado natural rompe mas? */
-export async function roturaSegunHorno(dias: Rango) {
+export async function roturaSegunHorno(p: Periodo) {
   const r = await db.execute(sql`
-    ${roturaPor(sql`case when exists (
+    ${roturaPor(
+      sql`case when exists (
        select 1 from estanterias.movimientos mv
        where mv.tanda_id = t.id and mv.tipo = 'salida_horno')
-       then 'Pasó por el horno' else 'Fraguado natural' end`)}
-      and estado_desde >= ${desdeSql(dias)}
+       then 'Pasó por el horno' else 'Fraguado natural' end`,
+      p,
+    )}
     group by 1 order by 1
   `);
   return r.rows as FilaRotura[];
 }
 
-export async function roturaPorCemento(dias: Rango) {
+export async function roturaPorCemento(p: Periodo) {
   const r = await db.execute(sql`
-    ${roturaPor(sql`'Cemento ' || cemento::text`)}
-      and estado_desde >= ${desdeSql(dias)}
+    ${roturaPor(sql`'Cemento ' || cemento::text`, p)}
     group by 1 order by 1
   `);
   return r.rows as FilaRotura[];
 }
 
-export async function roturaPorArido(dias: Rango) {
+export async function roturaPorArido(p: Periodo) {
   const r = await db.execute(sql`
-    ${roturaPor(sql`case arido when 'alivianado' then 'Alivianado' else 'Hormigón' end`)}
-      and estado_desde >= ${desdeSql(dias)}
+    ${roturaPor(sql`case arido when 'alivianado' then 'Alivianado' else 'Hormigón' end`, p)}
     group by 1 order by 1
   `);
   return r.rows as FilaRotura[];
@@ -293,7 +317,7 @@ export async function costoDeReasignaciones() {
  * horno nuevo- y `clima` es ahorro de energia. Son opuestos: si se sumaran
  * juntos el resultado no serviria para decidir nada.
  */
-export async function fraguadoNaturalPorMotivo(dias: Rango) {
+export async function fraguadoNaturalPorMotivo(p: Periodo) {
   const r = await db.execute(sql`
     select mv.motivo_fraguado                          as motivo,
            count(*)::int                               as tandas,
@@ -304,7 +328,7 @@ export async function fraguadoNaturalPorMotivo(dias: Rango) {
     from estanterias.movimientos mv
     join estanterias.tandas t on t.id = mv.tanda_id
     where mv.tipo = 'fraguado_natural'
-      and mv.creado_en >= ${desdeSql(dias)}
+      and ${enPeriodo(sql`mv.creado_en`, p)}
     group by mv.motivo_fraguado
     order by m2 desc nulls last
   `);
@@ -317,7 +341,7 @@ export async function fraguadoNaturalPorMotivo(dias: Rango) {
  * El indicador que sirve es el PORCENTAJE, no los moldes sueltos: los sueltos
  * suben y bajan con la produccion del periodo, la relacion no.
  */
-export async function moldesSinLlenar(dias: Rango) {
+export async function moldesSinLlenar(p: Periodo) {
   const r = await db.execute(sql`
     select count(*)::int                                          as tandas,
            sum(coalesce(moldes_nominal, moldes_llenados))::int     as nominal,
@@ -333,7 +357,7 @@ export async function moldesSinLlenar(dias: Rango) {
              * coalesce(m2_por_paquete, 0)
            ), 1)                                                   as m2
     from estanterias.tandas
-    where creada_en >= ${desdeSql(dias)}
+    where ${enPeriodo(sql`creada_en`, p)}
   `);
   return r.rows[0] as {
     tandas: number;
@@ -349,9 +373,10 @@ export async function moldesSinLlenar(dias: Rango) {
 /* Produccion                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export async function produccionDiaria(dias: Rango) {
+/** Lo empaquetado cada dia del periodo, por fecha de empaquetado (como la rotura). */
+export async function produccionDiaria(p: Periodo) {
   const r = await db.execute(sql`
-    select to_char(date_trunc('day', estado_desde at time zone 'America/Argentina/Buenos_Aires'), 'YYYY-MM-DD') as dia,
+    select to_char((e.empaquetada_en at time zone ${TZ})::date, 'YYYY-MM-DD') as dia,
            count(*)::int                                   as tandas,
            sum(paquetes)::int                              as paquetes,
            -- Por unidad: sumar paquetes con unidades sueltas no dice nada.
@@ -359,10 +384,14 @@ export async function produccionDiaria(dias: Rango) {
            (sum(paquetes) filter (where unidad = 'unidad'))::int  as en_unidades,
            (sum(paquetes) filter (where unidad = 'nivel'))::int   as en_niveles,
            round(sum(paquetes * coalesce(m2_por_paquete, 0)), 1) as m2
-    from estanterias.tandas
-    where estado = 'listo'
-      and paquetes is not null
-      and estado_desde >= ${desdeSql(dias)}
+    from estanterias.tandas t
+    cross join lateral (
+      select max(mv.creado_en) as empaquetada_en
+      from estanterias.movimientos mv
+      where mv.tanda_id = t.id and mv.tipo = 'empaquetado'
+    ) e
+    where t.paquetes is not null
+      and ${enPeriodo(sql`e.empaquetada_en`, p)}
     group by 1 order by 1
   `);
   return r.rows as {
