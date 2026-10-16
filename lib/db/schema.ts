@@ -274,7 +274,7 @@ export const productos = esq.table(
     arido: aridoEnum("arido").notNull().default("hormigon"),
     /**
      * Codigos del ERP Plataforma: producto en proceso y producto terminado.
-     * Reservados para cruzar con el ERP; la app todavia no los usa. Texto
+     * Para cruzar con el ERP: salen en la pantalla de Produccion. Texto
      * porque un codigo de ERP puede tener ceros a la izquierda o letras.
      * Opcionales, pero si estan cargados no se repiten entre productos.
      */

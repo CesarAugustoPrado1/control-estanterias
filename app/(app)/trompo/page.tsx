@@ -9,6 +9,7 @@ import {
 } from "@/lib/consultas";
 import { cantidadSalida, paquetesEsperados, TIPO_TROMPO } from "@/lib/estados";
 import type { UnidadSalida } from "@/lib/db/schema";
+import Link from "next/link";
 import { hora, numero } from "@/lib/formato";
 import { ChipCemento, NombreTanda, Placa } from "@/components/tanda";
 import { ChipEstado, Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
@@ -52,6 +53,11 @@ export default async function Trompo() {
       <Seccion
         titulo="Llenados de hoy"
         cantidad={hoy.length}
+        acciones={
+          <Link href="/produccion" className="text-sm font-semibold text-blue-700 hover:underline">
+            Ver lo empaquetado y otros días →
+          </Link>
+        }
         ayuda={
           hoy.length
             ? `${numero(moldesHoy)} moldes · se esperan ${textoSalidaHoy}.`

@@ -141,11 +141,17 @@ importante de inversión que va a producir esta app.
 | `horno` | Entrada y salida de horno, fraguado natural, devolución |
 | `desmolde` | Marca que se desmoldó. **No carga cantidades** |
 | `empaque` | Cuenta los paquetes y cierra la tanda |
-| `oficina` | Ve el resumen del día. No opera |
+| `oficina` | Ve el resumen del día y el de **Producción** para el ERP. No opera |
 | `auditor` | Ve todo, no modifica nada |
 
 Desmolde y empaque son **puestos separados** y registran cosas distintas, a
 pedido de planta.
+
+La pantalla **Producción** (`/produccion`) la ven admin, oficina, auditor y
+trompo: por período (por defecto, el último día con producción antes de hoy)
+muestra lo llenado (producto en proceso, por fecha de llenado) y lo empaquetado
+(producto terminado, por fecha de empaquetado) agrupado por modelo, con los
+códigos de Plataforma y descarga a Excel. Ver `lib/produccion.ts`.
 
 Un usuario puede tener **varios roles** (por ejemplo trompo y horno): ve la
 suma de las pantallas de cada uno. Al entrar cae en la del rol principal, que es
