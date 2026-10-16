@@ -15,7 +15,7 @@ import {
   type FilaEmpaque,
   type FilaLlenado,
 } from "@/lib/produccion";
-import { Boton, Campo, Entrada, Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
+import { Boton, Campo, Entrada, Pantalla, Vacio } from "@/components/ui";
 
 export const metadata = { title: "Producción · Control de Estanterías" };
 export const dynamic = "force-dynamic";
@@ -43,10 +43,14 @@ const href = (desde: string, hasta: string) =>
 export default async function Produccion({
   searchParams,
 }: {
-  searchParams: Promise<{ desde?: string; hasta?: string }>;
+  searchParams: Promise<{ desde?: string; hasta?: string; periodo?: string }>;
 }) {
   await requerirRol("oficina", "auditor", "trompo");
-  const { desde, hasta, porDefecto } = await resolverPeriodo(await searchParams);
+  const params = await searchParams;
+  const { desde, hasta, porDefecto } = await resolverPeriodo(params);
+  // Recien entrado (sin nada en la URL) el periodo se muestra abierto para
+  // elegir; una vez elegido se pliega y deja la pantalla para los numeros.
+  const eligiendo = Object.keys(params).length === 0;
   const [llenado, empaque] = await Promise.all([
     llenadoPorProducto(desde, hasta),
     empaquePorProducto(desde, hasta),
@@ -57,7 +61,7 @@ export default async function Produccion({
   const primeroDeMes = `${h.slice(0, 8)}01`;
   const primeroMesAnterior = `${sumarDias(primeroDeMes, -1).slice(0, 8)}01`;
   const atajos = [
-    { texto: "Día productivo anterior", url: "/produccion", activo: porDefecto },
+    { texto: "Día productivo anterior", url: "/produccion?periodo=anterior", activo: porDefecto },
     { texto: "Hoy", url: href(h, h), activo: !porDefecto && unDia && desde === h },
     {
       texto: "Últimos 7 días",
@@ -82,16 +86,6 @@ export default async function Produccion({
   return (
     <Pantalla
       titulo="Producción"
-      bajada={
-        unDia ? (
-          <>
-            <span className="capitalize">{nombreDia(desde)}</span>
-            {porDefecto && " · último día con producción"}
-          </>
-        ) : (
-          `Del ${nombreDia(desde, false)} al ${nombreDia(hasta, false)}`
-        )
-      }
       acciones={
         <a
           href={`/produccion/exportar?desde=${desde}&hasta=${hasta}`}
@@ -101,59 +95,74 @@ export default async function Produccion({
         </a>
       }
     >
-      <Tarjeta className="mb-4 space-y-3">
-        <div className="flex flex-wrap gap-2">
-          {atajos.map((a) => (
+      {/* La clave por periodo vuelve a montar el bloque al cambiar de periodo:
+          asi se pliega solo despues de elegir, y los campos no quedan mostrando
+          las fechas anteriores. */}
+      <details key={`${desde}-${hasta}`} open={eligiendo} className={`${PLEGABLE} mb-3`}>
+        <summary className={RESUMEN}>
+          {unDia && (
             <Link
-              key={a.texto}
-              href={a.url}
-              className={`inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold ${
-                a.activo
-                  ? "bg-blue-700 text-white"
-                  : "bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50"
-              }`}
+              href={href(sumarDias(desde, -1), sumarDias(desde, -1))}
+              aria-label="Día anterior"
+              className={FLECHA}
             >
-              {a.texto}
+              ‹
             </Link>
-          ))}
-        </div>
-        {/* Clave por periodo: si no, al navegar con los atajos los campos
-            quedan mostrando las fechas anteriores. */}
-        <form key={`${desde}-${hasta}`} className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap">
-          <Campo etiqueta="Desde">
-            <Entrada type="date" name="desde" defaultValue={desde} />
-          </Campo>
-          <Campo etiqueta="Hasta">
-            <Entrada type="date" name="hasta" defaultValue={hasta} />
-          </Campo>
-          <Boton type="submit" className="col-span-2 sm:col-span-1">
-            Ver
-          </Boton>
-        </form>
-        {unDia && (
-          <div className="flex gap-2">
-            <Link href={href(sumarDias(desde, -1), sumarDias(desde, -1))} className={FLECHA}>
-              ‹ Día anterior
-            </Link>
-            {desde < h && (
-              <Link href={href(sumarDias(desde, 1), sumarDias(desde, 1))} className={FLECHA}>
-                Día siguiente ›
-              </Link>
-            )}
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Período</div>
+            <div className="truncate font-semibold text-slate-900 first-letter:uppercase">
+              {unDia ? nombreDia(desde) : `Del ${nombreDia(desde, false)} al ${nombreDia(hasta, false)}`}
+            </div>
           </div>
-        )}
-      </Tarjeta>
+          {unDia && desde < h && (
+            <Link
+              href={href(sumarDias(desde, 1), sumarDias(desde, 1))}
+              aria-label="Día siguiente"
+              className={FLECHA}
+            >
+              ›
+            </Link>
+          )}
+          <Flechita />
+        </summary>
+        <div className="space-y-3 border-t border-slate-100 p-4">
+          <div className="flex flex-wrap gap-2">
+            {atajos.map((a) => (
+              <Link
+                key={a.texto}
+                href={a.url}
+                className={`inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold ${
+                  a.activo
+                    ? "bg-blue-700 text-white"
+                    : "bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50"
+                }`}
+              >
+                {a.texto}
+              </Link>
+            ))}
+          </div>
+          <form className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap">
+            <Campo etiqueta="Desde">
+              <Entrada type="date" name="desde" defaultValue={desde} />
+            </Campo>
+            <Campo etiqueta="Hasta">
+              <Entrada type="date" name="hasta" defaultValue={hasta} />
+            </Campo>
+            <Boton type="submit" className="col-span-2 sm:col-span-1">
+              Ver
+            </Boton>
+          </form>
+        </div>
+      </details>
 
-      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Dato titulo="Moldes llenados" valor={numero(moldes)} />
-        <Dato titulo="m² llenados" valor={m2(m2Llenado)} />
-        <Dato titulo="m² empaquetados" valor={m2(m2Empaque)} />
-        <Dato titulo="Rotura en empaque" valor={porcentaje(rotura)} alerta={rotura !== null && rotura > 0} />
-      </div>
-
-      <Seccion
+      <Plegable
         titulo="Llenado en el trompo"
-        cantidad={llenado.reduce((a, f) => a + f.tandas, 0)}
+        resumen={
+          llenado.length
+            ? `${tandasDe(llenado)} · ${numero(moldes)} moldes${m2Llenado === null ? "" : ` · ${m2(m2Llenado)}`}`
+            : "Sin llenados"
+        }
         ayuda="Producto en proceso: lo que se llenó en el período, por fecha de llenado. La salida y los m² son lo que debería salir de esos moldes."
       >
         {llenado.length === 0 ? (
@@ -165,11 +174,20 @@ export default async function Produccion({
             ))}
           </div>
         )}
-      </Seccion>
+      </Plegable>
 
-      <Seccion
+      <Plegable
         titulo="Empaquetado"
-        cantidad={empaque.reduce((a, f) => a + f.tandas, 0)}
+        resumen={
+          empaque.length ? (
+            <>
+              {tandasDe(empaque)} · {m2Empaque !== null && `${m2(m2Empaque)} · `}
+              <span className={rotura ? "text-red-700" : ""}>rotura {porcentaje(rotura)}</span>
+            </>
+          ) : (
+            "Sin empaquetados"
+          )
+        }
         ayuda="Producto terminado: lo que se cerró en empaque en el período, por fecha de empaquetado (no de llenado). Esperado contra obtenido."
       >
         {empaque.length === 0 ? (
@@ -181,24 +199,66 @@ export default async function Produccion({
             ))}
           </div>
         )}
-      </Seccion>
+      </Plegable>
     </Pantalla>
   );
 }
 
-function Dato({ titulo, valor, alerta }: { titulo: string; valor: string; alerta?: boolean }) {
+const tandasDe = (filas: { tandas: number }[]) => {
+  const n = filas.reduce((a, f) => a + f.tandas, 0);
+  return `${numero(n)} tanda${n === 1 ? "" : "s"}`;
+};
+
+/** ▾ que gira al abrir. */
+function Flechita() {
   return (
-    <Tarjeta>
-      <div className="text-sm text-slate-600">{titulo}</div>
-      <div className={`cifra mt-1 text-2xl font-bold ${alerta ? "text-red-700" : "text-slate-900"}`}>
-        {valor}
-      </div>
-    </Tarjeta>
+    <span
+      aria-hidden
+      className="shrink-0 text-xl leading-none text-slate-400 transition-transform group-open:rotate-180"
+    >
+      ▾
+    </span>
   );
 }
 
+/**
+ * Seccion que se pliega con un toque en el titulo. `<details>` nativo: anda sin
+ * JavaScript y el navegador recuerda si quedo abierta mientras se cambia de
+ * periodo. Plegada muestra el resumen, para leer todo de un vistazo.
+ */
+function Plegable({
+  titulo,
+  resumen,
+  ayuda,
+  children,
+}: {
+  titulo: string;
+  resumen: React.ReactNode;
+  ayuda: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details open className={`${PLEGABLE} mb-3`}>
+      <summary className={RESUMEN}>
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-slate-900">{titulo}</div>
+          <div className="cifra text-sm text-slate-600">{resumen}</div>
+        </div>
+        <Flechita />
+      </summary>
+      <div className="space-y-3 border-t border-slate-100 p-3">
+        <p className="text-sm text-slate-600">{ayuda}</p>
+        {children}
+      </div>
+    </details>
+  );
+}
+
+const PLEGABLE = "group rounded-xl bg-slate-50 shadow-sm ring-1 ring-slate-200";
+const RESUMEN =
+  "flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl bg-white px-4 py-2 select-none group-open:rounded-b-none [&::-webkit-details-marker]:hidden";
 const FLECHA =
-  "inline-flex min-h-11 items-center rounded-lg bg-white px-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50";
+  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-xl font-bold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50";
 const CAJA_TABLA = "overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-slate-200";
 const TH = "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500";
 const TD = "px-3 py-2";
