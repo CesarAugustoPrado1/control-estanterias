@@ -15,6 +15,7 @@ import { Aviso, Boton, Campo, Entrada } from "@/components/ui";
 import { SelectorProducto } from "@/components/selector-producto";
 import { nombreDia, sumarDias } from "@/lib/periodo";
 import type { CargaDesmolde } from "@/lib/programa";
+import { MARGEN_DESMOLDE, topeDesmolde } from "@/lib/reglas";
 
 type ProductoElegible = {
   id: number;
@@ -27,7 +28,8 @@ type ProductoElegible = {
 
 /**
  * Primer dia desde `desde` (sin domingos) en que caben `n` desmoldes sin pasarse
- * de la meta. Un dia sin meta tiene lugar. Si no hay ninguno en el horizonte,
+ * de la meta ni del tope por diferencia con el llenado (lib/reglas.ts). Un dia
+ * sin meta tiene lugar. Si no hay ninguno en el horizonte,
  * el primer dia posible.
  */
 function sugerirDesmolde(desde: string, n: number, carga: CargaDesmolde): string {
@@ -37,6 +39,8 @@ function sugerirDesmolde(desde: string, n: number, carga: CargaDesmolde): string
     const c = carga[d];
     if (!c) break;
     if (c.cerrado) continue;
+    const tope = topeDesmolde(c.llenado);
+    if (tope !== null && c.programadas + n > tope) continue;
     if (c.meta == null || c.programadas + n <= c.meta) return d;
   }
   return desde;
@@ -64,6 +68,7 @@ export function AgregarLinea({
   programadas,
   listas,
   carga,
+  llenadoDelDia = 0,
 }: {
   dia: string;
   seccion: SeccionPrograma;
@@ -79,6 +84,8 @@ export function AgregarLinea({
   programadas: number;
   /** Solo llenado: carga de desmolde de los dias siguientes, para sugerir cuando desmoldar. */
   carga?: CargaDesmolde;
+  /** Solo desmolde: llenados programados ese dia, que ponen el tope (lib/reglas.ts). */
+  llenadoDelDia?: number;
 }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
@@ -123,11 +130,25 @@ export function AgregarLinea({
         `Ese día quedarían ${cargaDia.programadas + n} maquinadas para desmoldar y la meta es ${cargaDia.meta}: te pasás por ${cargaDia.programadas + n - cargaDia.meta}.`,
       );
     }
+    const topeDia = cargaDia ? topeDesmolde(cargaDia.llenado) : null;
+    if (cargaDia && topeDia !== null && cargaDia.programadas + n > topeDia) {
+      avisosDesmolde.push(
+        `Ese día se llenan ${cargaDia.llenado}: con ${MARGEN_DESMOLDE} de diferencia el desmolde llega hasta ${topeDia}, y quedarían ${cargaDia.programadas + n}.`,
+      );
+    }
     if (cargaDia?.cerrado) avisosDesmolde.push("Ese día ya está cerrado: elegí otro.");
   }
 
+  const tope = seccion === "desmolde" ? topeDesmolde(llenadoDelDia) : null;
+  const pasaTope = tope !== null && conEsta > tope;
+
   const agregar = () => {
     const avisos: string[] = [];
+    if (pasaTope) {
+      avisos.push(
+        `Ese día se llenan ${llenadoDelDia}: con ${MARGEN_DESMOLDE} de diferencia el desmolde llega hasta ${tope}, y quedarían ${conEsta}.`,
+      );
+    }
     if (meta !== null && conEsta > meta) {
       avisos.push(
         `Con esta línea programás ${conEsta} maquinadas y la meta es ${meta}: te pasás por ${conEsta - meta}.`,
@@ -275,6 +296,13 @@ export function AgregarLinea({
             : `Van a estar listas ${listasElegido} para desmoldar este día`}{" "}
           (desmolde a {plazo(elegido.diasDesmolde)}).
           {pocasListas && " Es una advertencia: se puede programar igual."}
+        </p>
+      )}
+      {pasaTope && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
+          <strong>Ojo:</strong> ese día se llenan {llenadoDelDia}. Con {MARGEN_DESMOLDE} de diferencia, el
+          desmolde llega hasta {tope} y con esta línea quedarían {conEsta}. Es una advertencia: se puede
+          programar igual.
         </p>
       )}
       {meta !== null && n > 0 && (

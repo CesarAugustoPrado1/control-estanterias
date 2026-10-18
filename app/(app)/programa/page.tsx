@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requerirRol } from "@/lib/auth";
 import { fechaHora, porcentaje } from "@/lib/formato";
 import { FORMATO_DIA, hoy, nombrePeriodo, sumarDias } from "@/lib/periodo";
+import { MARGEN_DESMOLDE, topeDesmolde } from "@/lib/reglas";
 import {
   cumplimiento,
   historialCerrados,
@@ -146,6 +147,14 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   const hechasDe = (s: SeccionPrograma) =>
     programa.lineas.filter((l) => l.seccion === s).reduce((a, l) => a + l.hechas, 0) +
     programa.fuera.filter((f) => f.seccion === s).reduce((a, f) => a + f.hechas, 0);
+  // Regla de diferencia: el desmolde del dia no puede llegar a todo lo que se llena.
+  const llenadoProgramado = programa.lineas
+    .filter((l) => l.seccion === "llenado")
+    .reduce((a, l) => a + l.cantidad, 0);
+  const desmoldeProgramado = programa.lineas
+    .filter((l) => l.seccion === "desmolde")
+    .reduce((a, l) => a + l.cantidad, 0);
+  const tope = topeDesmolde(llenadoProgramado);
   const metas = (["llenado", "desmolde"] as const).flatMap((s) => {
     const meta = programa.meta[s];
     return meta === null
@@ -286,6 +295,22 @@ export default async function Programa({ searchParams }: { searchParams: Promise
               hechas={hechas}
               editar={editar}
             />
+            {seccion === "desmolde" && tope !== null && (
+              <p
+                className={`mb-3 rounded-lg px-3 py-2 text-sm ring-1 ${
+                  desmoldeProgramado > tope
+                    ? "bg-amber-50 text-amber-900 ring-amber-200"
+                    : "bg-white text-slate-600 ring-slate-200"
+                }`}
+              >
+                {desmoldeProgramado > tope && <strong>Ojo: </strong>}
+                Llenado del día: {llenadoProgramado} → con {MARGEN_DESMOLDE} de diferencia, el desmolde llega
+                hasta <strong className="cifra">{tope}</strong>
+                {desmoldeProgramado > tope
+                  ? `, y hay ${desmoldeProgramado} programados (${desmoldeProgramado - tope} de más). Mientras se desmolda la primera, el trompo espera.`
+                  : ` (programados: ${desmoldeProgramado}).`}
+              </p>
+            )}
             <ListaPrograma
               lineas={lineas}
               motivos={motivos}
@@ -305,6 +330,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                 programadas={programadas}
                 listas={seccion === "desmolde" ? listasParaAgregar : undefined}
                 carga={seccion === "llenado" ? carga : undefined}
+                llenadoDelDia={llenadoProgramado}
               />
             )}
             {fuera.length > 0 && (

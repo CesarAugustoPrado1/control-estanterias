@@ -397,7 +397,16 @@ export function advertenciasDesmolde(
  * dia y la meta de desmolde. Un dia sin meta propia usa la ultima fijada antes,
  * que es la que se va a proponer cuando se arme ese dia.
  */
-export type CargaDesmolde = Record<string, { programadas: number; meta: number | null; cerrado: boolean }>;
+export type CargaDesmolde = Record<
+  string,
+  {
+    programadas: number;
+    meta: number | null;
+    cerrado: boolean;
+    /** Llenados programados ese dia: limitan el desmolde (ver lib/reglas.ts). */
+    llenado: number;
+  }
+>;
 
 export async function cargaDesmolde(desde: string, dias = 45): Promise<CargaDesmolde> {
   const hasta = sumarDias(desde, dias);
@@ -408,15 +417,20 @@ export async function cargaDesmolde(desde: string, dias = 45): Promise<CargaDesm
       .where(sql`${programaDias.dia} <= ${hasta}::date`)
       .orderBy(asc(programaDias.dia)),
     db
-      .select({ dia: programaLineas.dia, n: sql<number>`sum(${programaLineas.cantidad})::int` })
+      .select({
+        dia: programaLineas.dia,
+        seccion: programaLineas.seccion,
+        n: sql<number>`sum(${programaLineas.cantidad})::int`,
+      })
       .from(programaLineas)
-      .where(
-        sql`${programaLineas.seccion} = 'desmolde' and ${programaLineas.dia} between ${desde}::date and ${hasta}::date`,
-      )
-      .groupBy(programaLineas.dia),
+      .where(sql`${programaLineas.dia} between ${desde}::date and ${hasta}::date`)
+      .groupBy(programaLineas.dia, programaLineas.seccion),
   ]);
   const porDia = new Map(cabs.map((c) => [c.dia, c]));
-  const programadas = new Map(sumas.map((x) => [x.dia, Number(x.n)]));
+  const de = (seccion: string) =>
+    new Map(sumas.filter((x) => x.seccion === seccion).map((x) => [x.dia, Number(x.n)]));
+  const programadas = de("desmolde");
+  const llenado = de("llenado");
   // Ultima meta fijada antes de `desde`, para arrastrar.
   let meta: number | null = null;
   for (const c of cabs) if (c.dia < desde && c.metaDesmolde !== null) meta = c.metaDesmolde;
@@ -425,7 +439,12 @@ export async function cargaDesmolde(desde: string, dias = 45): Promise<CargaDesm
     const d = sumarDias(desde, i);
     const cab = porDia.get(d);
     if (cab?.metaDesmolde != null) meta = cab.metaDesmolde;
-    r[d] = { programadas: programadas.get(d) ?? 0, meta, cerrado: !!cab?.cerradoEn };
+    r[d] = {
+      programadas: programadas.get(d) ?? 0,
+      meta,
+      cerrado: !!cab?.cerradoEn,
+      llenado: llenado.get(d) ?? 0,
+    };
   }
   return r;
 }
