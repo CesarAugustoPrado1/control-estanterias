@@ -11,7 +11,6 @@ import {
 } from "@/lib/acciones/programa";
 import type { Cemento, SeccionPrograma } from "@/lib/db/schema";
 import { usarAccion } from "@/components/usar-accion";
-import { ChipCemento } from "@/components/tanda";
 import { Muestra } from "@/components/selector-producto";
 import { Aviso, Boton, Campo, Entrada, Selector } from "@/components/ui";
 
@@ -142,67 +141,114 @@ function FilaLinea({
         ? "bg-blue-600"
         : "bg-slate-300";
 
-  const cuerpo = (
+  // Plegada, la linea es un renglon: cantidad, color, producto, nota y avance.
+  // Lo demas (estado, motivo, acciones) se ve al desplegarla con un toque. Se
+  // abre sola mientras se edita, se reprograma o se informa un motivo.
+  const [abierto, setAbierto] = useState(false);
+  const desplegada = abierto || modo !== null;
+  const sinMotivo = incumplida && !l.motivoNombre && !l.reprogramadaA;
+  const elige = alElegir && !completa;
+
+  const renglon = (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="cifra text-lg font-bold text-slate-900">{l.cantidad}</span>
-            <Muestra nombre={l.producto} familia={l.familia} />
-            <span className="font-semibold text-slate-900">{l.producto}</span>
-            {l.cemento === "blanco" && <ChipCemento cemento="blanco" />}
-          </div>
-          {l.nota && <div className="text-sm text-slate-600">{l.nota}</div>}
-          {l.origenDia && (
-            <div className="text-xs text-violet-700">Reprogramada desde el {corto(l.origenDia)}</div>
-          )}
-          {advertencia && (
-            <div className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900 ring-1 ring-amber-200">
-              <strong>Ojo:</strong> {advertencia}
-            </div>
-          )}
-        </div>
-        <div className="shrink-0 text-right">
-          <div
-            className={`cifra text-lg font-bold ${completa ? "text-emerald-700" : incumplida ? "text-red-700" : "text-slate-900"}`}
+      <div className="flex items-center gap-2">
+        <span className="cifra shrink-0 text-lg font-bold text-slate-900">{l.cantidad}</span>
+        <Muestra nombre={l.producto} familia={l.familia} />
+        <span className="min-w-0 flex-1 truncate">
+          <span className="font-semibold text-slate-900">{l.producto}</span>
+          {l.nota && <span className="text-sm text-slate-500"> · {l.nota}</span>}
+        </span>
+        {l.cemento === "blanco" && (
+          <span className="shrink-0 rounded border border-slate-900 px-1 text-[10px] font-bold">
+            C. BLANCO
+          </span>
+        )}
+        {!desplegada && advertencia && (
+          <span title="Tiene un aviso" className="shrink-0 font-bold text-amber-600">
+            ⚠
+          </span>
+        )}
+        {!desplegada && sinMotivo && (
+          <span title="Falta informar el motivo" className="shrink-0 text-xs font-bold text-red-700">
+            sin motivo
+          </span>
+        )}
+        {!desplegada && l.reprogramadaA && (
+          <span className="shrink-0 text-xs font-semibold text-violet-700">→ {corto(l.reprogramadaA)}</span>
+        )}
+        <span
+          className={`cifra shrink-0 font-bold ${completa ? "text-emerald-700" : incumplida ? "text-red-700" : "text-slate-900"}`}
+        >
+          {l.hechas}
+          <span className="text-sm font-medium text-slate-400">/{l.cantidad}</span>
+        </span>
+        {!alElegir && (
+          <span
+            aria-hidden
+            className={`shrink-0 text-slate-400 transition-transform ${desplegada ? "rotate-180" : ""}`}
           >
-            {l.hechas}
-            <span className="text-sm font-medium text-slate-400"> / {l.cantidad}</span>
-          </div>
-          <div
-            className={`text-xs ${completa ? "text-emerald-700" : incumplida ? "text-red-700" : "text-slate-500"}`}
-          >
-            {completa
-              ? "cumplida"
-              : incumplida
-                ? `faltó ${l.faltan}`
-                : `falta${l.faltan === 1 ? "" : "n"} ${l.faltan}`}
-          </div>
-        </div>
+            ▾
+          </span>
+        )}
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded bg-slate-100">
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded bg-slate-100">
         <div className={`h-full rounded ${color}`} style={{ width: `${pct}%` }} />
       </div>
     </>
   );
 
+  const detalle = (
+    <div className="space-y-1 px-3 pb-2 text-sm">
+      <div className={completa ? "text-emerald-700" : incumplida ? "text-red-700" : "text-slate-500"}>
+        {completa
+          ? "Cumplida"
+          : incumplida
+            ? `Faltó ${l.faltan}`
+            : `Falta${l.faltan === 1 ? "" : "n"} ${l.faltan}`}
+        {elige && (
+          <span className="font-semibold text-blue-700"> · tocá el renglón para cargar este producto</span>
+        )}
+      </div>
+      {l.origenDia && (
+        <div className="text-xs text-violet-700">Reprogramada desde el {corto(l.origenDia)}</div>
+      )}
+      {advertencia && (
+        <div className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900 ring-1 ring-amber-200">
+          <strong>Ojo:</strong> {advertencia}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <li className={`rounded-xl bg-white shadow-sm ring-1 ${incumplida ? "ring-red-200" : "ring-slate-200"}`}>
-      {alElegir && !completa ? (
+      <div className="flex items-stretch">
         <button
           type="button"
-          onClick={() => alElegir(l)}
-          className="block w-full p-3 text-left hover:bg-slate-50"
+          onClick={() => (elige ? alElegir!(l) : setAbierto((v) => !v))}
+          aria-expanded={elige ? undefined : desplegada}
+          className="min-w-0 flex-1 rounded-xl p-3 text-left hover:bg-slate-50"
         >
-          {cuerpo}
-          <div className="mt-1 text-xs font-semibold text-blue-700">Tocá para cargar este producto</div>
+          {renglon}
         </button>
-      ) : (
-        <div className="p-3">{cuerpo}</div>
-      )}
+        {/* En el trompo tocar el renglon carga el producto: desplegar va aparte. */}
+        {alElegir && (
+          <button
+            type="button"
+            onClick={() => setAbierto((v) => !v)}
+            aria-label={desplegada ? "Plegar" : "Desplegar"}
+            aria-expanded={desplegada}
+            className="shrink-0 px-3 text-lg text-slate-400"
+          >
+            <span className={`inline-block transition-transform ${desplegada ? "rotate-180" : ""}`}>▾</span>
+          </button>
+        )}
+      </div>
+
+      {desplegada && detalle}
 
       {/* Motivo, reprogramacion y acciones */}
-      {(l.faltan > 0 || editar) && (
+      {desplegada && (l.faltan > 0 || editar) && (
         <div className="space-y-2 border-t border-slate-100 px-3 py-2 text-sm">
           {l.faltan > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2">
