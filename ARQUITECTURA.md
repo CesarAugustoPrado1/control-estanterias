@@ -454,6 +454,11 @@ empaque**. Cada línea es *N maquinadas de un producto* con una nota libre
   paso. Se sugiere el primer día (sin domingos) que cumple el tiempo de desmolde
   y tiene lugar en la meta de desmolde (un día sin meta propia usa la última
   fijada). Elegir otro día antes de tiempo o pasándose de la meta solo avisa.
+- **Diferencia llenado/desmolde** (`lib/reglas.ts`, `MARGEN_DESMOLDE = 2`): el
+  desmolde de un día no puede llegar a todo lo que se llena, porque mientras se
+  desmolda la primera maquinada el trompo espera. Con N llenados programados, el
+  desmolde llega hasta N − 2 (sin llenado no hay tope). Avisa, no bloquea; la
+  sugerencia de día de desmolde también lo respeta.
 - Al elegir producto se ve una **muestra de color** (deducida del nombre o la
   familia: gris, beige, terracota, habano…; `lib/colores.ts`).
 - El trompo y el desmolde ven su sección del día. En el trompo, tocar una línea
