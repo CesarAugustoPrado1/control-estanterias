@@ -13,6 +13,7 @@ import {
 } from "@/lib/programa";
 import type { SeccionPrograma } from "@/lib/db/schema";
 import { ListaPrograma } from "@/components/programa";
+import { Plegable } from "@/components/plegable";
 import { Pantalla, Seccion, Tarjeta } from "@/components/ui";
 import { AccionesDia, AgregarLinea, MetaSeccion } from "./acciones";
 
@@ -26,6 +27,45 @@ const TITULO: Record<SeccionPrograma, string> = {
 
 const FLECHA =
   "inline-flex h-11 min-w-11 items-center justify-center rounded-lg bg-white px-3 text-sm font-bold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50";
+
+/**
+ * Lo que se ve con la seccion plegada: hechas contra la meta (si hay) y
+ * cuanto del programa se cumplio.
+ */
+function ResumenSeccion({
+  lineas,
+  hechas,
+  meta,
+  terminado,
+}: {
+  lineas: LineaConAvance[];
+  hechas: number;
+  meta: number | null;
+  terminado: boolean;
+}) {
+  const c = cumplimiento(lineas);
+  if (!c.programadas && meta === null) return <span className="text-slate-500">Nada programado</span>;
+  return (
+    <span className="flex flex-wrap gap-x-3">
+      {meta !== null && (
+        <span>
+          Meta{" "}
+          <strong className={hechas >= meta ? "text-emerald-700" : "text-slate-900"}>
+            {hechas}/{meta}
+          </strong>{" "}
+          <span className={hechas >= meta ? "text-emerald-700" : "text-blue-700"}>
+            {Math.round((100 * hechas) / meta)} %
+          </span>
+        </span>
+      )}
+      {c.programadas > 0 && (
+        <span>
+          Programa <Cumplimiento lineas={lineas} terminado={terminado} />
+        </span>
+      )}
+    </span>
+  );
+}
 
 /** Mientras el dia no termino, lo que falta no es incumplimiento: va en gris. */
 function Cumplimiento({
@@ -181,18 +221,22 @@ export default async function Programa({ searchParams }: { searchParams: Promise
         const lineas = programa.lineas.filter((l) => l.seccion === seccion);
         const fuera = programa.fuera.filter((f) => f.seccion === seccion);
         const programadas = lineas.reduce((a, l) => a + l.cantidad, 0);
+        // Todo lo hecho en la seccion, este o no en el programa: es lo que cuenta para la meta.
+        const hechas = lineas.reduce((a, l) => a + l.hechas, 0) + fuera.reduce((a, f) => a + f.hechas, 0);
+        const meta = programa.meta[seccion];
         return (
-          <Seccion
+          <Plegable
             key={seccion}
             titulo={TITULO[seccion]}
-            acciones={<Cumplimiento lineas={lineas} terminado={terminado} />}
+            resumen={<ResumenSeccion lineas={lineas} hechas={hechas} meta={meta} terminado={terminado} />}
           >
             <MetaSeccion
               dia={dia}
               seccion={seccion}
-              meta={programa.meta[seccion]}
+              meta={meta}
               sugerida={sugeridas[seccion]}
               programadas={programadas}
+              hechas={hechas}
               editar={editar}
             />
             <ListaPrograma
@@ -227,7 +271,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                 </ul>
               </div>
             )}
-          </Seccion>
+          </Plegable>
         );
       })}
 
