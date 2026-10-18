@@ -330,58 +330,74 @@ export function MetaSeccion({
   // Debajo, para armar el dia: lo programado contra la meta.
   const pasado = programadas > meta;
   const justo = programadas === meta;
+  // Plegado queda "Meta del dia" con lo hecho y la barra; lo de abajo (programado
+  // y cambiar la meta) se ve al desplegar.
   return (
-    <div
-      className={`mb-3 rounded-xl bg-white p-3 shadow-sm ring-1 ${llego ? "ring-emerald-300" : "ring-slate-200"}`}
+    <details
+      open
+      className={`group mb-3 rounded-xl bg-white shadow-sm ring-1 ${llego ? "ring-emerald-300" : "ring-slate-200"}`}
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="cifra">
-          <span className="text-sm text-slate-600">Hechas </span>
-          <span className={`text-2xl font-bold ${llego ? "text-emerald-700" : "text-slate-900"}`}>
-            {hechas}
+      <summary className="block cursor-pointer list-none p-3 select-none [&::-webkit-details-marker]:hidden">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Meta del día</span>
+          <span
+            aria-hidden
+            className="text-lg leading-none text-slate-400 transition-transform group-open:rotate-180"
+          >
+            ▾
           </span>
-          <span className="text-lg font-medium text-slate-400"> / {meta}</span>
         </div>
-        <div className={`cifra text-2xl font-bold ${llego ? "text-emerald-700" : "text-blue-700"}`}>
-          {pctHechas} %
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div className="cifra">
+            <span className="text-sm text-slate-600">Hechas </span>
+            <span className={`text-2xl font-bold ${llego ? "text-emerald-700" : "text-slate-900"}`}>
+              {hechas}
+            </span>
+            <span className="text-lg font-medium text-slate-400"> / {meta}</span>
+          </div>
+          <div className={`cifra text-2xl font-bold ${llego ? "text-emerald-700" : "text-blue-700"}`}>
+            {pctHechas} %
+          </div>
         </div>
+        <div className="mt-2 h-3 overflow-hidden rounded bg-slate-100">
+          <div
+            className={`h-full rounded ${llego ? "bg-emerald-500" : "bg-blue-600"}`}
+            style={{ width: `${Math.min(100, pctHechas)}%` }}
+          />
+        </div>
+      </summary>
+      <div className="px-3 pb-3">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-sm">
+          <span className="cifra text-slate-600">
+            Programadas{" "}
+            <strong className={pasado ? "text-red-700" : justo ? "text-emerald-700" : "text-slate-900"}>
+              {programadas}
+            </strong>{" "}
+            / {meta}
+          </span>
+          <span
+            className={`font-semibold ${pasado ? "text-red-700" : justo ? "text-emerald-700" : "text-amber-700"}`}
+          >
+            {pasado
+              ? `Te pasaste por ${programadas - meta}`
+              : justo
+                ? "Programa completo"
+                : `Faltan programar ${meta - programadas}`}
+          </span>
+        </div>
+        {editar && (
+          <button
+            type="button"
+            onClick={() => {
+              setValor(String(meta));
+              setEditando(true);
+            }}
+            className="mt-2 text-sm font-semibold text-blue-700 hover:underline"
+          >
+            Cambiar meta
+          </button>
+        )}
       </div>
-      <div className="mt-2 h-3 overflow-hidden rounded bg-slate-100">
-        <div
-          className={`h-full rounded ${llego ? "bg-emerald-500" : "bg-blue-600"}`}
-          style={{ width: `${Math.min(100, pctHechas)}%` }}
-        />
-      </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-sm">
-        <span className="cifra text-slate-600">
-          Programadas{" "}
-          <strong className={pasado ? "text-red-700" : justo ? "text-emerald-700" : "text-slate-900"}>
-            {programadas}
-          </strong>{" "}
-          / {meta}
-        </span>
-        <span
-          className={`font-semibold ${pasado ? "text-red-700" : justo ? "text-emerald-700" : "text-amber-700"}`}
-        >
-          {pasado
-            ? `Te pasaste por ${programadas - meta}`
-            : justo
-              ? "Programa completo"
-              : `Faltan programar ${meta - programadas}`}
-        </span>
-      </div>
-      {editar && (
-        <button
-          type="button"
-          onClick={() => {
-            setValor(String(meta));
-            setEditando(true);
-          }}
-          className="mt-2 text-sm font-semibold text-blue-700 hover:underline"
-        >
-          Cambiar meta
-        </button>
-      )}
-    </div>
+    </details>
   );
 }

@@ -13,8 +13,8 @@ import {
 } from "@/lib/programa";
 import type { SeccionPrograma } from "@/lib/db/schema";
 import { ListaPrograma } from "@/components/programa";
-import { Plegable } from "@/components/plegable";
-import { Pantalla, Seccion, Tarjeta } from "@/components/ui";
+import { Flechita, PLEGABLE, Plegable, RESUMEN } from "@/components/plegable";
+import { Pantalla, Seccion } from "@/components/ui";
 import { AccionesDia, AgregarLinea, MetaSeccion } from "./acciones";
 
 export const metadata = { title: "Programa · Control de Estanterías" };
@@ -120,34 +120,44 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   const terminado = cerrado || dia < h;
   const sinMotivo = programa.lineas.filter((l) => l.faltan > 0 && !l.motivoNombre && !l.reprogramadaA).length;
   const url = (d: string) => `/programa?dia=${d}`;
+  const relativo =
+    dia === h ? "Hoy" : dia === sumarDias(h, 1) ? "Mañana" : dia === sumarDias(h, -1) ? "Ayer" : "";
+  const estado = cerrado
+    ? `Cerrado ${fechaHora(programa.cerrado!.en)}${programa.cerrado!.por ? ` por ${programa.cerrado!.por}` : ""}`
+    : terminado
+      ? "Terminado, sin cerrar"
+      : "En curso";
+  // Lo hecho de verdad en cada seccion (programado o no): es lo que cuenta para la meta.
+  const hechasDe = (s: SeccionPrograma) =>
+    programa.lineas.filter((l) => l.seccion === s).reduce((a, l) => a + l.hechas, 0) +
+    programa.fuera.filter((f) => f.seccion === s).reduce((a, f) => a + f.hechas, 0);
+  const metas = (["llenado", "desmolde"] as const).flatMap((s) => {
+    const meta = programa.meta[s];
+    return meta === null
+      ? []
+      : [{ seccion: s, nombre: s === "llenado" ? "llenado" : "desmolde", meta, hechas: hechasDe(s) }];
+  });
 
   return (
     <Pantalla titulo="Programa" bajada="La hoja de producción del día: lo que se pide y lo que se hizo.">
-      {/* Dia */}
-      <Tarjeta className="mb-4 space-y-3">
-        <div className="flex items-center gap-2">
+      {/* Dia: plegado queda la barra con las flechas, que andan sin desplegarlo. */}
+      <details open className={`${PLEGABLE} mb-3`}>
+        <summary className={RESUMEN}>
           <Link href={url(sumarDias(dia, -1))} aria-label="Día anterior" className={FLECHA}>
             ‹
           </Link>
           <div className="min-w-0 flex-1 text-center">
-            <div className="text-lg font-bold text-slate-900">
+            <div className="truncate text-lg font-bold text-slate-900">
               {nombrePeriodo({ desde: dia, hasta: dia })}
             </div>
-            <div className="text-xs text-slate-500">
-              {dia === h
-                ? "Hoy"
-                : dia === sumarDias(h, 1)
-                  ? "Mañana"
-                  : dia === sumarDias(h, -1)
-                    ? "Ayer"
-                    : ""}
-            </div>
+            <div className="text-xs text-slate-500">{relativo}</div>
           </div>
           <Link href={url(sumarDias(dia, 1))} aria-label="Día siguiente" className={FLECHA}>
             ›
           </Link>
-        </div>
-        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Flechita />
+        </summary>
+        <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-100 p-3">
           {dia !== h && (
             <Link href={url(h)} className={FLECHA}>
               Hoy
@@ -171,22 +181,41 @@ export default async function Programa({ searchParams }: { searchParams: Promise
             </button>
           </form>
         </div>
-      </Tarjeta>
+      </details>
 
-      {/* Estado del dia */}
+      {/* Estado del dia: plegado queda el resumen; los botones van adentro. */}
       {programa.lineas.length > 0 && (
-        <Tarjeta className={`mb-4 ${cerrado ? "ring-emerald-300" : ""}`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm text-slate-600">
-                {cerrado
-                  ? `Cerrado ${fechaHora(programa.cerrado!.en)}${programa.cerrado!.por ? ` por ${programa.cerrado!.por}` : ""}`
-                  : terminado
-                    ? "Terminado, sin cerrar"
-                    : "En curso"}
+        <details open className={`${PLEGABLE} mb-4 ${cerrado ? "ring-emerald-300" : ""}`}>
+          <summary className={RESUMEN}>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm text-slate-600">{estado}</div>
+              <div className="flex flex-wrap items-baseline gap-x-4">
+                <span>
+                  <span className="text-sm text-slate-600">Programa </span>
+                  <Cumplimiento lineas={programa.lineas} grande terminado={terminado} />
+                </span>
+                {metas.length > 0 && (
+                  <span className="cifra text-sm text-slate-600">
+                    Meta{" "}
+                    {metas.map((m, k) => (
+                      <span key={m.seccion}>
+                        {k > 0 && " · "}
+                        {m.nombre}{" "}
+                        <strong className={m.hechas >= m.meta ? "text-emerald-700" : "text-slate-900"}>
+                          {m.hechas}/{m.meta}
+                        </strong>{" "}
+                        <span className={m.hechas >= m.meta ? "text-emerald-700" : "text-blue-700"}>
+                          {Math.round((100 * m.hechas) / m.meta)} %
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                )}
               </div>
-              <Cumplimiento lineas={programa.lineas} grande terminado={terminado} />
             </div>
+            <Flechita />
+          </summary>
+          <div className="space-y-2 border-t border-slate-100 p-3">
             {editar && (
               <AccionesDia
                 dia={dia}
@@ -196,14 +225,17 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                 sugerirCopiaDe={sumarDias(dia, -1)}
               />
             )}
+            {terminado && sinMotivo > 0 && (
+              <p className="text-sm text-red-700">
+                {sinMotivo} línea{sinMotivo === 1 ? "" : "s"} sin cumplir y sin motivo: lo informa cada puesto
+                desde su pantalla, o cargalo acá.
+              </p>
+            )}
+            {!editar && !(terminado && sinMotivo > 0) && (
+              <p className="text-sm text-slate-500">Sin acciones: el programa lo arma el administrador.</p>
+            )}
           </div>
-          {terminado && sinMotivo > 0 && (
-            <p className="mt-2 text-sm text-red-700">
-              {sinMotivo} línea{sinMotivo === 1 ? "" : "s"} sin cumplir y sin motivo: lo informa cada puesto
-              desde su pantalla, o cargalo acá.
-            </p>
-          )}
-        </Tarjeta>
+        </details>
       )}
       {programa.lineas.length === 0 && editar && (
         <div className="mb-4">
@@ -222,7 +254,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
         const fuera = programa.fuera.filter((f) => f.seccion === seccion);
         const programadas = lineas.reduce((a, l) => a + l.cantidad, 0);
         // Todo lo hecho en la seccion, este o no en el programa: es lo que cuenta para la meta.
-        const hechas = lineas.reduce((a, l) => a + l.hechas, 0) + fuera.reduce((a, f) => a + f.hechas, 0);
+        const hechas = hechasDe(seccion);
         const meta = programa.meta[seccion];
         return (
           <Plegable
