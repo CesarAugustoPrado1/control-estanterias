@@ -7,30 +7,46 @@ import {
   historialCerrados,
   leerDia,
   listarMotivosIncumplimiento,
+  metasSugeridas,
   productosParaProgramar,
   type LineaConAvance,
 } from "@/lib/programa";
 import type { SeccionPrograma } from "@/lib/db/schema";
 import { ListaPrograma } from "@/components/programa";
 import { Pantalla, Seccion, Tarjeta } from "@/components/ui";
-import { AccionesDia, AgregarLinea } from "./acciones";
+import { AccionesDia, AgregarLinea, MetaSeccion } from "./acciones";
 
 export const metadata = { title: "Programa · Control de Estanterías" };
 export const dynamic = "force-dynamic";
 
 const TITULO: Record<SeccionPrograma, string> = {
   llenado: "Llenado (trompo)",
-  desmolde: "Desmolde y empaque",
+  desmolde: "Desmolde y paletizado",
 };
 
 const FLECHA =
   "inline-flex h-11 min-w-11 items-center justify-center rounded-lg bg-white px-3 text-sm font-bold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50";
 
-function Cumplimiento({ lineas, grande }: { lineas: LineaConAvance[]; grande?: boolean }) {
+/** Mientras el dia no termino, lo que falta no es incumplimiento: va en gris. */
+function Cumplimiento({
+  lineas,
+  grande,
+  terminado,
+}: {
+  lineas: LineaConAvance[];
+  grande?: boolean;
+  terminado: boolean;
+}) {
   const c = cumplimiento(lineas);
   if (!c.programadas) return null;
   const color =
-    c.pct === 100 ? "text-emerald-700" : c.pct !== null && c.pct >= 80 ? "text-amber-700" : "text-red-700";
+    c.pct === 100
+      ? "text-emerald-700"
+      : !terminado
+        ? "text-slate-700"
+        : c.pct !== null && c.pct >= 80
+          ? "text-amber-700"
+          : "text-red-700";
   return (
     <span className="cifra">
       <span className={`${grande ? "text-2xl" : "text-base"} font-bold ${color}`}>
@@ -52,11 +68,12 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   const h = hoy();
   const dia = p.dia && FORMATO_DIA.test(p.dia) ? p.dia : h;
 
-  const [programa, motivos, productos, historial] = await Promise.all([
+  const [programa, motivos, productos, historial, sugeridas] = await Promise.all([
     leerDia(dia),
     listarMotivosIncumplimiento(),
     productosParaProgramar(),
     historialCerrados(),
+    metasSugeridas(dia),
   ]);
   const cerrado = programa.cerrado !== null;
   // Un dia pasado ya termino aunque nadie lo haya cerrado: lo que falta, falto.
@@ -128,7 +145,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                     ? "Terminado, sin cerrar"
                     : "En curso"}
               </div>
-              <Cumplimiento lineas={programa.lineas} grande />
+              <Cumplimiento lineas={programa.lineas} grande terminado={terminado} />
             </div>
             {editar && (
               <AccionesDia
@@ -163,8 +180,21 @@ export default async function Programa({ searchParams }: { searchParams: Promise
       {(["llenado", "desmolde"] as const).map((seccion) => {
         const lineas = programa.lineas.filter((l) => l.seccion === seccion);
         const fuera = programa.fuera.filter((f) => f.seccion === seccion);
+        const programadas = lineas.reduce((a, l) => a + l.cantidad, 0);
         return (
-          <Seccion key={seccion} titulo={TITULO[seccion]} acciones={<Cumplimiento lineas={lineas} />}>
+          <Seccion
+            key={seccion}
+            titulo={TITULO[seccion]}
+            acciones={<Cumplimiento lineas={lineas} terminado={terminado} />}
+          >
+            <MetaSeccion
+              dia={dia}
+              seccion={seccion}
+              meta={programa.meta[seccion]}
+              sugerida={sugeridas[seccion]}
+              programadas={programadas}
+              editar={editar}
+            />
             <ListaPrograma
               lineas={lineas}
               motivos={motivos}
@@ -174,7 +204,15 @@ export default async function Programa({ searchParams }: { searchParams: Promise
               manana={sumarDias(dia, 1)}
               vacio={seccion === "llenado" ? "Sin llenados programados." : "Sin desmoldes programados."}
             />
-            {editar && !cerrado && <AgregarLinea dia={dia} seccion={seccion} productos={productos} />}
+            {editar && !cerrado && (
+              <AgregarLinea
+                dia={dia}
+                seccion={seccion}
+                productos={productos}
+                meta={programa.meta[seccion]}
+                programadas={programadas}
+              />
+            )}
             {fuera.length > 0 && (
               <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm ring-1 ring-amber-200">
                 <div className="font-semibold text-amber-900">

@@ -292,7 +292,7 @@ reasignaciones   estanteria_id, etiqueta, familia y cemento antes/después,
                  motivo, usuario, creado_en                          (§10.6)
 motivos_rotura   nombre, activo
 motivos_incumplimiento  nombre, orden, activo                  (§7.9)
-programa_dias    dia (PK), cerrado_en?, cerrado_por?
+programa_dias    dia (PK), cerrado_en?, cerrado_por?, meta_llenado?, meta_desmolde?
 programa_lineas  dia, seccion (llenado|desmolde), producto_id, cantidad,
                  nota?, orden, hechas_cierre?, motivo_id? + nombre, nota y
                  quien, reprogramada_a?, origen_id?
@@ -442,6 +442,9 @@ empaque**. Cada línea es *N maquinadas de un producto* con una nota libre
   ese día, por producto (`lib/programa.ts`). Si hay dos líneas del mismo
   producto, lo hecho llena primero la de más arriba; lo que sobra se muestra como
   *fuera de programa*.
+- Cada sección puede tener una **meta de maquinadas del día**. Al agregar líneas
+  se compara lo programado contra la meta (cuántas faltan, o por cuántas se
+  pasa, con confirmación). Un día nuevo propone la última meta usada.
 - El trompo y el desmolde ven su sección del día. En el trompo, tocar una línea
   carga ese producto con su cemento. Cada puesto informa **el motivo** de lo que
   no se cumplió (lista editable en Parámetros).
