@@ -728,6 +728,9 @@ export const programaDias = esq.table("programa_dias", {
   dia: date("dia", { mode: "string" }).primaryKey(),
   cerradoEn: timestamp("cerrado_en", { withTimezone: true }),
   cerradoPor: text("cerrado_por"),
+  /** Maquinadas que se quieren hacer ese dia, por seccion. Null: sin meta. */
+  metaLlenado: integer("meta_llenado"),
+  metaDesmolde: integer("meta_desmolde"),
 });
 
 /**

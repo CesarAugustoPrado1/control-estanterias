@@ -239,6 +239,23 @@ export async function accionCerrarDia(fd: FormData): Promise<Resultado<void>> {
   });
 }
 
+/** Meta de maquinadas del dia para una seccion. Vacio la borra. */
+export async function accionGuardarMeta(fd: FormData): Promise<Resultado<void>> {
+  return ejecutar(async () => {
+    await autorizar("admin");
+    const d = dia.parse(fd.get("dia"));
+    const seccion = z.enum(seccionProgramaEnum.enumValues).parse(fd.get("seccion"));
+    const valor = numeroOpcional(fd.get("meta"));
+    const meta = valor === null ? null : cantidad.parse(valor);
+    const campo = seccion === "llenado" ? { metaLlenado: meta } : { metaDesmolde: meta };
+    await db
+      .insert(programaDias)
+      .values({ dia: d, ...campo })
+      .onConflictDoUpdate({ target: programaDias.dia, set: campo });
+    refrescar();
+  });
+}
+
 /** Reabrir descarta la foto: al volver a cerrar se toma lo que haya en ese momento. */
 export async function accionReabrirDia(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {

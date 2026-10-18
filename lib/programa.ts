@@ -64,6 +64,8 @@ export type DiaPrograma = {
   cerrado: { en: Date; por: string | null } | null;
   lineas: LineaConAvance[];
   fuera: FueraDePrograma[];
+  /** Maquinadas que se quieren hacer ese dia, por seccion. */
+  meta: Record<SeccionPrograma, number | null>;
 };
 
 /** Hechas por producto en un dia, de cada seccion. */
@@ -174,7 +176,13 @@ export async function leerDia(dia: string): Promise<DiaPrograma> {
   }
   fuera.sort((a, b) => a.producto.localeCompare(b.producto));
 
-  return { dia, cerrado, lineas, fuera };
+  return {
+    dia,
+    cerrado,
+    lineas,
+    fuera,
+    meta: { llenado: cab?.metaLlenado ?? null, desmolde: cab?.metaDesmolde ?? null },
+  };
 }
 
 /** Cumplimiento: hechas sobre programadas, sin contar lo de mas. */
@@ -238,6 +246,21 @@ export const productosParaProgramar = () =>
     .innerJoin(modelos, eq(modelos.id, productos.modeloId))
     .where(eq(productos.activo, true))
     .orderBy(asc(modelos.nombre), asc(productos.nombre));
+
+/**
+ * La ultima meta usada antes de ese dia, para sugerirla en un dia nuevo: casi
+ * siempre se trabaja con la misma.
+ */
+export async function metasSugeridas(dia: string): Promise<Record<SeccionPrograma, number | null>> {
+  const r = await db.execute(sql`
+    select
+      (select meta_llenado from estanterias.programa_dias
+        where meta_llenado is not null and dia < ${dia}::date order by dia desc limit 1) as llenado,
+      (select meta_desmolde from estanterias.programa_dias
+        where meta_desmolde is not null and dia < ${dia}::date order by dia desc limit 1) as desmolde`);
+  const f = r.rows[0] as { llenado: number | null; desmolde: number | null } | undefined;
+  return { llenado: f?.llenado ?? null, desmolde: f?.desmolde ?? null };
+}
 
 /** Siguiente lugar al final de una seccion. */
 export async function siguienteOrden(dia: string, seccion: SeccionPrograma) {

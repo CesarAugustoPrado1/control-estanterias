@@ -6,6 +6,7 @@ import {
   accionAgregarLinea,
   accionCerrarDia,
   accionCopiarDia,
+  accionGuardarMeta,
   accionReabrirDia,
 } from "@/lib/acciones/programa";
 import type { Cemento, SeccionPrograma } from "@/lib/db/schema";
@@ -25,10 +26,16 @@ export function AgregarLinea({
   dia,
   seccion,
   productos,
+  meta,
+  programadas,
 }: {
   dia: string;
   seccion: SeccionPrograma;
   productos: ProductoElegible[];
+  /** Meta de maquinadas de la seccion; null si el dia no tiene. */
+  meta: number | null;
+  /** Lo que ya suman las lineas de la seccion. */
+  programadas: number;
 }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
@@ -49,6 +56,19 @@ export function AgregarLinea({
     for (const p of productos) m.set(p.modelo, [...(m.get(p.modelo) ?? []), p]);
     return [...m];
   }, [productos]);
+
+  const n = Number(cantidad) || 0;
+  const conEsta = programadas + n;
+
+  const agregar = () => {
+    if (meta !== null && conEsta > meta) {
+      const ok = confirm(
+        `Con esta línea programás ${conEsta} maquinadas y la meta es ${meta}: te pasás por ${conEsta - meta}.\n\n¿Agregarla igual?`,
+      );
+      if (!ok) return;
+    }
+    a.enviar(datos({ dia, seccion, productoId, cantidad, nota }));
+  };
 
   if (!abierto) {
     return (
@@ -95,13 +115,27 @@ export function AgregarLinea({
           placeholder="Ej: Quilmes 29597 10/9"
         />
       </Campo>
+      {meta !== null && n > 0 && (
+        <p
+          className={`cifra rounded-lg px-3 py-2 text-sm font-semibold ${
+            conEsta > meta
+              ? "bg-red-50 text-red-800 ring-1 ring-red-200"
+              : conEsta === meta
+                ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+                : "bg-slate-50 text-slate-700 ring-1 ring-slate-200"
+          }`}
+        >
+          Con esta línea: {conEsta} de {meta}
+          {conEsta > meta
+            ? ` · te pasás por ${conEsta - meta}`
+            : conEsta === meta
+              ? " · llegás justo a la meta"
+              : ` · quedan ${meta - conEsta}`}
+        </p>
+      )}
       {a.error && <Aviso tono="error">{a.error}</Aviso>}
       <div className="flex gap-2">
-        <Boton
-          type="button"
-          disabled={a.cargando || !productoId || !cantidad}
-          onClick={() => a.enviar(datos({ dia, seccion, productoId, cantidad, nota }))}
-        >
+        <Boton type="button" disabled={a.cargando || !productoId || !cantidad} onClick={agregar}>
           {a.cargando ? "Agregando…" : "Agregar"}
         </Boton>
         <Boton type="button" tono="fantasma" onClick={() => setAbierto(false)}>
@@ -203,6 +237,138 @@ export function AccionesDia({
       )}
       {copiar.ok !== null && copiar.ok > 0 && <Aviso tono="ok">Se copiaron {copiar.ok} líneas.</Aviso>}
       {error && <Aviso tono="error">{error}</Aviso>}
+    </div>
+  );
+}
+
+/**
+ * Meta de maquinadas de una seccion y cuanto lleva programado. Lo que importa
+ * al armar el dia: cuantas faltan para la meta, o por cuantas se paso.
+ */
+export function MetaSeccion({
+  dia,
+  seccion,
+  meta,
+  sugerida,
+  programadas,
+  editar,
+}: {
+  dia: string;
+  seccion: SeccionPrograma;
+  meta: number | null;
+  /** Ultima meta usada, para proponerla en un dia sin meta. */
+  sugerida: number | null;
+  programadas: number;
+  editar: boolean;
+}) {
+  const router = useRouter();
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(String(meta ?? sugerida ?? ""));
+  const a = usarAccion(accionGuardarMeta, {
+    alTerminar: () => {
+      setEditando(false);
+      router.refresh();
+    },
+  });
+
+  if (editando || (meta === null && editar)) {
+    return (
+      <div className="mb-3 rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+        <div className="flex flex-wrap items-end gap-2">
+          <Campo etiqueta="Meta de maquinadas del día">
+            <Entrada
+              inputMode="numeric"
+              value={valor}
+              onChange={(e) => setValor(e.target.value.replace(/\D/g, ""))}
+              placeholder="Ej: 16"
+              className="cifra w-28 text-lg font-bold"
+            />
+          </Campo>
+          <Boton
+            type="button"
+            disabled={a.cargando || !valor}
+            onClick={() => a.enviar(datos({ dia, seccion, meta: valor }))}
+          >
+            {a.cargando ? "Guardando…" : meta === null ? "Fijar meta" : "Guardar"}
+          </Boton>
+          {editando && (
+            <Boton type="button" tono="fantasma" onClick={() => setEditando(false)}>
+              Cancelar
+            </Boton>
+          )}
+          {editando && meta !== null && (
+            <button
+              type="button"
+              className="min-h-12 px-2 text-sm font-semibold text-red-700 hover:underline"
+              disabled={a.cargando}
+              onClick={() => a.enviar(datos({ dia, seccion, meta: "" }))}
+            >
+              Quitar meta
+            </button>
+          )}
+        </div>
+        {meta === null && sugerida !== null && (
+          <p className="mt-1 text-xs text-slate-500">Propuesta: la última meta que usaste ({sugerida}).</p>
+        )}
+        {a.error && (
+          <div className="mt-2">
+            <Aviso tono="error">{a.error}</Aviso>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (meta === null) return null;
+
+  const pct = Math.min(100, (100 * programadas) / meta);
+  const pasado = programadas > meta;
+  const justo = programadas === meta;
+  return (
+    <div
+      className={`mb-3 rounded-xl bg-white p-3 shadow-sm ring-1 ${
+        pasado ? "ring-red-300" : justo ? "ring-emerald-300" : "ring-slate-200"
+      }`}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="cifra">
+          <span className="text-sm text-slate-600">Programadas </span>
+          <span
+            className={`text-2xl font-bold ${pasado ? "text-red-700" : justo ? "text-emerald-700" : "text-slate-900"}`}
+          >
+            {programadas}
+          </span>
+          <span className="text-lg font-medium text-slate-400"> / {meta}</span>
+          <span className="text-sm text-slate-600"> de meta</span>
+        </div>
+        <div
+          className={`text-sm font-semibold ${pasado ? "text-red-700" : justo ? "text-emerald-700" : "text-amber-700"}`}
+        >
+          {pasado
+            ? `Te pasaste por ${programadas - meta}`
+            : justo
+              ? "Meta completa"
+              : `Faltan ${meta - programadas} para la meta`}
+        </div>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded bg-slate-100">
+        <div
+          className={`h-full rounded ${pasado ? "bg-red-500" : justo ? "bg-emerald-500" : "bg-amber-500"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {editar && (
+        <button
+          type="button"
+          onClick={() => {
+            setValor(String(meta));
+            setEditando(true);
+          }}
+          className="mt-2 text-sm font-semibold text-blue-700 hover:underline"
+        >
+          Cambiar meta
+        </button>
+      )}
     </div>
   );
 }
