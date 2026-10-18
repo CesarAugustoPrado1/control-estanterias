@@ -40,12 +40,15 @@ export function Flechita() {
 
 export function Plegable({
   titulo,
+  insignia,
   resumen,
   ayuda,
   abierto = true,
   children,
 }: {
   titulo: string;
+  /** Al lado del titulo: se ve tambien plegado. */
+  insignia?: ReactNode;
   resumen: ReactNode;
   ayuda?: ReactNode;
   abierto?: boolean;
@@ -55,7 +58,10 @@ export function Plegable({
     <details open={abierto} className={`${PLEGABLE} mb-3`}>
       <summary className={RESUMEN}>
         <div className="min-w-0 flex-1">
-          <div className="font-semibold text-slate-900">{titulo}</div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-semibold text-slate-900">{titulo}</span>
+            {insignia}
+          </div>
           <div className="cifra text-sm text-slate-600">{resumen}</div>
         </div>
         <Flechita />
