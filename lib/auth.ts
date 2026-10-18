@@ -46,7 +46,15 @@ export async function requerirRol(...roles: Rol[]): Promise<Sesion> {
   return s;
 }
 
-/** Para server actions. Falla con mensaje, no redirige. */
+/**
+ * Para server actions. Falla con mensaje, no redirige.
+ *
+ * Igual que `requerirRol`: sin roles, SOLO el admin. Antes "sin roles" dejaba
+ * pasar a cualquier usuario logueado, y como una action se puede invocar sin
+ * pasar por su pantalla, un operario podia llamar a las de administracion
+ * (por ejemplo, darse rol de admin). Para abrir una action a todos, pasar los
+ * roles explicitos.
+ */
 export async function autorizar(...roles: Rol[]): Promise<Sesion> {
   const s = await sesionDelToken();
   if (!s) throw new ErrorDeAutorizacion("Tu sesión venció. Volvé a entrar.");
@@ -56,7 +64,7 @@ export async function autorizar(...roles: Rol[]): Promise<Sesion> {
       "Tu usuario ya no está activo. Hablá con el administrador.",
     );
   }
-  if (roles.length && !tieneAlguno(v.roles, roles)) {
+  if (!tieneAlguno(v.roles, roles)) {
     throw new ErrorDeAutorizacion("No tenés permiso para hacer esto.");
   }
   return v;
