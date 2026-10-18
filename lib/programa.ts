@@ -346,7 +346,10 @@ export async function disponibilidadDesmolde(dia: string): Promise<Map<number, D
   return r;
 }
 
-const diaCorto = (d: string) => nombreDia(d).replace(/\/\d{4}$/, "").replace(",", "");
+const diaCorto = (d: string) =>
+  nombreDia(d)
+    .replace(/\/\d{4}$/, "")
+    .replace(",", "");
 
 /**
  * Advertencias para las lineas de desmolde de un dia: si piden mas de lo que va
@@ -384,6 +387,45 @@ export function advertenciasDesmolde(
           .join(" ");
     }
     r[l.id] = texto;
+  }
+  return r;
+}
+
+/**
+ * Carga de desmolde de los proximos dias, para sugerir cuando desmoldar lo que
+ * se programa llenar: cuantas maquinadas ya hay programadas para desmoldar cada
+ * dia y la meta de desmolde. Un dia sin meta propia usa la ultima fijada antes,
+ * que es la que se va a proponer cuando se arme ese dia.
+ */
+export type CargaDesmolde = Record<string, { programadas: number; meta: number | null; cerrado: boolean }>;
+
+export async function cargaDesmolde(desde: string, dias = 45): Promise<CargaDesmolde> {
+  const hasta = sumarDias(desde, dias);
+  const [cabs, sumas] = await Promise.all([
+    db
+      .select()
+      .from(programaDias)
+      .where(sql`${programaDias.dia} <= ${hasta}::date`)
+      .orderBy(asc(programaDias.dia)),
+    db
+      .select({ dia: programaLineas.dia, n: sql<number>`sum(${programaLineas.cantidad})::int` })
+      .from(programaLineas)
+      .where(
+        sql`${programaLineas.seccion} = 'desmolde' and ${programaLineas.dia} between ${desde}::date and ${hasta}::date`,
+      )
+      .groupBy(programaLineas.dia),
+  ]);
+  const porDia = new Map(cabs.map((c) => [c.dia, c]));
+  const programadas = new Map(sumas.map((x) => [x.dia, Number(x.n)]));
+  // Ultima meta fijada antes de `desde`, para arrastrar.
+  let meta: number | null = null;
+  for (const c of cabs) if (c.dia < desde && c.metaDesmolde !== null) meta = c.metaDesmolde;
+  const r: CargaDesmolde = {};
+  for (let i = 0; i <= dias; i++) {
+    const d = sumarDias(desde, i);
+    const cab = porDia.get(d);
+    if (cab?.metaDesmolde != null) meta = cab.metaDesmolde;
+    r[d] = { programadas: programadas.get(d) ?? 0, meta, cerrado: !!cab?.cerradoEn };
   }
   return r;
 }

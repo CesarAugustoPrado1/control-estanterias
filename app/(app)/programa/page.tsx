@@ -7,6 +7,7 @@ import {
   historialCerrados,
   leerDia,
   advertenciasDesmolde,
+  cargaDesmolde,
   disponibilidadDesmolde,
   listarMotivosIncumplimiento,
   metasSugeridas,
@@ -110,13 +111,14 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   const h = hoy();
   const dia = p.dia && FORMATO_DIA.test(p.dia) ? p.dia : h;
 
-  const [programa, motivos, productos, historial, sugeridas, disponible] = await Promise.all([
+  const [programa, motivos, productos, historial, sugeridas, disponible, carga] = await Promise.all([
     leerDia(dia),
     listarMotivosIncumplimiento(),
     productosParaProgramar(),
     historialCerrados(),
     metasSugeridas(dia),
     disponibilidadDesmolde(dia),
+    cargaDesmolde(sumarDias(dia, 1)),
   ]);
   // Tiempo de desmolde: avisos (no bloquean) en las lineas de desmolde, y
   // cuantas quedan listas de cada producto para lo que se agregue.
@@ -302,6 +304,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                 meta={programa.meta[seccion]}
                 programadas={programadas}
                 listas={seccion === "desmolde" ? listasParaAgregar : undefined}
+                carga={seccion === "llenado" ? carga : undefined}
               />
             )}
             {fuera.length > 0 && (

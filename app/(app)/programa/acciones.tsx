@@ -14,6 +14,7 @@ import { usarAccion } from "@/components/usar-accion";
 import { Aviso, Boton, Campo, Entrada } from "@/components/ui";
 import { SelectorProducto } from "@/components/selector-producto";
 import { nombreDia, sumarDias } from "@/lib/periodo";
+import type { CargaDesmolde } from "@/lib/programa";
 
 type ProductoElegible = {
   id: number;
@@ -23,6 +24,23 @@ type ProductoElegible = {
   cemento: Cemento;
   diasDesmolde: number;
 };
+
+/**
+ * Primer dia desde `desde` (sin domingos) en que caben `n` desmoldes sin pasarse
+ * de la meta. Un dia sin meta tiene lugar. Si no hay ninguno en el horizonte,
+ * el primer dia posible.
+ */
+function sugerirDesmolde(desde: string, n: number, carga: CargaDesmolde): string {
+  for (let i = 0; i < 45; i++) {
+    const d = sumarDias(desde, i);
+    if (new Date(`${d}T12:00:00Z`).getUTCDay() === 0) continue;
+    const c = carga[d];
+    if (!c) break;
+    if (c.cerrado) continue;
+    if (c.meta == null || c.programadas + n <= c.meta) return d;
+  }
+  return desde;
+}
 
 const plazo = (d: number) => (d === 1 ? "1 día" : `${d} días`);
 /** "miércoles 21/10" */
@@ -45,6 +63,7 @@ export function AgregarLinea({
   meta,
   programadas,
   listas,
+  carga,
 }: {
   dia: string;
   seccion: SeccionPrograma;
@@ -58,18 +77,24 @@ export function AgregarLinea({
   meta: number | null;
   /** Lo que ya suman las lineas de la seccion. */
   programadas: number;
+  /** Solo llenado: carga de desmolde de los dias siguientes, para sugerir cuando desmoldar. */
+  carga?: CargaDesmolde;
 }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [productoId, setProductoId] = useState("");
   const [cantidad, setCantidad] = useState("1");
   const [nota, setNota] = useState("");
+  // Llenado: programar tambien el desmolde, con un dia sugerido que se puede cambiar.
+  const [conDesmolde, setConDesmolde] = useState(true);
+  const [desmoldeElegido, setDesmoldeElegido] = useState<string | null>(null);
   const a = usarAccion(accionAgregarLinea, {
     alTerminar: () => {
       // Queda abierto para seguir cargando renglones: solo se limpia.
       setProductoId("");
       setCantidad("1");
       setNota("");
+      setDesmoldeElegido(null);
       router.refresh();
     },
   });
@@ -79,14 +104,47 @@ export function AgregarLinea({
   const pocasListas = listasElegido !== null && n > listasElegido;
   const conEsta = programadas + n;
 
-  const agregar = () => {
-    if (meta !== null && conEsta > meta) {
-      const ok = confirm(
-        `Con esta línea programás ${conEsta} maquinadas y la meta es ${meta}: te pasás por ${conEsta - meta}.\n\n¿Agregarla igual?`,
+  // Desmolde de lo que se llena: el primer dia que cumple el tiempo de
+  // desmolde y tiene lugar en la meta (sin domingos). Es solo la sugerencia.
+  const desdeDia = elegido ? sumarDias(dia, elegido.diasDesmolde) : null;
+  const sugerido =
+    seccion === "llenado" && desdeDia && carga ? sugerirDesmolde(desdeDia, n || 1, carga) : null;
+  const desmoldeDia = desmoldeElegido ?? sugerido;
+  const cargaDia = desmoldeDia && carga ? carga[desmoldeDia] : undefined;
+  const avisosDesmolde: string[] = [];
+  if (seccion === "llenado" && conDesmolde && desmoldeDia && elegido) {
+    if (desdeDia && desmoldeDia < desdeDia) {
+      avisosDesmolde.push(
+        `Es antes del tiempo de desmolde de ${elegido.nombre} (${plazo(elegido.diasDesmolde)}): se puede desde el ${diaCorto(desdeDia)}.`,
       );
-      if (!ok) return;
     }
-    a.enviar(datos({ dia, seccion, productoId, cantidad, nota }));
+    if (cargaDia?.meta != null && cargaDia.programadas + n > cargaDia.meta) {
+      avisosDesmolde.push(
+        `Ese día quedarían ${cargaDia.programadas + n} maquinadas para desmoldar y la meta es ${cargaDia.meta}: te pasás por ${cargaDia.programadas + n - cargaDia.meta}.`,
+      );
+    }
+    if (cargaDia?.cerrado) avisosDesmolde.push("Ese día ya está cerrado: elegí otro.");
+  }
+
+  const agregar = () => {
+    const avisos: string[] = [];
+    if (meta !== null && conEsta > meta) {
+      avisos.push(
+        `Con esta línea programás ${conEsta} maquinadas y la meta es ${meta}: te pasás por ${conEsta - meta}.`,
+      );
+    }
+    avisos.push(...avisosDesmolde.map((x) => `Desmolde: ${x}`));
+    if (avisos.length && !confirm(`${avisos.join("\n\n")}\n\n¿Agregarla igual?`)) return;
+    a.enviar(
+      datos({
+        dia,
+        seccion,
+        productoId,
+        cantidad,
+        nota,
+        desmoldeDia: seccion === "llenado" && conDesmolde && desmoldeDia ? desmoldeDia : "",
+      }),
+    );
   };
 
   if (!abierto) {
@@ -136,10 +194,72 @@ export function AgregarLinea({
         />
       </Campo>
       {elegido && seccion === "llenado" && (
-        <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
-          Se va a poder desmoldar desde el <strong>{diaCorto(sumarDias(dia, elegido.diasDesmolde))}</strong>{" "}
-          (desmolde a {plazo(elegido.diasDesmolde)}).
-        </p>
+        <div
+          className={`space-y-2 rounded-lg p-3 ring-1 ${
+            conDesmolde && avisosDesmolde.length ? "bg-amber-50 ring-amber-200" : "bg-slate-50 ring-slate-200"
+          }`}
+        >
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={conDesmolde}
+              onChange={(e) => setConDesmolde(e.target.checked)}
+              className="h-6 w-6 rounded border-slate-300"
+            />
+            <span className="text-sm font-semibold text-slate-800">Programar también el desmolde</span>
+          </label>
+          {conDesmolde ? (
+            <>
+              <div className="flex flex-wrap items-end gap-2">
+                <Campo etiqueta="Día de desmolde">
+                  <Entrada
+                    type="date"
+                    value={desmoldeDia ?? ""}
+                    min={sumarDias(dia, 1)}
+                    onChange={(e) => setDesmoldeElegido(e.target.value || null)}
+                  />
+                </Campo>
+                {desmoldeElegido && sugerido && desmoldeElegido !== sugerido && (
+                  <button
+                    type="button"
+                    onClick={() => setDesmoldeElegido(null)}
+                    className="min-h-12 text-sm font-semibold text-blue-700 hover:underline"
+                  >
+                    Volver al sugerido ({diaCorto(sugerido)})
+                  </button>
+                )}
+              </div>
+              <p className="text-sm text-slate-700">
+                Desmolde a {plazo(elegido.diasDesmolde)}: se puede desde el{" "}
+                <strong>{desdeDia && diaCorto(desdeDia)}</strong>.
+                {desmoldeDia === sugerido &&
+                  sugerido &&
+                  " Sugerido: el primer día con lugar en la meta de desmolde."}
+              </p>
+              {cargaDia && desmoldeDia && (
+                <p className="cifra text-sm text-slate-700">
+                  {diaCorto(desmoldeDia)}: {cargaDia.programadas} programadas para desmoldar
+                  {cargaDia.meta != null ? ` de ${cargaDia.meta}` : ""} → con estas {n || 0}:{" "}
+                  <strong>
+                    {cargaDia.programadas + n}
+                    {cargaDia.meta != null ? ` de ${cargaDia.meta}` : ""}
+                  </strong>
+                  {cargaDia.meta == null && " (ese día no tiene meta)"}
+                </p>
+              )}
+              {avisosDesmolde.map((x) => (
+                <p key={x} className="text-sm text-amber-900">
+                  <strong>Ojo:</strong> {x} Es una advertencia: se puede programar igual.
+                </p>
+              ))}
+            </>
+          ) : (
+            <p className="text-sm text-slate-600">
+              Se va a poder desmoldar desde el <strong>{desdeDia && diaCorto(desdeDia)}</strong> (desmolde a{" "}
+              {plazo(elegido.diasDesmolde)}).
+            </p>
+          )}
+        </div>
       )}
       {elegido && seccion === "desmolde" && listasElegido !== null && (
         <p

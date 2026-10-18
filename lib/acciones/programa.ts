@@ -66,14 +66,37 @@ export async function accionAgregarLinea(fd: FormData): Promise<Resultado<void>>
     const [p] = await db.select().from(productos).where(eq(productos.id, productoId));
     if (!p) fallar("Ese producto no existe.");
     if (!p.activo) fallar(`${p.nombre} está dado de baja.`);
-    await db.insert(programaLineas).values({
-      dia: d,
-      seccion,
-      productoId,
-      cantidad: n,
-      nota: nota(fd.get("nota")),
-      orden: await siguienteOrden(d, seccion),
-      creadaPor: yo.nombre,
+    // Al cargar un llenado se puede dejar programado tambien su desmolde. Las
+    // advertencias (antes de tiempo, pasarse de la meta) las muestra la
+    // pantalla: aca no se bloquea, en planta hay formas de acelerar.
+    const desmolde = seccion === "llenado" ? String(fd.get("desmoldeDia") ?? "").trim() : "";
+    if (desmolde) {
+      dia.parse(desmolde);
+      if (desmolde <= d) fallar("El desmolde tiene que ser un día posterior al llenado.");
+      await exigirAbierto(desmolde);
+    }
+    const textoNota = nota(fd.get("nota"));
+    await db.transaction(async (tx) => {
+      await tx.insert(programaLineas).values({
+        dia: d,
+        seccion,
+        productoId,
+        cantidad: n,
+        nota: textoNota,
+        orden: await siguienteOrden(d, seccion),
+        creadaPor: yo.nombre,
+      });
+      if (desmolde) {
+        await tx.insert(programaLineas).values({
+          dia: desmolde,
+          seccion: "desmolde",
+          productoId,
+          cantidad: n,
+          nota: textoNota,
+          orden: await siguienteOrden(desmolde, "desmolde"),
+          creadaPor: yo.nombre,
+        });
+      }
     });
     refrescar();
   });
