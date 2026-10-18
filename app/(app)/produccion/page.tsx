@@ -11,6 +11,7 @@ import {
   type FilaEmpaque,
   type FilaLlenado,
 } from "@/lib/produccion";
+import { lavadosDelPeriodo } from "@/lib/lavados";
 import { Plegable, SelectorPeriodo } from "@/components/plegable";
 import { Pantalla, Vacio } from "@/components/ui";
 
@@ -40,9 +41,10 @@ export default async function Produccion({
   // Recien entrado (sin nada en la URL) el periodo se muestra abierto para
   // elegir; una vez elegido se pliega y deja la pantalla para los numeros.
   const eligiendo = Object.keys(params).length === 0;
-  const [llenado, empaque] = await Promise.all([
+  const [llenado, empaque, lavados] = await Promise.all([
     llenadoPorProducto(desde, hasta),
     empaquePorProducto(desde, hasta),
+    lavadosDelPeriodo({ desde, hasta }),
   ]);
 
   const moldes = llenado.reduce((a, f) => a + f.moldes, 0);
@@ -77,11 +79,19 @@ export default async function Produccion({
       <Plegable
         titulo="Llenado en el trompo"
         resumen={
-          llenado.length
-            ? `${tandasDe(llenado)} · ${numero(moldes)} moldes${m2Llenado === null ? "" : ` · ${m2(m2Llenado)}`}`
-            : "Sin llenados"
+          <>
+            {llenado.length
+              ? `${tandasDe(llenado)} · ${numero(moldes)} moldes${m2Llenado === null ? "" : ` · ${m2(m2Llenado)}`}`
+              : "Sin llenados"}
+            {lavados.dias > 0 && (
+              <div>
+                Lavados extra del trompo: <strong>{lavados.total}</strong>
+                {desde !== hasta && ` (${lavados.dias} ${lavados.dias === 1 ? "día cargado" : "días cargados"})`}
+              </div>
+            )}
+          </>
         }
-        ayuda="Producto en proceso: lo que se llenó en el período, por fecha de llenado. La salida y los m² son lo que debería salir de esos moldes."
+        ayuda="Producto en proceso: lo que se llenó en el período, por fecha de llenado. La salida y los m² son lo que debería salir de esos moldes. Los lavados extra del trompo no cuentan el lavado de fin del día."
       >
         {llenado.length === 0 ? (
           <Vacio>No se llenó nada en este período.</Vacio>

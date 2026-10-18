@@ -730,6 +730,17 @@ export const motivosIncumplimiento = esq.table(
 );
 
 /** Un dia programado. Cerrarlo congela lo hecho en cada linea. */
+/**
+ * Lavados del trompo en el dia, SIN contar el ultimo (el de fin de jornada,
+ * que se hace siempre). Un numero por dia; lo carga el operario del trompo.
+ */
+export const lavadosTrompo = esq.table("lavados_trompo", {
+  dia: date("dia", { mode: "string" }).primaryKey(),
+  cantidad: integer("cantidad").notNull(),
+  cargadoPor: text("cargado_por"),
+  actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const programaDias = esq.table("programa_dias", {
   dia: date("dia", { mode: "string" }).primaryKey(),
   cerradoEn: timestamp("cerrado_en", { withTimezone: true }),

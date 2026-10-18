@@ -296,6 +296,8 @@ programa_dias    dia (PK), cerrado_en?, cerrado_por?, meta_llenado?, meta_desmol
 programa_lineas  dia, seccion (llenado|desmolde), producto_id, cantidad,
                  nota?, orden, hechas_cierre?, motivo_id? + nombre, nota y
                  quien, reprogramada_a?, origen_id?
+lavados_trompo   dia (PK), cantidad, cargado_por?, actualizado_en
+                 -- lavados del dia SIN contar el de fin de jornada (§7.10)
 maquinistas      nombre, activo      -- no son usuarios: maquinista en el trompo
                                      -- y desmoldador en el desmolde (rotan)
 config           clave (PK), valor (text)
@@ -468,6 +470,16 @@ empaque**. Cada línea es *N maquinadas de un producto* con una nota libre
   dónde viene) y **cierra el día**: al cerrar se guarda lo hecho en cada línea, y
   el cumplimiento registrado ya no cambia aunque después se corrija algo.
   Reabrir descarta esa foto.
+
+## 7.10 Lavados del trompo
+
+El trompo se lava siempre al terminar el día. Para medir (y después reducir)
+los lavados **de más** -cambios de cemento, etc.-, el operario carga en la
+pantalla del Trompo cuántas veces se lavó **sin contar el último**. Es un número
+por día: se guarda el valor, no se suma, así que guardar dos veces no duplica.
+Sin cargar (null) no es lo mismo que cero. El operario carga hoy o ayer; el
+admin, cualquier día. Se ve en Producción (total del período) y en el estado
+del día del Programa.
 
 ## 8. Estadísticas
 

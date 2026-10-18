@@ -1,6 +1,7 @@
 import { requerirRol } from "@/lib/auth";
 import { trompoPorDefecto } from "@/lib/acciones/motor";
-import { hoy } from "@/lib/periodo";
+import { hoy, sumarDias } from "@/lib/periodo";
+import { lavadosDelDia } from "@/lib/lavados";
 import { leerDia, listarMotivosIncumplimiento } from "@/lib/programa";
 import {
   disponibilidadDeMoldes,
@@ -15,6 +16,7 @@ import Link from "next/link";
 import { hora, numero } from "@/lib/formato";
 import { ChipCemento, NombreTanda, Placa } from "@/components/tanda";
 import { ChipEstado, Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
+import { LavadosTrompo } from "@/components/lavados";
 import { PanelTrompo } from "./panel";
 
 export const metadata = { title: "Trompo · Control de Estanterías" };
@@ -23,15 +25,20 @@ export const dynamic = "force-dynamic";
 export default async function Trompo() {
   await requerirRol("trompo");
 
-  const [productos, ultimoCemento, moldes, deHoy, trompoDefecto, maquinistas, programa, motivos] = await Promise.all([
+  const h = hoy();
+  const ayer = sumarDias(h, -1);
+  const [productos, ultimoCemento, moldes, deHoy, trompoDefecto, maquinistas, programa, motivos, lavHoy, lavAyer] =
+    await Promise.all([
     productosParaTrompo(),
     ultimoCementoPorTrompo(),
     disponibilidadDeMoldes(),
     llenadosDeHoy(),
     trompoPorDefecto(),
     maquinistasActivos(),
-    leerDia(hoy()),
+    leerDia(h),
     listarMotivosIncumplimiento(),
+    lavadosDelDia(h),
+    lavadosDelDia(ayer),
   ]);
   const programaLlenado = programa.lineas.filter((l) => l.seccion === "llenado");
 
@@ -104,6 +111,11 @@ export default async function Trompo() {
           </ul>
         )}
       </Seccion>
+
+      <LavadosTrompo
+        hoy={{ dia: h, cantidad: lavHoy?.cantidad ?? null }}
+        ayer={{ dia: ayer, cantidad: lavAyer?.cantidad ?? null }}
+      />
 
       <Seccion
         titulo="Estanterías libres ahora"
