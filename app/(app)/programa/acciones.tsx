@@ -251,6 +251,7 @@ export function MetaSeccion({
   meta,
   sugerida,
   programadas,
+  hechas,
   editar,
 }: {
   dia: string;
@@ -259,6 +260,8 @@ export function MetaSeccion({
   /** Ultima meta usada, para proponerla en un dia sin meta. */
   sugerida: number | null;
   programadas: number;
+  /** Lo hecho de verdad en la seccion ese dia, programado o no. */
+  hechas: number;
   editar: boolean;
 }) {
   const router = useRouter();
@@ -321,41 +324,51 @@ export function MetaSeccion({
 
   if (meta === null) return null;
 
-  const pct = Math.min(100, (100 * programadas) / meta);
+  // Lo principal: cuanto se hizo de verdad contra la meta.
+  const pctHechas = Math.round((100 * hechas) / meta);
+  const llego = hechas >= meta;
+  // Debajo, para armar el dia: lo programado contra la meta.
   const pasado = programadas > meta;
   const justo = programadas === meta;
   return (
     <div
-      className={`mb-3 rounded-xl bg-white p-3 shadow-sm ring-1 ${
-        pasado ? "ring-red-300" : justo ? "ring-emerald-300" : "ring-slate-200"
-      }`}
+      className={`mb-3 rounded-xl bg-white p-3 shadow-sm ring-1 ${llego ? "ring-emerald-300" : "ring-slate-200"}`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="cifra">
-          <span className="text-sm text-slate-600">Programadas </span>
-          <span
-            className={`text-2xl font-bold ${pasado ? "text-red-700" : justo ? "text-emerald-700" : "text-slate-900"}`}
-          >
-            {programadas}
+          <span className="text-sm text-slate-600">Hechas </span>
+          <span className={`text-2xl font-bold ${llego ? "text-emerald-700" : "text-slate-900"}`}>
+            {hechas}
           </span>
           <span className="text-lg font-medium text-slate-400"> / {meta}</span>
-          <span className="text-sm text-slate-600"> de meta</span>
         </div>
+        <div className={`cifra text-2xl font-bold ${llego ? "text-emerald-700" : "text-blue-700"}`}>
+          {pctHechas} %
+        </div>
+      </div>
+      <div className="mt-2 h-3 overflow-hidden rounded bg-slate-100">
         <div
-          className={`text-sm font-semibold ${pasado ? "text-red-700" : justo ? "text-emerald-700" : "text-amber-700"}`}
+          className={`h-full rounded ${llego ? "bg-emerald-500" : "bg-blue-600"}`}
+          style={{ width: `${Math.min(100, pctHechas)}%` }}
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-sm">
+        <span className="cifra text-slate-600">
+          Programadas{" "}
+          <strong className={pasado ? "text-red-700" : justo ? "text-emerald-700" : "text-slate-900"}>
+            {programadas}
+          </strong>{" "}
+          / {meta}
+        </span>
+        <span
+          className={`font-semibold ${pasado ? "text-red-700" : justo ? "text-emerald-700" : "text-amber-700"}`}
         >
           {pasado
             ? `Te pasaste por ${programadas - meta}`
             : justo
-              ? "Meta completa"
-              : `Faltan ${meta - programadas} para la meta`}
-        </div>
-      </div>
-      <div className="mt-2 h-2 overflow-hidden rounded bg-slate-100">
-        <div
-          className={`h-full rounded ${pasado ? "bg-red-500" : justo ? "bg-emerald-500" : "bg-amber-500"}`}
-          style={{ width: `${pct}%` }}
-        />
+              ? "Programa completo"
+              : `Faltan programar ${meta - programadas}`}
+        </span>
       </div>
       {editar && (
         <button
