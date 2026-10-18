@@ -71,6 +71,29 @@ function ResumenSeccion({
   );
 }
 
+/**
+ * Lo programado contra la meta, al lado del titulo de cada seccion: se ve
+ * aunque este plegada. Sin meta no hay contra que comparar.
+ */
+function EstadoPrograma({ programadas, meta }: { programadas: number; meta: number | null }) {
+  if (meta === null) return null;
+  const [texto, clase] =
+    programadas === meta
+      ? ["Programa completo", "bg-emerald-100 text-emerald-800"]
+      : programadas < meta
+        ? ["Programa incompleto", "bg-red-100 text-red-800"]
+        : ["Programa excedido", "bg-amber-100 text-amber-900"];
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${clase}`}>
+      {texto}
+      <span className="cifra font-semibold opacity-80">
+        {" "}
+        {programadas}/{meta}
+      </span>
+    </span>
+  );
+}
+
 /** Mientras el dia no termino, lo que falta no es incumplimiento: va en gris. */
 function Cumplimiento({
   lineas,
@@ -284,6 +307,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
           <Plegable
             key={seccion}
             titulo={TITULO[seccion]}
+            insignia={<EstadoPrograma programadas={programadas} meta={meta} />}
             resumen={<ResumenSeccion lineas={lineas} hechas={hechas} meta={meta} terminado={terminado} />}
           >
             <MetaSeccion

@@ -524,7 +524,6 @@ export function MetaSeccion({
   // y cambiar la meta) se ve al desplegar.
   return (
     <details
-      open
       className={`group mb-3 rounded-xl bg-white shadow-sm ring-1 ${llego ? "ring-emerald-300" : "ring-slate-200"}`}
     >
       <summary className="block cursor-pointer list-none p-3 select-none [&::-webkit-details-marker]:hidden">
