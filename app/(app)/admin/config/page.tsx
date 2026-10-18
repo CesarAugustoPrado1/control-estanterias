@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { maquinistas } from "@/lib/db/schema";
 import { asc } from "drizzle-orm";
 import { ocupacionHorno } from "@/lib/estadisticas";
+import { guardarMotivoIncumplimiento } from "@/lib/acciones/programa";
+import { listarMotivosIncumplimiento } from "@/lib/programa";
 import { EditorFilas } from "@/components/admin/editor";
 import { Pantalla, Seccion } from "@/components/ui";
 import { FormularioConfig, FormularioTrompo } from "./formulario";
@@ -12,11 +14,12 @@ export const metadata = { title: "Parámetros · Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function Config() {
-  const [cupo, adentro, trompo, maqs] = await Promise.all([
+  const [cupo, adentro, trompo, maqs, motivosPrograma] = await Promise.all([
     capacidadHorno(),
     ocupacionHorno(),
     trompoPorDefecto(),
     db.select().from(maquinistas).orderBy(asc(maquinistas.nombre)),
+    listarMotivosIncumplimiento(false),
   ]);
 
   return (
@@ -54,6 +57,27 @@ export default async function Config() {
             titulo: m.nombre,
             etiquetas: m.activo ? [] : [{ texto: "inactivo", tono: "rojo" as const }],
             valores: { nombre: m.nombre, activo: m.activo },
+          }))}
+        />
+      </Seccion>
+      <Seccion
+        titulo="Motivos de incumplimiento del programa"
+        cantidad={motivosPrograma.length}
+        ayuda="Los que eligen el trompo y el desmolde cuando no se llegó a lo programado. Aparecen ordenados por el número de orden."
+      >
+        <EditorFilas
+          campos={[
+            { clave: "nombre", etiqueta: "Nombre", tipo: "texto", requerido: true },
+            { clave: "orden", etiqueta: "Orden", tipo: "numero", ayuda: "En qué lugar aparece en la lista." },
+            { clave: "activo", etiqueta: "Activo", tipo: "check", soloEdicion: true },
+          ]}
+          accion={guardarMotivoIncumplimiento}
+          etiquetaNuevo="Nuevo motivo"
+          filas={motivosPrograma.map((m) => ({
+            id: m.id,
+            titulo: m.nombre,
+            etiquetas: m.activo ? [] : [{ texto: "de baja", tono: "rojo" as const }],
+            valores: { nombre: m.nombre, orden: m.orden, activo: m.activo },
           }))}
         />
       </Seccion>

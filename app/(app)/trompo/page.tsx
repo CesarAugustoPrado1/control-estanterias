@@ -1,5 +1,7 @@
 import { requerirRol } from "@/lib/auth";
 import { trompoPorDefecto } from "@/lib/acciones/motor";
+import { hoy } from "@/lib/periodo";
+import { leerDia, listarMotivosIncumplimiento } from "@/lib/programa";
 import {
   disponibilidadDeMoldes,
   llenadosDeHoy,
@@ -21,22 +23,25 @@ export const dynamic = "force-dynamic";
 export default async function Trompo() {
   await requerirRol("trompo");
 
-  const [productos, ultimoCemento, moldes, hoy, trompoDefecto, maquinistas] = await Promise.all([
+  const [productos, ultimoCemento, moldes, deHoy, trompoDefecto, maquinistas, programa, motivos] = await Promise.all([
     productosParaTrompo(),
     ultimoCementoPorTrompo(),
     disponibilidadDeMoldes(),
     llenadosDeHoy(),
     trompoPorDefecto(),
     maquinistasActivos(),
+    leerDia(hoy()),
+    listarMotivosIncumplimiento(),
   ]);
+  const programaLlenado = programa.lineas.filter((l) => l.seccion === "llenado");
 
   const libres = moldes.reduce((a, m) => a + m.libres, 0);
   const total = moldes.reduce((a, m) => a + m.total, 0);
-  const moldesHoy = hoy.reduce((a, t) => a + t.moldesLlenados, 0);
+  const moldesHoy = deHoy.reduce((a, t) => a + t.moldesLlenados, 0);
   // Cada producto se cuenta en su unidad: sumar paquetes con unidades no dice
   // nada, asi que el total va separado por unidad.
   const salidaHoy = new Map<UnidadSalida, number>();
-  for (const t of hoy) salidaHoy.set(t.unidad, (salidaHoy.get(t.unidad) ?? 0) + paquetesEsperados(t));
+  for (const t of deHoy) salidaHoy.set(t.unidad, (salidaHoy.get(t.unidad) ?? 0) + paquetesEsperados(t));
   const textoSalidaHoy = [...salidaHoy]
     .map(([u, n]) => cantidadSalida(n, u, numero))
     .join(" · ");
@@ -48,27 +53,30 @@ export default async function Trompo() {
         ultimoCemento={ultimoCemento}
         trompoDefecto={trompoDefecto}
         maquinistas={maquinistas}
+        programa={programaLlenado}
+        motivos={motivos}
+        programaCerrado={programa.cerrado !== null}
       />
 
       <Seccion
         titulo="Llenados de hoy"
-        cantidad={hoy.length}
+        cantidad={deHoy.length}
         acciones={
           <Link href="/produccion" className="text-sm font-semibold text-blue-700 hover:underline">
             Ver lo empaquetado y otros días →
           </Link>
         }
         ayuda={
-          hoy.length
+          deHoy.length
             ? `${numero(moldesHoy)} moldes · se esperan ${textoSalidaHoy}.`
             : undefined
         }
       >
-        {hoy.length === 0 ? (
+        {deHoy.length === 0 ? (
           <Vacio>Todavía no se llenó nada hoy.</Vacio>
         ) : (
           <ul className="space-y-2">
-            {hoy.map((t) => (
+            {deHoy.map((t) => (
               <li
                 key={t.id}
                 className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 text-sm shadow-sm ring-1 ring-slate-200"

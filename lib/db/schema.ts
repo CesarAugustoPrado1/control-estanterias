@@ -1,5 +1,7 @@
 import {
+  type AnyPgColumn,
   boolean,
+  date,
   index,
   integer,
   numeric,
@@ -703,6 +705,65 @@ export const config = esq.table("config", {
 });
 
 /* -------------------------------------------------------------------------- */
+/* Programa de produccion                                                     */
+/* -------------------------------------------------------------------------- */
+
+/** Arriba de la hoja el llenado (trompo); abajo el desmolde y empaque. */
+export const seccionProgramaEnum = esq.enum("seccion_programa", ["llenado", "desmolde"]);
+
+/** Por que no se cumplio una linea. Lista editable en Parametros. */
+export const motivosIncumplimiento = esq.table(
+  "motivos_incumplimiento",
+  {
+    id: serial("id").primaryKey(),
+    nombre: text("nombre").notNull(),
+    orden: integer("orden").notNull().default(0),
+    activo: boolean("activo").notNull().default(true),
+  },
+  (t) => [uniqueIndex("motivos_incumplimiento_nombre_idx").on(t.nombre)],
+);
+
+/** Un dia programado. Cerrarlo congela lo hecho en cada linea. */
+export const programaDias = esq.table("programa_dias", {
+  dia: date("dia", { mode: "string" }).primaryKey(),
+  cerradoEn: timestamp("cerrado_en", { withTimezone: true }),
+  cerradoPor: text("cerrado_por"),
+});
+
+/**
+ * Una linea de la hoja: "2 Ekos Gris (Quilmes) 29597 10/9".
+ *
+ * Lo hecho no se carga aca: sale de los llenados y desmoldes registrados ese
+ * dia (ver lib/programa.ts). `hechasCierre` es la foto al cerrar el dia.
+ */
+export const programaLineas = esq.table(
+  "programa_lineas",
+  {
+    id: serial("id").primaryKey(),
+    dia: date("dia", { mode: "string" }).notNull(),
+    seccion: seccionProgramaEnum("seccion").notNull(),
+    productoId: integer("producto_id")
+      .notNull()
+      .references(() => productos.id),
+    cantidad: integer("cantidad").notNull(),
+    /** Libre, como en el papel: cliente, pedido, "11/15", STR, "a confirmar". */
+    nota: text("nota"),
+    orden: integer("orden").notNull().default(0),
+    hechasCierre: integer("hechas_cierre"),
+    motivoId: integer("motivo_id").references(() => motivosIncumplimiento.id),
+    motivoNombre: text("motivo_nombre"),
+    motivoNota: text("motivo_nota"),
+    motivoPor: text("motivo_por"),
+    motivoEn: timestamp("motivo_en", { withTimezone: true }),
+    reprogramadaA: date("reprogramada_a", { mode: "string" }),
+    origenId: integer("origen_id").references((): AnyPgColumn => programaLineas.id),
+    creadaPor: text("creada_por"),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("programa_lineas_dia_idx").on(t.dia, t.seccion, t.orden)],
+);
+
+/* -------------------------------------------------------------------------- */
 /* Relaciones                                                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -777,3 +838,5 @@ export type TipoAviso = (typeof tipoAvisoEnum.enumValues)[number];
 export type Tarjeta = typeof tarjetas.$inferSelect;
 export type Aviso = typeof avisos.$inferSelect;
 export type Reasignacion = typeof reasignaciones.$inferSelect;
+export type SeccionPrograma = (typeof seccionProgramaEnum.enumValues)[number];
+export type LineaPrograma = typeof programaLineas.$inferSelect;

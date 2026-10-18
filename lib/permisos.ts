@@ -13,6 +13,7 @@ export type Entrada = { href: string; etiqueta: string; roles: Rol[] };
  */
 export const NAVEGACION: Entrada[] = [
   { href: "/tablero", etiqueta: "Tablero", roles: ["admin", "trompo", "horno", "desmolde", "empaque", "oficina", "auditor"] },
+  { href: "/programa", etiqueta: "Programa", roles: ["admin", "oficina", "auditor"] },
   { href: "/trompo", etiqueta: "Trompo", roles: ["admin", "trompo"] },
   { href: "/horno", etiqueta: "Horno", roles: ["admin", "horno"] },
   { href: "/desmolde", etiqueta: "Desmolde", roles: ["admin", "desmolde"] },

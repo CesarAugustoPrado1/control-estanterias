@@ -4,6 +4,10 @@ import { numero } from "@/lib/formato";
 import { Pantalla, Seccion, Vacio } from "@/components/ui";
 import { haceCuanto } from "@/lib/formato";
 import { PanelDesmolde } from "./panel";
+import { ListaPrograma } from "@/components/programa";
+import { Plegable } from "@/components/plegable";
+import { hoy } from "@/lib/periodo";
+import { leerDia, listarMotivosIncumplimiento } from "@/lib/programa";
 import { NombreTanda } from "@/components/tanda";
 
 export const metadata = { title: "Desmolde · Control de Estanterías" };
@@ -11,17 +15,34 @@ export const dynamic = "force-dynamic";
 
 export default async function Desmolde() {
   await requerirRol("desmolde");
-  const [aDesmoldar, aEmpaquetar, desmoldadores] = await Promise.all([
+  const [aDesmoldar, aEmpaquetar, desmoldadores, programa, motivos] = await Promise.all([
     cola("a_desmoldar"),
     cola("a_empaquetar"),
     maquinistasActivos(),
+    leerDia(hoy()),
+    listarMotivosIncumplimiento(),
   ]);
+  const lineas = programa.lineas.filter((l) => l.seccion === "desmolde");
 
   return (
     <Pantalla
       titulo="Desmolde"
       bajada="Separá moldes y piezas. Los moldes quedan libres apenas registrás el desmolde."
     >
+      {lineas.length > 0 && (
+        <Plegable
+          titulo="Programa de hoy"
+          resumen={`${lineas.reduce((a, l) => a + Math.min(l.hechas, l.cantidad), 0)} de ${lineas.reduce((a, l) => a + l.cantidad, 0)} maquinadas desmoldadas`}
+        >
+          <ListaPrograma
+            lineas={lineas}
+            motivos={motivos}
+            informar={programa.cerrado === null}
+            terminado={programa.cerrado !== null}
+          />
+        </Plegable>
+      )}
+
       <PanelDesmolde aDesmoldar={aDesmoldar} desmoldadores={desmoldadores} />
 
       <Seccion

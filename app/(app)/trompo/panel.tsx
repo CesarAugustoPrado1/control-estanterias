@@ -8,6 +8,7 @@ import { cantidadSalida, convertir, TIPO_TROMPO, UNIDAD_SALIDA } from "@/lib/est
 import { numero } from "@/lib/formato";
 import { DIA_DE_LETRA, ETIQUETA_ARIDO, ETIQUETA_CEMENTO, type Letra } from "@/lib/tarjetas";
 import { usarAccion } from "@/components/usar-accion";
+import { ListaPrograma, type Linea, type Motivo } from "@/components/programa";
 import { ChipCemento, LetraDia, Placa } from "@/components/tanda";
 import {
   Aviso,
@@ -79,11 +80,18 @@ export function PanelTrompo({
   ultimoCemento,
   trompoDefecto,
   maquinistas,
+  programa,
+  motivos,
+  programaCerrado,
 }: {
   productos: Producto[];
   ultimoCemento: Record<Trompo, Cemento | null>;
   trompoDefecto: Trompo;
   maquinistas: { id: number; nombre: string }[];
+  /** Lo programado para llenar hoy. */
+  programa: Linea[];
+  motivos: Motivo[];
+  programaCerrado: boolean;
 }) {
   const router = useRouter();
   const [cemento, setCemento] = useState<Cemento>("gris");
@@ -136,6 +144,17 @@ export function PanelTrompo({
     setBusqueda("");
   };
 
+  // Tocar una linea del programa carga ese producto, con su cemento.
+  const elegirDelPrograma = (l: Linea) => {
+    llenar.limpiar();
+    setHecho(null);
+    setCemento(l.cemento);
+    setProductoId(l.productoId);
+    setEstanteriaId(null);
+    setBusqueda("");
+    document.getElementById("form-llenado")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const reiniciar = () => {
     setCemento("gris");
     setBusqueda("");
@@ -178,6 +197,32 @@ export function PanelTrompo({
 
   return (
     <div className="space-y-4">
+      {programa.length > 0 && (
+        <details open className="group rounded-xl bg-slate-50 shadow-sm ring-1 ring-slate-200">
+          <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl bg-white px-4 py-2 select-none group-open:rounded-b-none [&::-webkit-details-marker]:hidden">
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-slate-900">Programa de hoy</div>
+              <div className="cifra text-sm text-slate-600">
+                {programa.reduce((a, l) => a + Math.min(l.hechas, l.cantidad), 0)} de{" "}
+                {programa.reduce((a, l) => a + l.cantidad, 0)} maquinadas
+              </div>
+            </div>
+            <span aria-hidden className="text-xl text-slate-400 transition-transform group-open:rotate-180">
+              ▾
+            </span>
+          </summary>
+          <div className="border-t border-slate-100 p-3">
+            <ListaPrograma
+              lineas={programa}
+              motivos={motivos}
+              informar={!programaCerrado}
+              terminado={programaCerrado}
+              alElegir={elegirDelPrograma}
+            />
+          </div>
+        </details>
+      )}
+
       {hecho && (
         <TarjetaAsignada
           r={hecho}
@@ -192,6 +237,7 @@ export function PanelTrompo({
         />
       )}
 
+      <div id="form-llenado" className="scroll-mt-20" />
       <Tarjeta>
         <form
           action={(fd) => {

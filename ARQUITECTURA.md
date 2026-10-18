@@ -291,6 +291,11 @@ avisos           tipo, tanda_id?, tarjeta_id?, texto, usuario, creado_en,
 reasignaciones   estanteria_id, etiqueta, familia y cemento antes/después,
                  motivo, usuario, creado_en                          (§10.6)
 motivos_rotura   nombre, activo
+motivos_incumplimiento  nombre, orden, activo                  (§7.9)
+programa_dias    dia (PK), cerrado_en?, cerrado_por?
+programa_lineas  dia, seccion (llenado|desmolde), producto_id, cantidad,
+                 nota?, orden, hechas_cierre?, motivo_id? + nombre, nota y
+                 quien, reprogramada_a?, origen_id?
 maquinistas      nombre, activo      -- no son usuarios: maquinista en el trompo
                                      -- y desmoldador en el desmolde (rotan)
 config           clave (PK), valor (text)
@@ -425,7 +430,32 @@ incluido.
 
 ---
 
+## 7.9 Programa de producción
+
+La hoja que se escribía a mano, en la app (`/programa`, la arma oficina o admin).
+Cada día tiene dos secciones, como el papel: **llenado (trompo)** y **desmolde y
+empaque**. Cada línea es *N maquinadas de un producto* con una nota libre
+(cliente, pedido, "11/15", STR, "a confirmar").
+
+- **Lo hecho no se carga a mano**: sale de los llenados y desmoldes registrados
+  ese día, por producto (`lib/programa.ts`). Si hay dos líneas del mismo
+  producto, lo hecho llena primero la de más arriba; lo que sobra se muestra como
+  *fuera de programa*.
+- El trompo y el desmolde ven su sección del día. En el trompo, tocar una línea
+  carga ese producto con su cemento. Cada puesto informa **el motivo** de lo que
+  no se cumplió (lista editable en Parámetros).
+- La oficina **reprograma** lo que faltó a otro día (la línea nueva recuerda de
+  dónde viene) y **cierra el día**: al cerrar se guarda lo hecho en cada línea, y
+  el cumplimiento registrado ya no cambia aunque después se corrija algo.
+  Reabrir descarta esa foto.
+
 ## 8. Estadísticas
+
+Todo se consulta por **período de calendario** (un día o un rango, en hora de
+Argentina, con atajos: hoy, ayer, semana actual/pasada, últimos 7 días, mes
+actual/anterior, últimos 30 días, año). El selector es el mismo que el de
+Producción (`components/plegable.tsx`, `lib/periodo.ts`). La rotura cuenta por
+**fecha de empaquetado**, igual que Producción: los dos números coinciden.
 
 - Tiempo por etapa del circuito → dónde se hacen las colas. El tramo
   `a_empaquetar` es el que motivó la app.
@@ -434,8 +464,9 @@ incluido.
   devolución contra los que no. Esa diferencia es el tiempo mínimo real de horno,
   **medido y no estimado**.
 - **m² fraguados fuera del horno por `horno_lleno`** → capacidad perdida.
-- Rotura por producto, por trompo, por responsable de llenado, por desmoldador, y
-  con horno vs. sin horno. **Nunca por empaquetador** (§5.2).
+- Rotura general del período, y abierta por producto, maquinista, desmoldador,
+  trompo, cemento, árido y con horno vs. sin horno. Por quien hizo la tarea, no
+  por el usuario que la cargó. **Nunca por empaquetador** (§5.2).
 - Moldes sin llenar por falta de mezcla, en moldes y en m².
 - Producción diaria en paquetes y en m².
 - Ocupación del horno contra los 18 lugares.
