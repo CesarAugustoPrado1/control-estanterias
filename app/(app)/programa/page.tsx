@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requerirRol } from "@/lib/auth";
 import { fechaHora, porcentaje } from "@/lib/formato";
 import { FORMATO_DIA, hoy, nombrePeriodo, sumarDias } from "@/lib/periodo";
-import { tieneAlguno } from "@/lib/permisos";
 import {
   cumplimiento,
   historialCerrados,
@@ -47,7 +46,8 @@ function Cumplimiento({ lineas, grande }: { lineas: LineaConAvance[]; grande?: b
 
 export default async function Programa({ searchParams }: { searchParams: Promise<{ dia?: string }> }) {
   const sesion = await requerirRol("oficina", "auditor");
-  const editar = tieneAlguno(sesion.roles, ["oficina"]);
+  // Solo el admin arma el programa; oficina y auditoria lo miran.
+  const editar = sesion.roles.includes("admin");
   const p = await searchParams;
   const h = hoy();
   const dia = p.dia && FORMATO_DIA.test(p.dia) ? p.dia : h;
