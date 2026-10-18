@@ -432,7 +432,8 @@ incluido.
 
 ## 7.9 Programa de producción
 
-La hoja que se escribía a mano, en la app (`/programa`, la arma oficina o admin).
+La hoja que se escribía a mano, en la app (`/programa`). **La arma solo el admin**;
+oficina y auditoría la ven.
 Cada día tiene dos secciones, como el papel: **llenado (trompo)** y **desmolde y
 empaque**. Cada línea es *N maquinadas de un producto* con una nota libre
 (cliente, pedido, "11/15", STR, "a confirmar").
@@ -444,7 +445,7 @@ empaque**. Cada línea es *N maquinadas de un producto* con una nota libre
 - El trompo y el desmolde ven su sección del día. En el trompo, tocar una línea
   carga ese producto con su cemento. Cada puesto informa **el motivo** de lo que
   no se cumplió (lista editable en Parámetros).
-- La oficina **reprograma** lo que faltó a otro día (la línea nueva recuerda de
+- El admin **reprograma** lo que faltó a otro día (la línea nueva recuerda de
   dónde viene) y **cierra el día**: al cerrar se guarda lo hecho en cada línea, y
   el cumplimiento registrado ya no cambia aunque después se corrija algo.
   Reabrir descarta esa foto.

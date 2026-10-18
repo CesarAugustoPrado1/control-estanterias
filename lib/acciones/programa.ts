@@ -18,7 +18,7 @@ import { leerDia, siguienteOrden } from "../programa";
 import { ejecutar, fallar, numeroOpcional, type Resultado } from "./comun";
 
 /**
- * Programa de produccion. Lo arma la oficina (y el admin); cada puesto solo
+ * Programa de produccion. Lo arma solo el admin; cada puesto solo
  * informa por que no se cumplio lo suyo. Un dia cerrado no se toca: hay que
  * reabrirlo, y reabrirlo descarta la foto del cumplimiento.
  */
@@ -53,7 +53,7 @@ async function linea(id: number) {
 
 export async function accionAgregarLinea(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
-    const yo = await autorizar("oficina");
+    const yo = await autorizar("admin");
     const d = dia.parse(fd.get("dia"));
     const seccion = z.enum(seccionProgramaEnum.enumValues).parse(fd.get("seccion"));
     const productoId = z
@@ -81,7 +81,7 @@ export async function accionAgregarLinea(fd: FormData): Promise<Resultado<void>>
 
 export async function accionEditarLinea(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
-    await autorizar("oficina");
+    await autorizar("admin");
     const l = await linea(Number(fd.get("id")));
     await exigirAbierto(l.dia);
     await db
@@ -97,7 +97,7 @@ export async function accionEditarLinea(fd: FormData): Promise<Resultado<void>> 
 
 export async function accionBorrarLinea(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
-    await autorizar("oficina");
+    await autorizar("admin");
     const l = await linea(Number(fd.get("id")));
     await exigirAbierto(l.dia);
     await db.transaction(async (tx) => {
@@ -116,7 +116,7 @@ export async function accionBorrarLinea(fd: FormData): Promise<Resultado<void>> 
 /** Sube o baja una linea dentro de su seccion: el orden es el de la hoja. */
 export async function accionMoverLinea(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
-    await autorizar("oficina");
+    await autorizar("admin");
     const l = await linea(Number(fd.get("id")));
     await exigirAbierto(l.dia);
     const sube = fd.get("hacia") === "arriba";
@@ -144,15 +144,14 @@ export async function accionMoverLinea(fd: FormData): Promise<Resultado<void>> {
 
 /**
  * El puesto informa por que no se cumplio una linea: el trompo las de
- * llenado, el desmolde las suyas. La oficina puede cargar o corregir
+ * llenado, el desmolde las suyas. El admin puede cargar o corregir
  * cualquiera, tambien con el dia cerrado.
  */
 export async function accionInformarMotivo(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
-    const yo = await autorizar("trompo", "desmolde", "oficina");
+    const yo = await autorizar("trompo", "desmolde");
     const l = await linea(Number(fd.get("id")));
-    const oficina = tieneAlguno(yo.roles, ["oficina"]);
-    if (!oficina) {
+    if (!yo.roles.includes("admin")) {
       const puesto = l.seccion === "llenado" ? "trompo" : "desmolde";
       if (!tieneAlguno(yo.roles, [puesto])) {
         fallar(`Los motivos de ${l.seccion === "llenado" ? "llenado" : "desmolde"} los informa ese puesto.`);
@@ -189,7 +188,7 @@ export async function accionInformarMotivo(fd: FormData): Promise<Resultado<void
  */
 export async function accionReprogramar(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
-    const yo = await autorizar("oficina");
+    const yo = await autorizar("admin");
     const l = await linea(Number(fd.get("id")));
     const destino = dia.parse(fd.get("destino"));
     if (destino === l.dia) fallar("Elegí otro día: es el mismo de la línea.");
@@ -219,7 +218,7 @@ export async function accionReprogramar(fd: FormData): Promise<Resultado<void>> 
  */
 export async function accionCerrarDia(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
-    const yo = await autorizar("oficina");
+    const yo = await autorizar("admin");
     const d = dia.parse(fd.get("dia"));
     await exigirAbierto(d);
     const actual = await leerDia(d);
@@ -243,7 +242,7 @@ export async function accionCerrarDia(fd: FormData): Promise<Resultado<void>> {
 /** Reabrir descarta la foto: al volver a cerrar se toma lo que haya en ese momento. */
 export async function accionReabrirDia(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
-    await autorizar("oficina");
+    await autorizar("admin");
     const d = dia.parse(fd.get("dia"));
     await db.transaction(async (tx) => {
       await tx.update(programaLineas).set({ hechasCierre: null }).where(eq(programaLineas.dia, d));
@@ -256,7 +255,7 @@ export async function accionReabrirDia(fd: FormData): Promise<Resultado<void>> {
 /** Copia las lineas de otro dia (sin lo hecho ni los motivos), al final. */
 export async function accionCopiarDia(fd: FormData): Promise<Resultado<number>> {
   return ejecutar(async () => {
-    const yo = await autorizar("oficina");
+    const yo = await autorizar("admin");
     const desde = dia.parse(fd.get("desde"));
     const hacia = dia.parse(fd.get("hacia"));
     if (desde === hacia) fallar("Elegí otro día para copiar.");
@@ -308,7 +307,7 @@ export async function accionCopiarDia(fd: FormData): Promise<Resultado<number>> 
 /** ABM de motivos de incumplimiento, en Parametros. */
 export async function guardarMotivoIncumplimiento(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
-    await autorizar();
+    await autorizar("admin");
     const id = numeroOpcional(fd.get("id"));
     const nombre = z.string().trim().min(1, "Falta el nombre.").parse(fd.get("nombre"));
     const orden = numeroOpcional(fd.get("orden")) ?? 0;
