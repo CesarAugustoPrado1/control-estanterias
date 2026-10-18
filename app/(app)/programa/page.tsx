@@ -16,6 +16,7 @@ import {
   type LineaConAvance,
 } from "@/lib/programa";
 import type { SeccionPrograma } from "@/lib/db/schema";
+import { lavadosDelDia } from "@/lib/lavados";
 import { ListaPrograma } from "@/components/programa";
 import { Flechita, PLEGABLE, Plegable, RESUMEN } from "@/components/plegable";
 import { Pantalla, Seccion } from "@/components/ui";
@@ -135,7 +136,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   const h = hoy();
   const dia = p.dia && FORMATO_DIA.test(p.dia) ? p.dia : h;
 
-  const [programa, motivos, productos, historial, sugeridas, disponible, carga] = await Promise.all([
+  const [programa, motivos, productos, historial, sugeridas, disponible, carga, lavados] = await Promise.all([
     leerDia(dia),
     listarMotivosIncumplimiento(),
     productosParaProgramar(),
@@ -143,6 +144,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
     metasSugeridas(dia),
     disponibilidadDesmolde(dia),
     cargaDesmolde(sumarDias(dia, 1)),
+    lavadosDelDia(dia),
   ]);
   // Tiempo de desmolde: avisos (no bloquean) en las lineas de desmolde, y
   // cuantas quedan listas de cada producto para lo que se agregue.
@@ -235,7 +237,14 @@ export default async function Programa({ searchParams }: { searchParams: Promise
         <details open className={`${PLEGABLE} mb-4 ${cerrado ? "ring-emerald-300" : ""}`}>
           <summary className={RESUMEN}>
             <div className="min-w-0 flex-1">
-              <div className="text-sm text-slate-600">{estado}</div>
+              <div className="text-sm text-slate-600">
+                {estado}
+                {lavados && (
+                  <>
+                    {" · "}Lavados extra del trompo: <strong className="cifra">{lavados.cantidad}</strong>
+                  </>
+                )}
+              </div>
               <div className="flex flex-wrap items-baseline gap-x-4">
                 <span>
                   <span className="text-sm text-slate-600">Programa </span>
