@@ -1,4 +1,9 @@
-import { TZ } from "./tarjetas";
+/**
+ * La misma zona que lib/tarjetas.ts, repetida a proposito: este modulo lo usa
+ * tambien el cliente, e importar tarjetas le mandaria al celular la lista
+ * entera de palabras.
+ */
+const TZ = "America/Argentina/Buenos_Aires";
 
 /**
  * Periodos de calendario para las pantallas que se consultan por fechas

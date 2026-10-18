@@ -6,6 +6,8 @@ import {
   cumplimiento,
   historialCerrados,
   leerDia,
+  advertenciasDesmolde,
+  disponibilidadDesmolde,
   listarMotivosIncumplimiento,
   metasSugeridas,
   productosParaProgramar,
@@ -108,13 +110,24 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   const h = hoy();
   const dia = p.dia && FORMATO_DIA.test(p.dia) ? p.dia : h;
 
-  const [programa, motivos, productos, historial, sugeridas] = await Promise.all([
+  const [programa, motivos, productos, historial, sugeridas, disponible] = await Promise.all([
     leerDia(dia),
     listarMotivosIncumplimiento(),
     productosParaProgramar(),
     historialCerrados(),
     metasSugeridas(dia),
+    disponibilidadDesmolde(dia),
   ]);
+  // Tiempo de desmolde: avisos (no bloquean) en las lineas de desmolde, y
+  // cuantas quedan listas de cada producto para lo que se agregue.
+  const advertencias = advertenciasDesmolde(dia, programa.lineas, disponible);
+  const listasParaAgregar: Record<number, number> = {};
+  for (const [id, d] of disponible) {
+    const yaProgramadas = programa.lineas
+      .filter((l) => l.seccion === "desmolde" && l.productoId === id)
+      .reduce((a, l) => a + l.faltan, 0);
+    listasParaAgregar[id] = Math.max(0, d.listas - yaProgramadas);
+  }
   const cerrado = programa.cerrado !== null;
   // Un dia pasado ya termino aunque nadie lo haya cerrado: lo que falta, falto.
   const terminado = cerrado || dia < h;
@@ -278,6 +291,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
               informar={editar}
               terminado={terminado}
               manana={sumarDias(dia, 1)}
+              advertencias={seccion === "desmolde" && !cerrado ? advertencias : {}}
               vacio={seccion === "llenado" ? "Sin llenados programados." : "Sin desmoldes programados."}
             />
             {editar && !cerrado && (
@@ -287,6 +301,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                 productos={productos}
                 meta={programa.meta[seccion]}
                 programadas={programadas}
+                listas={seccion === "desmolde" ? listasParaAgregar : undefined}
               />
             )}
             {fuera.length > 0 && (

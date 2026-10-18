@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   accionAgregarLinea,
   accionCerrarDia,
@@ -11,9 +11,25 @@ import {
 } from "@/lib/acciones/programa";
 import type { Cemento, SeccionPrograma } from "@/lib/db/schema";
 import { usarAccion } from "@/components/usar-accion";
-import { Aviso, Boton, Campo, Entrada, Selector } from "@/components/ui";
+import { Aviso, Boton, Campo, Entrada } from "@/components/ui";
+import { SelectorProducto } from "@/components/selector-producto";
+import { nombreDia, sumarDias } from "@/lib/periodo";
 
-type ProductoElegible = { id: number; nombre: string; modelo: string; cemento: Cemento };
+type ProductoElegible = {
+  id: number;
+  nombre: string;
+  modelo: string;
+  familia: string;
+  cemento: Cemento;
+  diasDesmolde: number;
+};
+
+const plazo = (d: number) => (d === 1 ? "1 día" : `${d} días`);
+/** "miércoles 21/10" */
+const diaCorto = (d: string) =>
+  nombreDia(d)
+    .replace(/\/\d{4}$/, "")
+    .replace(",", "");
 
 function datos(o: Record<string, string | number>) {
   const fd = new FormData();
@@ -28,10 +44,16 @@ export function AgregarLinea({
   productos,
   meta,
   programadas,
+  listas,
 }: {
   dia: string;
   seccion: SeccionPrograma;
   productos: ProductoElegible[];
+  /**
+   * Solo desmolde: cuantas de cada producto van a estar listas para desmoldar
+   * ese dia, ya descontado lo programado. Sale del tiempo de desmolde.
+   */
+  listas?: Record<number, number>;
   /** Meta de maquinadas de la seccion; null si el dia no tiene. */
   meta: number | null;
   /** Lo que ya suman las lineas de la seccion. */
@@ -51,13 +73,10 @@ export function AgregarLinea({
       router.refresh();
     },
   });
-  const porModelo = useMemo(() => {
-    const m = new Map<string, ProductoElegible[]>();
-    for (const p of productos) m.set(p.modelo, [...(m.get(p.modelo) ?? []), p]);
-    return [...m];
-  }, [productos]);
-
   const n = Number(cantidad) || 0;
+  const elegido = productos.find((p) => String(p.id) === productoId) ?? null;
+  const listasElegido = elegido && listas ? (listas[elegido.id] ?? 0) : null;
+  const pocasListas = listasElegido !== null && n > listasElegido;
   const conEsta = programadas + n;
 
   const agregar = () => {
@@ -92,21 +111,22 @@ export function AgregarLinea({
             className="cifra text-lg font-bold"
           />
         </Campo>
-        <Campo etiqueta="Producto">
-          <Selector value={productoId} onChange={(e) => setProductoId(e.target.value)}>
-            <option value="">Elegí el producto…</option>
-            {porModelo.map(([modelo, ps]) => (
-              <optgroup key={modelo} label={modelo}>
-                {ps.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre}
-                    {p.cemento === "blanco" ? " · CEMENTO BLANCO" : ""}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Selector>
-        </Campo>
+        <div className="space-y-1">
+          <span className="block text-sm font-medium text-slate-700">Producto</span>
+          <SelectorProducto
+            productos={productos}
+            valor={productoId}
+            alElegir={setProductoId}
+            pista={(p) => {
+              if (seccion === "llenado") return { texto: `desmolde a ${plazo(p.diasDesmolde)}` };
+              const l = listas?.[p.id] ?? 0;
+              return {
+                texto: l === 0 ? "ninguna lista" : `${l} lista${l === 1 ? "" : "s"}`,
+                alerta: l === 0,
+              };
+            }}
+          />
+        </div>
       </div>
       <Campo etiqueta="Nota (opcional)" ayuda="Como en la hoja: cliente, pedido, 11/15, STR, a confirmar…">
         <Entrada
@@ -115,6 +135,28 @@ export function AgregarLinea({
           placeholder="Ej: Quilmes 29597 10/9"
         />
       </Campo>
+      {elegido && seccion === "llenado" && (
+        <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
+          Se va a poder desmoldar desde el <strong>{diaCorto(sumarDias(dia, elegido.diasDesmolde))}</strong>{" "}
+          (desmolde a {plazo(elegido.diasDesmolde)}).
+        </p>
+      )}
+      {elegido && seccion === "desmolde" && listasElegido !== null && (
+        <p
+          className={`rounded-lg px-3 py-2 text-sm ring-1 ${
+            pocasListas
+              ? "bg-amber-50 text-amber-900 ring-amber-200"
+              : "bg-slate-50 text-slate-700 ring-slate-200"
+          }`}
+        >
+          {pocasListas && <strong>Ojo: </strong>}
+          {listasElegido === 0
+            ? `No va a haber ${elegido.nombre} lista para desmoldar este día`
+            : `Van a estar listas ${listasElegido} para desmoldar este día`}{" "}
+          (desmolde a {plazo(elegido.diasDesmolde)}).
+          {pocasListas && " Es una advertencia: se puede programar igual."}
+        </p>
+      )}
       {meta !== null && n > 0 && (
         <p
           className={`cifra rounded-lg px-3 py-2 text-sm font-semibold ${
