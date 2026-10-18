@@ -20,14 +20,14 @@ import { Boton, Campo, Entrada } from "@/components/ui";
  * que varias secciones entren de un vistazo en la pantalla del celular.
  */
 
-const PLEGABLE = "group rounded-xl bg-slate-50 shadow-sm ring-1 ring-slate-200";
-const RESUMEN =
+export const PLEGABLE = "group rounded-xl bg-slate-50 shadow-sm ring-1 ring-slate-200";
+export const RESUMEN =
   "flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl bg-white px-4 py-2 select-none group-open:rounded-b-none [&::-webkit-details-marker]:hidden";
 const FLECHA =
   "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-xl font-bold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50";
 
 /** ▾ que gira al abrir. */
-function Flechita() {
+export function Flechita() {
   return (
     <span
       aria-hidden
