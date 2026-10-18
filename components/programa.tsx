@@ -12,6 +12,7 @@ import {
 import type { Cemento, SeccionPrograma } from "@/lib/db/schema";
 import { usarAccion } from "@/components/usar-accion";
 import { ChipCemento } from "@/components/tanda";
+import { Muestra } from "@/components/selector-producto";
 import { Aviso, Boton, Campo, Entrada, Selector } from "@/components/ui";
 
 /**
@@ -25,6 +26,8 @@ export type Linea = {
   seccion: SeccionPrograma;
   productoId: number;
   producto: string;
+  /** Para el color de la muestra. */
+  familia?: string;
   cemento: Cemento;
   cantidad: number;
   nota: string | null;
@@ -52,6 +55,7 @@ export function ListaPrograma({
   terminado,
   manana,
   alElegir,
+  advertencias = {},
   vacio = "No hay nada programado.",
 }: {
   lineas: Linea[];
@@ -62,6 +66,8 @@ export function ListaPrograma({
   /** Dia sugerido para reprogramar. */
   manana?: string;
   /** En el trompo: tocar la linea elige ese producto. */
+  /** Por id de linea: aviso no bloqueante (por ejemplo, desmolde antes de tiempo). */
+  advertencias?: Record<number, string>;
   alElegir?: (l: Linea) => void;
   vacio?: string;
 }) {
@@ -84,6 +90,7 @@ export function ListaPrograma({
           terminado={terminado}
           manana={manana}
           alElegir={alElegir}
+          advertencia={advertencias[l.id]}
           primera={i === 0}
           ultima={i === lineas.length - 1}
         />
@@ -100,6 +107,7 @@ function FilaLinea({
   terminado,
   manana,
   alElegir,
+  advertencia,
   primera,
   ultima,
 }: {
@@ -109,6 +117,7 @@ function FilaLinea({
   informar: boolean;
   terminado: boolean;
   manana?: string;
+  advertencia?: string;
   alElegir?: (l: Linea) => void;
   primera: boolean;
   ultima: boolean;
@@ -139,12 +148,18 @@ function FilaLinea({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="cifra text-lg font-bold text-slate-900">{l.cantidad}</span>
+            <Muestra nombre={l.producto} familia={l.familia} />
             <span className="font-semibold text-slate-900">{l.producto}</span>
             {l.cemento === "blanco" && <ChipCemento cemento="blanco" />}
           </div>
           {l.nota && <div className="text-sm text-slate-600">{l.nota}</div>}
           {l.origenDia && (
             <div className="text-xs text-violet-700">Reprogramada desde el {corto(l.origenDia)}</div>
+          )}
+          {advertencia && (
+            <div className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900 ring-1 ring-amber-200">
+              <strong>Ojo:</strong> {advertencia}
+            </div>
           )}
         </div>
         <div className="shrink-0 text-right">

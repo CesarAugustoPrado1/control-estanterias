@@ -284,6 +284,12 @@ export const productos = esq.table(
     codigoPlataformaTerminado: text("codigo_plataforma_terminado"),
     /** Unidad comercial. Es lo que convierte todo a m2. */
     m2PorPaquete: numeric("m2_por_paquete", { precision: 8, scale: 4 }),
+    /**
+     * Dias entre el llenado y el desmolde: con 2, lo llenado el lunes se
+     * desmolda el miercoles. No bloquea: el programa advierte si se programa
+     * un desmolde antes de tiempo.
+     */
+    diasDesmolde: integer("dias_desmolde").notNull().default(2),
     activo: boolean("activo").notNull().default(true),
     creadoEn: timestamp("creado_en", { withTimezone: true })
       .notNull()

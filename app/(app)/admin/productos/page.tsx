@@ -65,6 +65,13 @@ export default async function Productos() {
       ayuda: "Por ejemplo 0,26. Es lo que convierte la producción a m².",
     },
     {
+      clave: "diasDesmolde",
+      etiqueta: "Tiempo de desmolde (días)",
+      tipo: "numero",
+      requerido: true,
+      ayuda: "Días entre el llenado y el desmolde. Con 2, lo llenado el lunes se desmolda el miércoles. Con 1, al día siguiente.",
+    },
+    {
       clave: "cemento",
       etiqueta: "Cemento",
       tipo: "select",
@@ -109,6 +116,7 @@ export default async function Productos() {
       titulo: x.p.nombre,
       subtitulo:
         `${x.modelo} · ${x.familia} · ${ETIQUETA_ARIDO[x.p.arido]} · 40 moldes dan ${cantidadSalida(ej.paquetes, x.p.unidad)}` +
+        ` · desmolde a ${x.p.diasDesmolde === 1 ? "1 día" : `${x.p.diasDesmolde} días`}` +
         (x.p.m2PorPaquete ? ` · ${x.p.m2PorPaquete} m²/${UNIDAD_SALIDA[x.p.unidad].corto}` : "") +
         (x.p.codigoPlataformaProceso || x.p.codigoPlataformaTerminado
           ? ` · Plataforma ${x.p.codigoPlataformaProceso ?? "—"} / ${x.p.codigoPlataformaTerminado ?? "—"}`
@@ -137,6 +145,7 @@ export default async function Productos() {
         arido: x.p.arido,
         codigoPlataformaProceso: x.p.codigoPlataformaProceso ?? "",
         codigoPlataformaTerminado: x.p.codigoPlataformaTerminado ?? "",
+        diasDesmolde: x.p.diasDesmolde,
         activo: x.p.activo,
       },
     };

@@ -113,6 +113,11 @@ const esquemaProducto = z.object({
   m2PorPaquete: z.string().nullable(),
   codigoPlataformaProceso: z.string().nullable(),
   codigoPlataformaTerminado: z.string().nullable(),
+  diasDesmolde: z
+    .number({ message: "Poné el tiempo de desmolde en días." })
+    .int("El tiempo de desmolde va en días enteros.")
+    .min(0, "No puede ser negativo.")
+    .max(30, "¿Más de 30 días de desmolde? Revisá el número."),
 });
 
 export async function guardarProducto(fd: FormData): Promise<Resultado<void>> {
@@ -138,6 +143,7 @@ export async function guardarProducto(fd: FormData): Promise<Resultado<void>> {
       m2PorPaquete: m2 === "" ? null : m2,
       codigoPlataformaProceso: codigoPlataforma(fd.get("codigoPlataformaProceso")),
       codigoPlataformaTerminado: codigoPlataforma(fd.get("codigoPlataformaTerminado")),
+      diasDesmolde: numeroOpcional(fd.get("diasDesmolde")) ?? 2,
     });
     const activo = fd.get("activo") === "on" || fd.get("activo") === "true";
 

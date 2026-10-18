@@ -12,6 +12,7 @@ import {
   type SeccionPrograma,
   type UnidadSalida,
 } from "./db/schema";
+import { hoy, nombreDia, sumarDias } from "./periodo";
 import { TZ } from "./tarjetas";
 
 /**
@@ -240,10 +241,13 @@ export const productosParaProgramar = () =>
       id: productos.id,
       nombre: productos.nombre,
       modelo: modelos.nombre,
+      familia: familias.nombre,
       cemento: productos.cemento,
+      diasDesmolde: productos.diasDesmolde,
     })
     .from(productos)
     .innerJoin(modelos, eq(modelos.id, productos.modeloId))
+    .innerJoin(familias, eq(familias.id, productos.familiaId))
     .where(eq(productos.activo, true))
     .orderBy(asc(modelos.nombre), asc(productos.nombre));
 
@@ -269,4 +273,117 @@ export async function siguienteOrden(dia: string, seccion: SeccionPrograma) {
     .from(programaLineas)
     .where(and(eq(programaLineas.dia, dia), eq(programaLineas.seccion, seccion)));
   return (r?.max ?? 0) + 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tiempo de desmolde                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Cuantas maquinadas de cada producto van a estar listas para desmoldar un
+ * dia, segun su tiempo de desmolde (ver `productos.diasDesmolde`).
+ *
+ * Listas = las reales sin desmoldar llenadas hasta (dia - tiempo de desmolde)
+ *        + lo que falta llenar de lo programado entre hoy y esa fecha
+ *        - lo que falta desmoldar de lo programado entre hoy y el dia anterior.
+ *
+ * Es una estimacion para advertir, no una regla: en planta hay formas de
+ * acelerar, por eso nada de esto bloquea.
+ */
+export type Disponibilidad = {
+  dias: number;
+  /** Cuantas van a estar listas para desmoldar ese dia. */
+  listas: number;
+  /** Llenados programados demasiado cerca del dia como para desmoldarlos ese dia. */
+  tarde: { dia: string; cantidad: number }[];
+};
+
+export async function disponibilidadDesmolde(dia: string): Promise<Map<number, Disponibilidad>> {
+  const h = hoy();
+  const [prods, reales, lineas, deHoy] = await Promise.all([
+    db.select({ id: productos.id, dias: productos.diasDesmolde }).from(productos),
+    db.execute(sql`
+      select t.producto_id as id, count(*)::int as n
+      from estanterias.tandas t
+      join estanterias.productos p on p.id = t.producto_id
+      where t.estado in ('patio', 'horno', 'a_desmoldar')
+        and (t.creada_en at time zone ${TZ})::date <= ${dia}::date - p.dias_desmolde
+      group by t.producto_id`),
+    // Lo programado desde hoy hasta ese dia: lo de dias futuros, entero.
+    dia > h
+      ? db
+          .select()
+          .from(programaLineas)
+          .where(sql`${programaLineas.dia} > ${h}::date and ${programaLineas.dia} <= ${dia}::date`)
+      : Promise.resolve([] as (typeof programaLineas.$inferSelect)[]),
+    // Lo de hoy, con lo que ya se hizo descontado.
+    leerDia(h),
+  ]);
+  const listasReales = new Map(
+    (reales.rows as { id: number; n: number }[]).map((r) => [Number(r.id), Number(r.n)]),
+  );
+  const pendientes = [
+    ...deHoy.lineas.map((l) => ({ dia: h, seccion: l.seccion, productoId: l.productoId, faltan: l.faltan })),
+    ...lineas.map((l) => ({ dia: l.dia, seccion: l.seccion, productoId: l.productoId, faltan: l.cantidad })),
+  ];
+
+  const r = new Map<number, Disponibilidad>();
+  for (const p of prods) {
+    const limite = sumarDias(dia, -p.dias);
+    let listas = listasReales.get(p.id) ?? 0;
+    const tarde: Disponibilidad["tarde"] = [];
+    for (const l of pendientes) {
+      if (l.productoId !== p.id || l.faltan <= 0) continue;
+      if (l.seccion === "llenado") {
+        if (l.dia <= limite) listas += l.faltan;
+        else if (l.dia <= dia) tarde.push({ dia: l.dia, cantidad: l.faltan });
+      } else if (l.dia < dia) {
+        listas -= l.faltan;
+      }
+    }
+    r.set(p.id, { dias: p.dias, listas: Math.max(0, listas), tarde });
+  }
+  return r;
+}
+
+const diaCorto = (d: string) => nombreDia(d).replace(/\/\d{4}$/, "").replace(",", "");
+
+/**
+ * Advertencias para las lineas de desmolde de un dia: si piden mas de lo que va
+ * a estar listo. Solo para hoy en adelante; lo pasado ya paso.
+ */
+export function advertenciasDesmolde(
+  dia: string,
+  lineas: LineaConAvance[],
+  disp: Map<number, Disponibilidad>,
+): Record<number, string> {
+  const r: Record<number, string> = {};
+  if (dia < hoy()) return r;
+  const usado = new Map<number, number>();
+  for (const l of lineas) {
+    if (l.seccion !== "desmolde" || l.faltan <= 0) continue;
+    const d = disp.get(l.productoId);
+    if (!d) continue;
+    const antes = usado.get(l.productoId) ?? 0;
+    usado.set(l.productoId, antes + l.faltan);
+    const quedan = Math.max(0, d.listas - antes);
+    if (l.faltan <= quedan) continue;
+    const plazo = d.dias === 1 ? "1 día" : `${d.dias} días`;
+    let texto =
+      quedan === 0
+        ? `No va a haber ${l.producto} lista para desmoldar este día (tiempo de desmolde: ${plazo}).`
+        : `Solo ${quedan === 1 ? "va a haber 1 lista" : `van a haber ${quedan} listas`} para desmoldar de las ${l.faltan} (tiempo de desmolde: ${plazo}).`;
+    if (d.tarde.length) {
+      texto +=
+        " " +
+        d.tarde
+          .map(
+            (t) =>
+              `Las ${t.cantidad} que se llenan el ${diaCorto(t.dia)} se pueden desmoldar desde el ${diaCorto(sumarDias(t.dia, d.dias))}.`,
+          )
+          .join(" ");
+    }
+    r[l.id] = texto;
+  }
+  return r;
 }

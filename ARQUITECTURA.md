@@ -269,7 +269,7 @@ usuarios         usuario, nombre, pin_hash, roles[], rol (principal), activo,
                  intentos_fallidos, bloqueado_hasta
 modelos          nombre, activo, orden                      -- la forma
 familias         nombre, activa, orden                      -- el color
-productos        modelo_id, familia_id, cemento, nombre, piezas_por_molde,
+productos        modelo_id, familia_id, cemento, nombre, dias_desmolde, piezas_por_molde,
                  piezas_por_paquete, requiere_tunel, m2_por_paquete, activo
 estanterias      codigo, modelo_id, familia_id, cemento, numero (placa),
                  moldes, activa
@@ -445,6 +445,13 @@ empaque**. Cada línea es *N maquinadas de un producto* con una nota libre
 - Cada sección puede tener una **meta de maquinadas del día**. Al agregar líneas
   se compara lo programado contra la meta (cuántas faltan, o por cuántas se
   pasa, con confirmación). Un día nuevo propone la última meta usada.
+- **Tiempo de desmolde** (`productos.dias_desmolde`, por defecto 2): días entre
+  el llenado y el desmolde. El programa **advierte sin bloquear** cuando una
+  línea de desmolde pide más de lo que va a estar listo ese día (reales sin
+  desmoldar llenadas a tiempo + llenados programados a tiempo − desmoldes ya
+  programados antes), y nombra los llenados programados demasiado cerca.
+- Al elegir producto se ve una **muestra de color** (deducida del nombre o la
+  familia: gris, beige, terracota, habano…; `lib/colores.ts`).
 - El trompo y el desmolde ven su sección del día. En el trompo, tocar una línea
   carga ese producto con su cemento. Cada puesto informa **el motivo** de lo que
   no se cumplió (lista editable en Parámetros).
