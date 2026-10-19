@@ -481,6 +481,14 @@ Sin cargar (null) no es lo mismo que cero. El operario carga hoy o ayer; el
 admin, cualquier día. Se ve en Producción (total del período) y en el estado
 del día del Programa.
 
+## 7.11 Tablero por modelo
+
+El Tablero tiene dos pestañas. **Por estado** es la de siempre (cuántas
+maquinadas hay en patio, horno, a desmoldar y a empaquetar). **Por modelo** muestra
+una tarjeta por modelo con su total de maquinadas y moldes en el circuito y una
+caja por estado; al tocarla se abre cada producto del modelo con sus cuatro
+estados. Lo listo no se cuenta: ya salió del circuito.
+
 ## 8. Estadísticas
 
 Todo se consulta por **período de calendario** (un día o un rango, en hora de

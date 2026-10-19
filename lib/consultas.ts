@@ -116,6 +116,26 @@ export async function resumenPorEstado() {
   return { enCurso: filas, listasSemana: Number(listas[0]?.n ?? 0) };
 }
 
+/**
+ * Lo que esta en el circuito (todo menos lo listo), por producto y estado.
+ * El tablero lo agrupa por modelo: una tarjeta por modelo y, adentro, cada
+ * producto con en que estado estan sus maquinadas.
+ */
+export async function circuitoPorProducto() {
+  return db
+    .select({
+      modelo: tandas.modeloNombre,
+      familia: tandas.familiaNombre,
+      producto: tandas.productoNombre,
+      estado: tandas.estado,
+      n: sql<number>`count(*)::int`,
+      moldes: sql<number>`coalesce(sum(${tandas.moldesLlenados}), 0)::int`,
+    })
+    .from(tandas)
+    .where(sql`${tandas.estado} <> 'listo'`)
+    .groupBy(tandas.modeloNombre, tandas.familiaNombre, tandas.productoNombre, tandas.estado);
+}
+
 /** Desglose de un estado por producto, para abrir un contador del tablero. */
 export async function detallePorProducto(estado: Estado) {
   return db
