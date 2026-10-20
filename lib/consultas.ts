@@ -136,6 +136,15 @@ export async function circuitoPorProducto() {
     .groupBy(tandas.modeloNombre, tandas.familiaNombre, tandas.productoNombre, tandas.estado);
 }
 
+/** Las maquinadas de un producto en un estado: el detalle de una caja del tablero. */
+export async function tandasDeProductoEnEstado(producto: string, estado: Estado) {
+  return db
+    .select()
+    .from(tandas)
+    .where(and(eq(tandas.productoNombre, producto), eq(tandas.estado, estado)))
+    .orderBy(desc(tandas.rehornear), asc(tandas.estadoDesde));
+}
+
 /** Desglose de un estado por producto, para abrir un contador del tablero. */
 export async function detallePorProducto(estado: Estado) {
   return db
