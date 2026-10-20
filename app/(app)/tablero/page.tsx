@@ -11,7 +11,7 @@ import { ESPERA_ESTADO, ORDEN_ESTADOS, TITULO_ESTADO } from "@/lib/estados";
 import { haceCuanto, numero } from "@/lib/formato";
 import type { Estado } from "@/lib/db/schema";
 import { ChipCemento } from "@/components/tanda";
-import { LeyendaEstados, TableroPorModelo } from "@/components/tablero-modelos";
+import { TableroPorModelo } from "@/components/tablero-modelos";
 import { Contador, Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
 
 export const metadata = { title: "Tablero · Control de Estanterías" };
@@ -85,7 +85,6 @@ export default async function Tablero({
 
       {porModelo ? (
         <>
-          <LeyendaEstados />
           <TableroPorModelo filas={circuito} />
         </>
       ) : (

@@ -485,9 +485,10 @@ del día del Programa.
 
 El Tablero tiene dos pestañas. **Por estado** es la de siempre (cuántas
 maquinadas hay en patio, horno, a desmoldar y a empaquetar). **Por modelo** muestra
-una tarjeta por modelo con su total de maquinadas y moldes en el circuito y una
-caja por estado; al tocarla se abre cada producto del modelo con sus cuatro
-estados. Lo listo no se cuenta: ya salió del circuito.
+una tarjeta por producto -modelo y color: "Ekos Beige" y "Ekos Gris" por
+separado- con su total de maquinadas y moldes en el circuito y una caja por
+estado. Van por nombre, así los del mismo modelo quedan juntos. Lo listo no se
+cuenta: ya salió del circuito.
 
 ## 8. Estadísticas
 
