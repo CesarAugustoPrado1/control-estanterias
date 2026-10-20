@@ -488,7 +488,9 @@ maquinadas hay en patio, horno, a desmoldar y a empaquetar). **Por modelo** mues
 una tarjeta por producto -modelo y color: "Ekos Beige" y "Ekos Gris" por
 separado- con su total de maquinadas y moldes en el circuito y una caja por
 estado. Van por nombre, así los del mismo modelo quedan juntos. Lo listo no se
-cuenta: ya salió del circuito.
+cuenta: ya salió del circuito. Tocar una caja abre debajo de la tarjeta esas
+maquinadas (tarjeta, estantería, moldes y desde cuándo están en ese estado), de
+la que espera hace más a la más nueva; cada una lleva a su ficha.
 
 ## 8. Estadísticas
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requerirSesion } from "@/lib/auth";
 import {
   circuitoPorProducto,
+  tandasDeProductoEnEstado,
   detallePorProducto,
   disponibilidadDeMoldes,
   resumenPorEstado,
@@ -11,7 +12,7 @@ import { ESPERA_ESTADO, ORDEN_ESTADOS, TITULO_ESTADO } from "@/lib/estados";
 import { haceCuanto, numero } from "@/lib/formato";
 import type { Estado } from "@/lib/db/schema";
 import { ChipCemento } from "@/components/tanda";
-import { TableroPorModelo } from "@/components/tablero-modelos";
+import { ESTADOS_CIRCUITO, TableroPorModelo } from "@/components/tablero-modelos";
 import { Contador, Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
 
 export const metadata = { title: "Tablero · Control de Estanterías" };
@@ -21,10 +22,10 @@ export const dynamic = "force-dynamic";
 export default async function Tablero({
   searchParams,
 }: {
-  searchParams: Promise<{ ver?: string; vista?: string }>;
+  searchParams: Promise<{ ver?: string; vista?: string; p?: string; e?: string }>;
 }) {
   await requerirSesion();
-  const { ver, vista } = await searchParams;
+  const { ver, vista, p: productoAbierto, e: estadoAbierto } = await searchParams;
   const porModelo = vista === "modelo";
 
   const [resumen, moldes, cupo, circuito] = await Promise.all([
@@ -33,6 +34,14 @@ export default async function Tablero({
     capacidadHorno(),
     porModelo ? circuitoPorProducto() : Promise.resolve([]),
   ]);
+  // Por modelo: la caja tocada (producto + estado) abre sus maquinadas.
+  const cajaAbierta =
+    porModelo && productoAbierto && ESTADOS_CIRCUITO.includes(estadoAbierto as Estado)
+      ? { producto: productoAbierto, estado: estadoAbierto as Estado }
+      : null;
+  const detalleCaja = cajaAbierta
+    ? await tandasDeProductoEnEstado(cajaAbierta.producto, cajaAbierta.estado)
+    : null;
 
   const enCurso = new Map(resumen.enCurso.map((r) => [r.estado, r]));
   const abierto = ORDEN_ESTADOS.includes(ver as Estado)
@@ -85,7 +94,7 @@ export default async function Tablero({
 
       {porModelo ? (
         <>
-          <TableroPorModelo filas={circuito} />
+          <TableroPorModelo filas={circuito} abierto={cajaAbierta} detalle={detalleCaja} />
         </>
       ) : (
         <>
