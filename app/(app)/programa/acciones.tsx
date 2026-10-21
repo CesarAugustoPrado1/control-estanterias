@@ -27,7 +27,7 @@ type ProductoElegible = {
 };
 
 /**
- * Primer dia desde `desde` (sin domingos) en que caben `n` desmoldes sin pasarse
+ * Primer dia HABIL desde `desde` en que caben `n` desmoldes sin pasarse
  * de la meta ni del tope por diferencia con el llenado (lib/reglas.ts). Un dia
  * sin meta tiene lugar. Si no hay ninguno en el horizonte,
  * el primer dia posible.
@@ -35,13 +35,18 @@ type ProductoElegible = {
 function sugerirDesmolde(desde: string, n: number, carga: CargaDesmolde): string {
   for (let i = 0; i < 45; i++) {
     const d = sumarDias(desde, i);
-    if (new Date(`${d}T12:00:00Z`).getUTCDay() === 0) continue;
     const c = carga[d];
     if (!c) break;
+    if (!c.habil) continue;
     if (c.cerrado) continue;
     const tope = topeDesmolde(c.llenado);
     if (tope !== null && c.programadas + n > tope) continue;
     if (c.meta == null || c.programadas + n <= c.meta) return d;
+  }
+  // Sin lugar en el horizonte: al menos el primer dia habil.
+  for (let i = 0; i < 45; i++) {
+    const d = sumarDias(desde, i);
+    if (carga[d]?.habil) return d;
   }
   return desde;
 }
@@ -112,7 +117,7 @@ export function AgregarLinea({
   const conEsta = programadas + n;
 
   // Desmolde de lo que se llena: el primer dia que cumple el tiempo de
-  // desmolde y tiene lugar en la meta (sin domingos). Es solo la sugerencia.
+  // desmolde y es habil y tiene lugar en la meta. Es solo la sugerencia.
   const desdeDia = elegido ? sumarDias(dia, elegido.diasDesmolde) : null;
   const sugerido =
     seccion === "llenado" && desdeDia && carga ? sugerirDesmolde(desdeDia, n || 1, carga) : null;
@@ -122,8 +127,11 @@ export function AgregarLinea({
   if (seccion === "llenado" && conDesmolde && desmoldeDia && elegido) {
     if (desdeDia && desmoldeDia < desdeDia) {
       avisosDesmolde.push(
-        `Es antes del tiempo de desmolde de ${elegido.nombre} (${plazo(elegido.diasDesmolde)}): se puede desde el ${diaCorto(desdeDia)}.`,
+        `Es antes del tiempo mínimo de desmolde de ${elegido.nombre} (${plazo(elegido.diasDesmolde)}): se puede desde el ${diaCorto(desdeDia)}.`,
       );
+    }
+    if (cargaDia && !cargaDia.habil) {
+      avisosDesmolde.push(`El ${diaCorto(desmoldeDia)} no es día hábil${cargaDia.motivo ? ` (${cargaDia.motivo})` : ""}.`);
     }
     if (cargaDia?.meta != null && cargaDia.programadas + n > cargaDia.meta) {
       avisosDesmolde.push(
@@ -197,7 +205,7 @@ export function AgregarLinea({
             valor={productoId}
             alElegir={setProductoId}
             pista={(p) => {
-              if (seccion === "llenado") return { texto: `desmolde a ${plazo(p.diasDesmolde)}` };
+              if (seccion === "llenado") return { texto: `desmolde desde ${plazo(p.diasDesmolde)}` };
               const l = listas?.[p.id] ?? 0;
               return {
                 texto: l === 0 ? "ninguna lista" : `${l} lista${l === 1 ? "" : "s"}`,
@@ -251,11 +259,11 @@ export function AgregarLinea({
                 )}
               </div>
               <p className="text-sm text-slate-700">
-                Desmolde a {plazo(elegido.diasDesmolde)}: se puede desde el{" "}
-                <strong>{desdeDia && diaCorto(desdeDia)}</strong>.
+                Tiempo mínimo de desmolde: {plazo(elegido.diasDesmolde)}. Se puede desde el{" "}
+                <strong>{desdeDia && diaCorto(desdeDia)}</strong>; más tarde también está bien.
                 {desmoldeDia === sugerido &&
                   sugerido &&
-                  " Sugerido: el primer día con lugar en la meta de desmolde."}
+                  " Sugerido: el primer día hábil con lugar en la meta de desmolde."}
               </p>
               {cargaDia && desmoldeDia && (
                 <p className="cifra text-sm text-slate-700">
@@ -276,8 +284,8 @@ export function AgregarLinea({
             </>
           ) : (
             <p className="text-sm text-slate-600">
-              Se va a poder desmoldar desde el <strong>{desdeDia && diaCorto(desdeDia)}</strong> (desmolde a{" "}
-              {plazo(elegido.diasDesmolde)}).
+              Se va a poder desmoldar desde el <strong>{desdeDia && diaCorto(desdeDia)}</strong> (tiempo mínimo
+              de desmolde: {plazo(elegido.diasDesmolde)}).
             </p>
           )}
         </div>
@@ -294,7 +302,7 @@ export function AgregarLinea({
           {listasElegido === 0
             ? `No va a haber ${elegido.nombre} lista para desmoldar este día`
             : `Van a estar listas ${listasElegido} para desmoldar este día`}{" "}
-          (desmolde a {plazo(elegido.diasDesmolde)}).
+          (tiempo mínimo de desmolde: {plazo(elegido.diasDesmolde)}).
           {pocasListas && " Es una advertencia: se puede programar igual."}
         </p>
       )}

@@ -6,6 +6,7 @@ import { MARGEN_DESMOLDE, topeDesmolde } from "@/lib/reglas";
 import {
   cumplimiento,
   historialCerrados,
+  leerCalendario,
   leerDia,
   advertenciasDesmolde,
   cargaDesmolde,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/programa";
 import type { SeccionPrograma } from "@/lib/db/schema";
 import { lavadosDelDia } from "@/lib/lavados";
+import { esHabil, motivoDia } from "@/lib/calendario";
 import { ListaPrograma } from "@/components/programa";
 import { Flechita, PLEGABLE, Plegable, RESUMEN } from "@/components/plegable";
 import { Pantalla, Seccion } from "@/components/ui";
@@ -136,7 +138,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   const h = hoy();
   const dia = p.dia && FORMATO_DIA.test(p.dia) ? p.dia : h;
 
-  const [programa, motivos, productos, historial, sugeridas, disponible, carga, lavados] = await Promise.all([
+  const [programa, motivos, productos, historial, sugeridas, disponible, carga, lavados, cal] = await Promise.all([
     leerDia(dia),
     listarMotivosIncumplimiento(),
     productosParaProgramar(),
@@ -145,7 +147,10 @@ export default async function Programa({ searchParams }: { searchParams: Promise
     disponibilidadDesmolde(dia),
     cargaDesmolde(sumarDias(dia, 1)),
     lavadosDelDia(dia),
+    leerCalendario(dia, dia),
   ]);
+  const motivoDelDia = motivoDia(dia, cal);
+  const habilDelDia = esHabil(dia, cal);
   // Tiempo de desmolde: avisos (no bloquean) en las lineas de desmolde, y
   // cuantas quedan listas de cada producto para lo que se agregue.
   const advertencias = advertenciasDesmolde(dia, programa.lineas, disponible);
@@ -200,6 +205,13 @@ export default async function Programa({ searchParams }: { searchParams: Promise
               {nombrePeriodo({ desde: dia, hasta: dia })}
             </div>
             <div className="text-xs text-slate-500">{relativo}</div>
+            {motivoDelDia && (
+              <div
+                className={`mt-0.5 truncate text-xs font-semibold ${habilDelDia ? "text-emerald-700" : "text-red-700"}`}
+              >
+                {motivoDelDia}
+              </div>
+            )}
           </div>
           <Link href={url(sumarDias(dia, 1))} aria-label="Día siguiente" className={FLECHA}>
             ›

@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
+  calendario,
   familias,
   modelos,
   motivosIncumplimiento,
@@ -13,6 +14,7 @@ import {
   type UnidadSalida,
 } from "./db/schema";
 import { hoy, nombreDia, sumarDias } from "./periodo";
+import { esHabil, motivoDia, type Calendario } from "./calendario";
 import { TZ } from "./tarjetas";
 
 /**
@@ -374,8 +376,8 @@ export function advertenciasDesmolde(
     const plazo = d.dias === 1 ? "1 día" : `${d.dias} días`;
     let texto =
       quedan === 0
-        ? `No va a haber ${l.producto} lista para desmoldar este día (tiempo de desmolde: ${plazo}).`
-        : `Solo ${quedan === 1 ? "va a haber 1 lista" : `van a haber ${quedan} listas`} para desmoldar de las ${l.faltan} (tiempo de desmolde: ${plazo}).`;
+        ? `No va a haber ${l.producto} lista para desmoldar este día (tiempo mínimo de desmolde: ${plazo}).`
+        : `Solo ${quedan === 1 ? "va a haber 1 lista" : `van a haber ${quedan} listas`} para desmoldar de las ${l.faltan} (tiempo mínimo de desmolde: ${plazo}).`;
     if (d.tarde.length) {
       texto +=
         " " +
@@ -405,12 +407,16 @@ export type CargaDesmolde = Record<
     cerrado: boolean;
     /** Llenados programados ese dia: limitan el desmolde (ver lib/reglas.ts). */
     llenado: number;
+    /** Dia habil (lunes a viernes, salvo lo que diga el calendario). */
+    habil: boolean;
+    /** "No se trabaja · Navidad", "Sábado: no se trabaja"... */
+    motivo: string | null;
   }
 >;
 
 export async function cargaDesmolde(desde: string, dias = 45): Promise<CargaDesmolde> {
   const hasta = sumarDias(desde, dias);
-  const [cabs, sumas] = await Promise.all([
+  const [cabs, sumas, cal] = await Promise.all([
     db
       .select()
       .from(programaDias)
@@ -425,6 +431,7 @@ export async function cargaDesmolde(desde: string, dias = 45): Promise<CargaDesm
       .from(programaLineas)
       .where(sql`${programaLineas.dia} between ${desde}::date and ${hasta}::date`)
       .groupBy(programaLineas.dia, programaLineas.seccion),
+    leerCalendario(desde, hasta),
   ]);
   const porDia = new Map(cabs.map((c) => [c.dia, c]));
   const de = (seccion: string) =>
@@ -444,7 +451,18 @@ export async function cargaDesmolde(desde: string, dias = 45): Promise<CargaDesm
       meta,
       cerrado: !!cab?.cerradoEn,
       llenado: llenado.get(d) ?? 0,
+      habil: esHabil(d, cal),
+      motivo: motivoDia(d, cal),
     };
   }
   return r;
+}
+
+/** Excepciones del calendario entre dos dias (ver lib/calendario.ts). */
+export async function leerCalendario(desde: string, hasta: string): Promise<Calendario> {
+  const filas = await db
+    .select()
+    .from(calendario)
+    .where(sql`${calendario.dia} between ${desde}::date and ${hasta}::date`);
+  return Object.fromEntries(filas.map((f) => [f.dia, { laborable: f.laborable, nombre: f.nombre }]));
 }

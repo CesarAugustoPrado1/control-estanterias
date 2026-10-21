@@ -12,6 +12,7 @@ const PESTANAS = [
   { href: "/admin/modelos", etiqueta: "Modelos y familias" },
   { href: "/admin/usuarios", etiqueta: "Usuarios" },
   { href: "/admin/planilla", etiqueta: "Planilla Excel" },
+  { href: "/admin/calendario", etiqueta: "Calendario" },
   { href: "/admin/config", etiqueta: "Parámetros" },
 ];
 

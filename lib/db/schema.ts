@@ -741,6 +741,18 @@ export const lavadosTrompo = esq.table("lavados_trompo", {
   actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Excepciones al calendario de lunes a viernes: feriados (no se trabaja), un
+ * sabado o feriado que se trabaja, vacaciones. Sin fila, manda la regla.
+ */
+export const calendario = esq.table("calendario", {
+  dia: date("dia", { mode: "string" }).primaryKey(),
+  laborable: boolean("laborable").notNull(),
+  nombre: text("nombre"),
+  actualizadoPor: text("actualizado_por"),
+  actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const programaDias = esq.table("programa_dias", {
   dia: date("dia", { mode: "string" }).primaryKey(),
   cerradoEn: timestamp("cerrado_en", { withTimezone: true }),

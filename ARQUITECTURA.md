@@ -296,6 +296,7 @@ programa_dias    dia (PK), cerrado_en?, cerrado_por?, meta_llenado?, meta_desmol
 programa_lineas  dia, seccion (llenado|desmolde), producto_id, cantidad,
                  nota?, orden, hechas_cierre?, motivo_id? + nombre, nota y
                  quien, reprogramada_a?, origen_id?
+calendario       dia (PK), laborable, nombre?  -- excepciones a lunes-viernes (§7.12)
 lavados_trompo   dia (PK), cantidad, cargado_por?, actualizado_en
                  -- lavados del dia SIN contar el de fin de jornada (§7.10)
 maquinistas      nombre, activo      -- no son usuarios: maquinista en el trompo
@@ -491,6 +492,24 @@ estado. Van por nombre, así los del mismo modelo quedan juntos. Lo listo no se
 cuenta: ya salió del circuito. Tocar una caja abre debajo de la tarjeta esas
 maquinadas (tarjeta, estantería, moldes y desde cuándo están en ese estado), de
 la que espera hace más a la más nueva; cada una lleva a su ficha.
+
+## 7.12 Días hábiles y tiempo mínimo de desmolde
+
+El tiempo de desmolde de cada producto es un **mínimo**: desmoldar más tarde
+no es problema y no genera avisos. Solo se advierte (sin bloquear) si se
+desmolda antes del mínimo o si no va a haber maquinadas listas.
+
+Para sugerir el día de desmolde se usan **días hábiles**: por defecto de lunes a
+viernes sin los feriados nacionales. La tabla `calendario` guarda solo las
+excepciones (feriados, un sábado o feriado que se trabaja, vacaciones) y se
+edita en Admin › Calendario. Vienen cargados los feriados nacionales 2026-2028
+con los trasladables ya movidos; los días no laborables (puentes, Jueves Santo)
+quedan cargados como días que se trabajan, para marcarlos con un toque. Los
+puentes de cada año salen por decreto: hay que agregarlos a mano.
+
+La sugerencia es el primer día hábil desde llenado + tiempo mínimo (días
+corridos: el fragüe sigue el fin de semana) con lugar en la meta y el tope. El
+programa muestra en la cabecera de cada día si es feriado o fin de semana.
 
 ## 8. Estadísticas
 
