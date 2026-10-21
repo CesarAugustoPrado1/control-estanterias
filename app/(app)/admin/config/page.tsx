@@ -6,25 +6,27 @@ import { maquinistas } from "@/lib/db/schema";
 import { asc } from "drizzle-orm";
 import { ocupacionHorno } from "@/lib/estadisticas";
 import { guardarMotivoIncumplimiento } from "@/lib/acciones/programa";
-import { listarMotivosIncumplimiento } from "@/lib/programa";
+import { leerTromposFuera, listarMotivosIncumplimiento } from "@/lib/programa";
+import { hoy } from "@/lib/periodo";
 import { EditorFilas } from "@/components/admin/editor";
 import { Pantalla, Seccion } from "@/components/ui";
-import { FormularioConfig, FormularioTrompo } from "./formulario";
+import { FormularioConfig, FormularioTrompo, FueraDeServicio } from "./formulario";
 
 export const metadata = { title: "Parámetros · Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function Config() {
-  const [cupo, adentro, trompo, maqs, motivosPrograma] = await Promise.all([
+  const [cupo, adentro, trompo, maqs, motivosPrograma, fuera] = await Promise.all([
     capacidadHorno(),
     ocupacionHorno(),
     trompoPorDefecto(),
     db.select().from(maquinistas).orderBy(asc(maquinistas.nombre)),
     listarMotivosIncumplimiento(false),
+    leerTromposFuera(),
   ]);
 
   // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
-  const tono = secuencia(4);
+  const tono = secuencia(5);
 
   return (
     <Pantalla titulo="Parámetros">
@@ -43,6 +45,15 @@ export default async function Config() {
         ayuda="El que aparece elegido en la pantalla del trompo. El operario lo puede cambiar en cada llenado."
       >
         <FormularioTrompo trompo={trompo} accion={guardarTrompoDefecto} />
+      </Seccion>
+      <Seccion tono={tono()}
+        titulo="Trompos fuera de servicio"
+        ayuda="Mientras un trompo está parado, el programa cuenta los lavados con el que anda: lo que iba al parado pasa al otro. En la pantalla del trompo se marca como fuera de servicio."
+      >
+        <FueraDeServicio
+          periodos={fuera.map((f) => ({ id: f.id, trompo: f.trompo, desde: f.desde, hasta: f.hasta, motivo: f.motivo }))}
+          hoy={hoy()}
+        />
       </Seccion>
       <Seccion tono={tono()}
         titulo="Maquinistas y desmoldadores"

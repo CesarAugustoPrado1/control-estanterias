@@ -10,6 +10,8 @@ import {
   leerDia,
   advertenciasDesmolde,
   cargaDesmolde,
+  cargaLlenado,
+  leerTromposFuera,
   disponibilidadDesmolde,
   listarMotivosIncumplimiento,
   metasSugeridas,
@@ -23,7 +25,9 @@ import { ListaPrograma } from "@/components/programa";
 import { clasesCaja, Flechita, Plegable } from "@/components/plegable";
 import { tonos } from "@/lib/escala";
 import { Pantalla, Seccion } from "@/components/ui";
-import { AccionesDia, AgregarLinea, MetaSeccion } from "./acciones";
+import { AccionesDia, AgregarLinea, LavadosPrevistos, MetaSeccion } from "./acciones";
+import { trompoPorDefecto } from "@/lib/acciones/motor";
+import { disponiblesEn } from "@/lib/lavados-previstos";
 
 export const metadata = { title: "Programa · Control de Estanterías" };
 export const dynamic = "force-dynamic";
@@ -144,17 +148,26 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   const h = hoy();
   const dia = p.dia && FORMATO_DIA.test(p.dia) ? p.dia : h;
 
-  const [programa, motivos, productos, historial, sugeridas, disponible, carga, lavados, cal] = await Promise.all([
+  // Dias cercanos donde buscar lugar para un llenado (lavados del trompo).
+  const ventanaDesde = [h, sumarDias(dia, -10)].sort()[1];
+  const ventanaHasta = sumarDias(dia, 10);
+  const [programa, motivos, productos, historial, sugeridas, disponible, carga, lavados, cal, llenadosCerca, trompoDefecto, fueraDelDia] = await Promise.all([
     leerDia(dia),
     listarMotivosIncumplimiento(),
     productosParaProgramar(),
     historialCerrados(),
     metasSugeridas(dia),
     disponibilidadDesmolde(dia),
-    cargaDesmolde(sumarDias(dia, 1)),
+    // Desde el primer dia de la ventana: un llenado se puede pasar a otro dia.
+    cargaDesmolde(sumarDias(ventanaDesde < dia ? ventanaDesde : dia, 1)),
     lavadosDelDia(dia),
     leerCalendario(dia, dia),
+    cargaLlenado(ventanaDesde < dia ? ventanaDesde : dia, ventanaHasta),
+    trompoPorDefecto(),
+    leerTromposFuera(dia, dia),
   ]);
+  // Trompos que andan ese dia: los calculos de lavados se hacen con esos.
+  const trompos = { defecto: trompoDefecto, disponibles: disponiblesEn(dia, fueraDelDia) };
   const motivoDelDia = motivoDia(dia, cal);
   const habilDelDia = esHabil(dia, cal);
   // Tiempo de desmolde: avisos (no bloquean) en las lineas de desmolde, y
@@ -218,6 +231,11 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                 {motivoDelDia}
               </div>
             )}
+            {fueraDelDia.map((f) => (
+              <div key={f.id} className="mt-0.5 truncate text-xs font-semibold text-red-700">
+                Trompo {f.trompo.toUpperCase()} fuera de servicio{f.motivo ? ` · ${f.motivo}` : ""}
+              </div>
+            ))}
           </div>
           <Link href={url(sumarDias(dia, 1))} aria-label="Día siguiente" className={FLECHA}>
             ›
@@ -347,6 +365,19 @@ export default async function Programa({ searchParams }: { searchParams: Promise
               hechas={hechas}
               editar={editar}
             />
+            {seccion === "llenado" && (
+              <LavadosPrevistos
+                dia={dia}
+                lineas={lineas.map((l) => ({
+                  id: l.id,
+                  grupoId: l.grupoColorId,
+                  grupoColor: l.grupoColor,
+                  trompo: l.trompo,
+                }))}
+                trompos={trompos}
+                editar={editar && !cerrado}
+              />
+            )}
             {seccion === "desmolde" && tope !== null && (
               <p
                 className={`mb-3 rounded-lg px-3 py-2 text-sm ring-1 ${
@@ -372,6 +403,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
               manana={sumarDias(dia, 1)}
               advertencias={seccion === "desmolde" && !cerrado ? advertencias : {}}
               vacio={seccion === "llenado" ? "Sin llenados programados." : "Sin desmoldes programados."}
+              trompos={seccion === "llenado" ? trompos : undefined}
             />
             {editar && !cerrado && (
               <AgregarLinea
@@ -383,6 +415,9 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                 listas={seccion === "desmolde" ? listasParaAgregar : undefined}
                 carga={seccion === "llenado" ? carga : undefined}
                 llenadoDelDia={llenadoProgramado}
+                cargaLlenado={seccion === "llenado" ? llenadosCerca : undefined}
+                trompoDefecto={trompoDefecto}
+                hoy={h}
               />
             )}
             {fuera.length > 0 && (

@@ -1,5 +1,6 @@
 "use client";
 
+import { defectoDelDia, trompoDe } from "@/lib/lavados-previstos";
 import { clasesCaja } from "@/components/plegable";
 import type { Tono } from "@/lib/escala";
 import { useRouter } from "next/navigation";
@@ -80,7 +81,8 @@ function normalizar(s: string): string {
 export function PanelTrompo({
   productos,
   ultimoCemento,
-  trompoDefecto,
+  trompoDefecto: defectoConfig,
+  disponibles,
   maquinistas,
   programa,
   motivos,
@@ -92,6 +94,8 @@ export function PanelTrompo({
   productos: Producto[];
   ultimoCemento: Record<Trompo, Cemento | null>;
   trompoDefecto: Trompo;
+  /** Trompos en servicio hoy: el que esta parado no se propone. */
+  disponibles: Trompo[];
   maquinistas: { id: number; nombre: string }[];
   /** Lo programado para llenar hoy. */
   programa: Linea[];
@@ -103,6 +107,9 @@ export function PanelTrompo({
   const [busqueda, setBusqueda] = useState("");
   const [productoId, setProductoId] = useState<number | null>(null);
   const [estanteriaId, setEstanteriaId] = useState<number | null>(null);
+  // Si el trompo por defecto esta fuera de servicio, arranca en el otro.
+  const trompos = { defecto: defectoConfig, disponibles };
+  const trompoDefecto = defectoDelDia(trompos);
   const [trompo, setTrompo] = useState<Trompo>(trompoDefecto);
   const [maquinistaId, setMaquinistaId] = useState("");
   const [lavado, setLavado] = useState(false);
@@ -155,6 +162,8 @@ export function PanelTrompo({
     setHecho(null);
     setCemento(l.cemento);
     setProductoId(l.productoId);
+    // El programa dice en que trompo va (para no lavar de mas).
+    setTrompo(trompoDe({ grupoId: null, trompo: l.trompo ?? null }, trompos));
     setEstanteriaId(null);
     setBusqueda("");
     document.getElementById("form-llenado")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -223,6 +232,7 @@ export function PanelTrompo({
               informar={!programaCerrado}
               terminado={programaCerrado}
               alElegir={elegirDelPrograma}
+              trompos={trompos}
             />
           </div>
         </details>
@@ -435,10 +445,18 @@ export function PanelTrompo({
                   }`}
                 >
                   <span className="block text-lg font-bold">Trompo {t.toUpperCase()}</span>
-                  <span className="block text-sm capitalize">{TIPO_TROMPO[t]}</span>
+                  <span className="block text-sm capitalize">
+                    {disponibles.includes(t) ? TIPO_TROMPO[t] : "fuera de servicio"}
+                  </span>
                 </button>
               ))}
             </div>
+            {!disponibles.includes(trompo) && (
+              <Aviso tono="atencion">
+                El trompo {trompo.toUpperCase()} está marcado fuera de servicio. Si se está usando, avisale al
+                administrador.
+              </Aviso>
+            )}
 
             {maquinistas.length === 0 ? (
               <Aviso tono="atencion">

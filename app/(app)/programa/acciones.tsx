@@ -7,14 +7,24 @@ import {
   accionCerrarDia,
   accionCopiarDia,
   accionGuardarMeta,
+  accionOrdenarPorGrupo,
   accionReabrirDia,
 } from "@/lib/acciones/programa";
-import type { Cemento, SeccionPrograma } from "@/lib/db/schema";
+import type { Cemento, SeccionPrograma, Trompo } from "@/lib/db/schema";
+import {
+  costoAgregar,
+  defectoDelDia,
+  lavadosEnOrden,
+  lavadosPrevistos,
+  TROMPOS,
+  trompoDe,
+  type Trompos,
+} from "@/lib/lavados-previstos";
 import { usarAccion } from "@/components/usar-accion";
 import { Aviso, Boton, Campo, Entrada } from "@/components/ui";
 import { SelectorProducto } from "@/components/selector-producto";
 import { nombreDia, sumarDias } from "@/lib/periodo";
-import type { CargaDesmolde } from "@/lib/programa";
+import type { CargaDesmolde, CargaLlenado } from "@/lib/programa";
 import { MARGEN_DESMOLDE, topeDesmolde } from "@/lib/reglas";
 
 type ProductoElegible = {
@@ -24,6 +34,8 @@ type ProductoElegible = {
   familia: string;
   cemento: Cemento;
   diasDesmolde: number;
+  grupoColorId: number | null;
+  grupoColor: string | null;
 };
 
 /**
@@ -74,7 +86,15 @@ export function AgregarLinea({
   listas,
   carga,
   llenadoDelDia = 0,
+  cargaLlenado,
+  trompoDefecto = "a",
+  hoy,
 }: {
+  /** Solo llenado: llenados de los dias cercanos, para buscar donde lava menos. */
+  cargaLlenado?: CargaLlenado;
+  trompoDefecto?: Trompo;
+  /** Para no proponer dias pasados. */
+  hoy?: string;
   dia: string;
   seccion: SeccionPrograma;
   productos: ProductoElegible[];
@@ -150,6 +170,59 @@ export function AgregarLinea({
   const tope = seccion === "desmolde" ? topeDesmolde(llenadoDelDia) : null;
   const pasaTope = tope !== null && conEsta > tope;
 
+  // Lavados del trompo: cuanto suma este producto este dia y, si suma, el dia
+  // cercano mas proximo que ya tiene su grupo de color y lugar en la meta.
+  const nombreGrupo = new Map(productos.map((p) => [p.grupoColorId, p.grupoColor]));
+  const grupo = elegido?.grupoColorId ?? null;
+  const delDia = cargaLlenado?.[dia];
+  // Con los trompos en servicio cada dia.
+  const tromposEn = (d: string): Trompos => ({
+    defecto: trompoDefecto,
+    disponibles: cargaLlenado?.[d]?.disponibles ?? TROMPOS,
+  });
+  const costo =
+    seccion === "llenado" && elegido && delDia ? costoAgregar(delDia.lineas, tromposEn(dia), grupo) : null;
+  let mejor: { dia: string; trompo: Trompo; lugares: number | null } | null = null;
+  if (costo && costo.costo > 0 && cargaLlenado) {
+    for (let k = 1; k <= 10 && !mejor; k++) {
+      for (const d of [sumarDias(dia, k), sumarDias(dia, -k)]) {
+        const c = cargaLlenado[d];
+        if (!c || !c.habil || c.cerrado || (hoy && d < hoy)) continue;
+        if (c.meta !== null && c.programadas + (n || 1) > c.meta) continue;
+        if (!c.disponibles.length) continue;
+        const x = costoAgregar(c.lineas, tromposEn(d), grupo);
+        if (x.costo === 0 && x.yaTiene) {
+          mejor = { dia: d, trompo: x.trompo, lugares: c.meta === null ? null : c.meta - c.programadas };
+          break;
+        }
+      }
+    }
+  }
+  const gruposDelTrompo = (t: Trompo) =>
+    [
+      ...new Set(
+        (delDia?.lineas ?? [])
+          .filter((l) => l.grupoId !== null && trompoDe(l, tromposEn(dia)) === t)
+          .map((l) => nombreGrupo.get(l.grupoId) ?? "otro grupo"),
+      ),
+    ].join(", ");
+
+  const agregarEn = (otroDia: string, trompo: Trompo) => {
+    const dDesmolde =
+      conDesmolde && elegido && carga ? sugerirDesmolde(sumarDias(otroDia, elegido.diasDesmolde), n || 1, carga) : "";
+    a.enviar(
+      datos({
+        dia: otroDia,
+        seccion,
+        productoId,
+        cantidad,
+        nota,
+        trompo: trompo === defectoDelDia(tromposEn(otroDia)) ? "" : trompo,
+        desmoldeDia: dDesmolde,
+      }),
+    );
+  };
+
   const agregar = () => {
     const avisos: string[] = [];
     if (pasaTope) {
@@ -171,6 +244,7 @@ export function AgregarLinea({
         productoId,
         cantidad,
         nota,
+        trompo: costo && costo.trompo !== defectoDelDia(tromposEn(dia)) ? costo.trompo : "",
         desmoldeDia: seccion === "llenado" && conDesmolde && desmoldeDia ? desmoldeDia : "",
       }),
     );
@@ -222,6 +296,56 @@ export function AgregarLinea({
           placeholder="Ej: Quilmes 29597 10/9"
         />
       </Campo>
+      {elegido && costo && (
+        <div
+          className={`space-y-2 rounded-lg px-3 py-2 text-sm ring-1 ${
+            costo.costo > 0 ? "bg-amber-50 text-amber-900 ring-amber-200" : "bg-slate-50 text-slate-700 ring-slate-200"
+          }`}
+        >
+          {grupo === null ? (
+            <p>
+              {elegido.nombre} no tiene grupo de color: no se pueden prever los lavados. Se asigna en Admin › Grupos de
+              color.
+            </p>
+          ) : costo.costo === 0 ? (
+            <p>
+              <strong>Lavados: no suma.</strong>{" "}
+              {costo.yaTiene
+                ? `Este día ya tiene ${elegido.grupoColor} en el trompo ${costo.trompo.toUpperCase()}.`
+                : "Es el primer color del día en el trompo."}
+              {costo.trompo !== trompoDefecto && " Va al trompo " + costo.trompo.toUpperCase() + "."}
+            </p>
+          ) : (
+            <>
+              <p>
+                <strong>Suma 1 lavado del trompo:</strong> {elegido.nombre} es {elegido.grupoColor}, y ese día el
+                trompo {costo.trompo.toUpperCase()} tiene {gruposDelTrompo(costo.trompo)}.
+              </p>
+              {mejor ? (
+                <div className="space-y-2 rounded-md bg-white p-2 text-slate-800 ring-1 ring-emerald-200">
+                  <p>
+                    <strong className="text-emerald-800">Mejor el {diaCorto(mejor.dia)}:</strong> ya tiene{" "}
+                    {elegido.grupoColor} en el trompo {mejor.trompo.toUpperCase()}, así que no suma lavados
+                    {mejor.lugares !== null &&
+                      ` · quedan ${mejor.lugares} lugar${mejor.lugares === 1 ? "" : "es"} en la meta`}
+                    .
+                  </p>
+                  <Boton
+                    className="min-h-11 w-full text-sm"
+                    disabled={a.cargando || !n}
+                    onClick={() => agregarEn(mejor!.dia, mejor!.trompo)}
+                  >
+                    Programarlo el {diaCorto(mejor.dia)}
+                  </Boton>
+                </div>
+              ) : (
+                <p className="text-xs">No hay otro día cercano que ya tenga {elegido.grupoColor} con lugar en la meta.</p>
+              )}
+              <p className="text-xs">Es una sugerencia: se puede programar igual este día.</p>
+            </>
+          )}
+        </div>
+      )}
       {elegido && seccion === "llenado" && (
         <div
           className={`space-y-2 rounded-lg p-3 ring-1 ${
@@ -429,7 +553,7 @@ export function AccionesDia({
             {copiar.cargando ? "Copiando…" : "Copiar"}
           </Boton>
           <p className="w-full text-xs text-slate-500">
-            Se agregan al final. No se copia lo hecho ni los motivos.
+            Se agregan al final; en el llenado se juntan con lo del mismo grupo de color. No se copia lo hecho ni los motivos.
           </p>
         </div>
       )}
@@ -596,5 +720,90 @@ export function MetaSeccion({
         )}
       </div>
     </details>
+  );
+}
+
+type LineaColor = { id: number; grupoId: number | null; grupoColor: string | null; trompo: Trompo | null };
+
+/**
+ * Lavados del trompo previstos para el llenado del dia: cada cambio de grupo
+ * de color dentro de un trompo es un lavado de mas (lib/lavados-previstos.ts).
+ * Si las lineas estan intercaladas, ofrece ordenarlas por grupo.
+ */
+export function LavadosPrevistos({
+  dia,
+  lineas,
+  trompos,
+  editar,
+}: {
+  dia: string;
+  lineas: LineaColor[];
+  /** Trompo por defecto y los que andan ese dia. */
+  trompos: Trompos;
+  /** Admin y dia abierto: puede ordenar. */
+  editar: boolean;
+}) {
+  const router = useRouter();
+  const ordenar = usarAccion(accionOrdenarPorGrupo, { alTerminar: () => router.refresh() });
+  if (!lineas.length) return null;
+  const p = lavadosPrevistos(lineas, trompos);
+  const enOrden = lavadosEnOrden(lineas, trompos);
+  // Secuencia de grupos de cada trompo, en el orden de las lineas.
+  const secuencia = (t: Trompo) => {
+    const r: string[] = [];
+    for (const l of lineas) {
+      if (l.grupoId === null || trompoDe(l, trompos) !== t) continue;
+      const nombre = l.grupoColor ?? "?";
+      if (r[r.length - 1] !== nombre) r.push(nombre);
+    }
+    return r;
+  };
+  const usados = TROMPOS.filter((t) => secuencia(t).length > 0);
+  const mal = enOrden > p.total;
+
+  return (
+    <div
+      className={`rounded-lg px-3 py-2 text-sm ring-1 ${
+        mal ? "bg-amber-50 text-amber-900 ring-amber-200" : "bg-white text-slate-700 ring-slate-200"
+      }`}
+    >
+      <div>
+        Lavados del trompo previstos: <strong className="cifra text-base">{enOrden}</strong>
+        {mal && (
+          <>
+            {" "}
+            · ordenando por grupo de color bajan a <strong className="cifra">{p.total}</strong>
+          </>
+        )}
+        <span className="text-slate-500"> (sin contar el del final del día)</span>
+      </div>
+      {usados.map((t) => (
+        <div key={t} className="mt-1 text-xs text-slate-600">
+          Trompo {t.toUpperCase()}: {secuencia(t).join(" → ")}
+        </div>
+      ))}
+      {usados.length > 1 && (
+        <div className="mt-1 text-xs text-slate-500">
+          Se usan los dos trompos: cada uno lleva además su lavado de fin del día.
+        </div>
+      )}
+      {p.sinGrupo > 0 && (
+        <div className="mt-1 text-xs text-slate-500">
+          {p.sinGrupo} línea{p.sinGrupo === 1 ? "" : "s"} sin grupo de color: no se cuenta{p.sinGrupo === 1 ? "" : "n"}.
+          Se asigna en Admin › Grupos de color.
+        </div>
+      )}
+      {editar && mal && (
+        <Boton
+          tono="neutro"
+          className="mt-2 min-h-11 text-sm"
+          disabled={ordenar.cargando}
+          onClick={() => ordenar.enviar(datos({ dia }))}
+        >
+          {ordenar.cargando ? "Ordenando…" : "Ordenar por grupo de color"}
+        </Boton>
+      )}
+      {ordenar.error && <div className="mt-1 text-red-700">{ordenar.error}</div>}
+    </div>
   );
 }

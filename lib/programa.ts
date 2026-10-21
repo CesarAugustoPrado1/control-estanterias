@@ -4,6 +4,8 @@ import { db } from "./db";
 import {
   calendario,
   familias,
+  gruposColor,
+  tromposFuera,
   modelos,
   motivosIncumplimiento,
   productos,
@@ -11,10 +13,12 @@ import {
   programaLineas,
   type Cemento,
   type SeccionPrograma,
+  type Trompo,
   type UnidadSalida,
 } from "./db/schema";
 import { hoy, nombreDia, sumarDias } from "./periodo";
 import { esHabil, motivoDia, type Calendario } from "./calendario";
+import { disponiblesEn, type PeriodoFuera } from "./lavados-previstos";
 import { TZ } from "./tarjetas";
 
 /**
@@ -53,6 +57,11 @@ export type LineaConAvance = {
   reprogramadaA: string | null;
   /** Dia de la linea de la que viene, si es una reprogramacion. */
   origenDia: string | null;
+  /** Formula de color del producto (null: sin asignar). */
+  grupoColorId: number | null;
+  grupoColor: string | null;
+  /** Solo llenado: trompo elegido; null = el trompo por defecto. */
+  trompo: Trompo | null;
 };
 
 export type FueraDePrograma = {
@@ -109,11 +118,14 @@ export async function leerDia(dia: string): Promise<DiaPrograma> {
       familia: familias.nombre,
       cemento: productos.cemento,
       unidad: productos.unidad,
+      grupoColorId: productos.grupoColorId,
+      grupoColor: gruposColor.nombre,
     })
     .from(programaLineas)
     .innerJoin(productos, eq(productos.id, programaLineas.productoId))
     .innerJoin(modelos, eq(modelos.id, productos.modeloId))
     .innerJoin(familias, eq(familias.id, productos.familiaId))
+    .leftJoin(gruposColor, eq(gruposColor.id, productos.grupoColorId))
     .where(eq(programaLineas.dia, dia))
     .orderBy(asc(programaLineas.seccion), asc(programaLineas.orden), asc(programaLineas.id));
 
@@ -168,6 +180,9 @@ export async function leerDia(dia: string): Promise<DiaPrograma> {
       motivoPor: l.motivoPor,
       reprogramadaA: l.reprogramadaA,
       origenDia: l.origenId ? (diaDeOrigen.get(l.origenId) ?? null) : null,
+      grupoColorId: p.grupoColorId,
+      grupoColor: p.grupoColor,
+      trompo: l.trompo,
     };
   });
 
@@ -246,10 +261,13 @@ export const productosParaProgramar = () =>
       familia: familias.nombre,
       cemento: productos.cemento,
       diasDesmolde: productos.diasDesmolde,
+      grupoColorId: productos.grupoColorId,
+      grupoColor: gruposColor.nombre,
     })
     .from(productos)
     .innerJoin(modelos, eq(modelos.id, productos.modeloId))
     .innerJoin(familias, eq(familias.id, productos.familiaId))
+    .leftJoin(gruposColor, eq(gruposColor.id, productos.grupoColorId))
     .where(eq(productos.activo, true))
     .orderBy(asc(modelos.nombre), asc(productos.nombre));
 
@@ -465,4 +483,91 @@ export async function leerCalendario(desde: string, hasta: string): Promise<Cale
     .from(calendario)
     .where(sql`${calendario.dia} between ${desde}::date and ${hasta}::date`);
   return Object.fromEntries(filas.map((f) => [f.dia, { laborable: f.laborable, nombre: f.nombre }]));
+}
+
+/**
+ * Llenados programados de varios dias, para ver en cual conviene poner un
+ * producto: que grupos de color lleva cada trompo, cuanto hay programado y la
+ * meta. Un dia sin meta propia usa la ultima fijada antes (como en el desmolde).
+ */
+export type CargaLlenado = Record<
+  string,
+  {
+    lineas: { grupoId: number | null; trompo: Trompo | null }[];
+    programadas: number;
+    meta: number | null;
+    cerrado: boolean;
+    habil: boolean;
+    /** Trompos en servicio ese dia. */
+    disponibles: Trompo[];
+  }
+>;
+
+export async function cargaLlenado(desde: string, hasta: string): Promise<CargaLlenado> {
+  const [cabs, lineas, cal, fuera] = await Promise.all([
+    db
+      .select()
+      .from(programaDias)
+      .where(sql`${programaDias.dia} <= ${hasta}::date`)
+      .orderBy(asc(programaDias.dia)),
+    db
+      .select({
+        dia: programaLineas.dia,
+        cantidad: programaLineas.cantidad,
+        trompo: programaLineas.trompo,
+        grupoId: productos.grupoColorId,
+      })
+      .from(programaLineas)
+      .innerJoin(productos, eq(productos.id, programaLineas.productoId))
+      .where(
+        sql`${programaLineas.seccion} = 'llenado' and ${programaLineas.dia} between ${desde}::date and ${hasta}::date`,
+      ),
+    leerCalendario(desde, hasta),
+    leerTromposFuera(desde, hasta),
+  ]);
+  const porDia = new Map(cabs.map((c) => [c.dia, c]));
+  let meta: number | null = null;
+  for (const c of cabs) if (c.dia < desde && c.metaLlenado !== null) meta = c.metaLlenado;
+  const r: CargaLlenado = {};
+  for (let d = desde; d <= hasta; d = sumarDias(d, 1)) {
+    const cab = porDia.get(d);
+    if (cab?.metaLlenado != null) meta = cab.metaLlenado;
+    const delDia = lineas.filter((l) => l.dia === d);
+    r[d] = {
+      lineas: delDia.map((l) => ({ grupoId: l.grupoId, trompo: l.trompo })),
+      programadas: delDia.reduce((a, l) => a + l.cantidad, 0),
+      meta,
+      cerrado: !!cab?.cerradoEn,
+      habil: esHabil(d, cal),
+      disponibles: disponiblesEn(d, fuera),
+    };
+  }
+  return r;
+}
+
+/**
+ * Periodos de trompos fuera de servicio que tocan el rango (sin rango: los
+ * vigentes y los que vienen, desde hoy).
+ */
+export async function leerTromposFuera(
+  desde = hoy(),
+  hasta?: string,
+): Promise<(PeriodoFuera & { id: number; motivo: string | null; creadoPor: string | null })[]> {
+  const filas = await db
+    .select()
+    .from(tromposFuera)
+    .where(
+      hasta
+        ? sql`${tromposFuera.desde} <= ${hasta}::date and (${tromposFuera.hasta} is null or ${tromposFuera.hasta} >= ${desde}::date)`
+        : sql`${tromposFuera.hasta} is null or ${tromposFuera.hasta} >= ${desde}::date`,
+    )
+    .orderBy(asc(tromposFuera.desde));
+  return filas.map((f) => ({
+    id: f.id,
+    trompo: f.trompo,
+    desde: f.desde,
+    hasta: f.hasta,
+    motivo: f.motivo,
+    creadoPor: f.creadoPor,
+  }));
 }
