@@ -295,7 +295,7 @@ motivos_incumplimiento  nombre, orden, activo                  (§7.9)
 programa_dias    dia (PK), cerrado_en?, cerrado_por?, meta_llenado?, meta_desmolde?
 programa_lineas  dia, seccion (llenado|desmolde), producto_id, cantidad,
                  nota?, orden, hechas_cierre?, motivo_id? + nombre, nota y
-                 quien, reprogramada_a?, origen_id?
+                 quien, reprogramada_a?, origen_id?, trompo? (§7.15)
 grupos_color     nombre, nota?, orden, activo   -- formula de color (§7.14)
                  productos.grupo_color_id? apunta aca
 calendario       dia (PK), laborable, nombre?  -- excepciones a lunes-viernes (§7.12)
@@ -534,6 +534,25 @@ Cada producto tiene a lo sumo un grupo (`productos.grupo_color_id`, null mientra
 no se asigne). Se arma en Admin › Grupos de color tildando los productos de cada
 grupo (tildar uno que estaba en otro lo mueve), o desde el producto. La misma
 pantalla lista los productos activos sin grupo.
+
+## 7.15 Lavados previstos y sugerencia de día
+
+Cada vez que un trompo pasa de un grupo de color a otro hay que lavarlo. El
+primer grupo del día y el lavado de cierre no cuentan. Se cuenta **por trompo**:
+cada línea de llenado del programa tiene su trompo (`programa_lineas.trompo`,
+null = el trompo por defecto) y se puede pasar al otro. Solo cuentan los
+productos con grupo de color (`lib/lavados-previstos.ts`).
+
+- La sección de llenado muestra los lavados previstos en el orden de las
+  líneas y, si los grupos están intercalados, cuántos quedan ordenando; el
+  botón "Ordenar por grupo de color" lo hace.
+- Al agregar un llenado se ve cuánto suma. Va al trompo por defecto, salvo que
+  el otro ya se use ese día y le convenga. Si suma un lavado, busca hasta 10
+  días antes o después (hábil, abierto, desde hoy, con lugar en la meta) el más
+  cercano que ya tenga ese grupo, y ofrece programarlo ahí con su desmolde.
+- Una línea nueva cae justo después de las de su grupo en su trompo, no al
+  final, para no intercalar colores.
+- En el trompo, elegir una línea del programa pone su trompo.
 
 ## 8. Estadísticas
 

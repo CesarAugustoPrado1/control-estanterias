@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { autorizar } from "../auth";
@@ -15,6 +15,8 @@ import {
 import { FORMATO_DIA, nombreDia } from "../periodo";
 import { tieneAlguno } from "../permisos";
 import { leerDia, siguienteOrden } from "../programa";
+import { ordenarPorGrupo } from "../lavados-previstos";
+import { trompoPorDefecto } from "./motor";
 import { ejecutar, fallar, numeroOpcional, type Resultado } from "./comun";
 
 /**
@@ -76,14 +78,28 @@ export async function accionAgregarLinea(fd: FormData): Promise<Resultado<void>>
       await exigirAbierto(desmolde);
     }
     const textoNota = nota(fd.get("nota"));
+    // Solo llenado: en que trompo va. Vacio = el trompo por defecto.
+    const trompo = seccion === "llenado" ? trompoElegido(fd.get("trompo")) : null;
+    // Llenado: si el dia ya tiene ese grupo de color en ese trompo, la linea va
+    // justo despues de esas (no al final), para no intercalar colores.
+    const juntoA = seccion === "llenado" ? await lugarJuntoASuGrupo(d, p.grupoColorId, trompo) : null;
     await db.transaction(async (tx) => {
+      if (juntoA !== null) {
+        await tx
+          .update(programaLineas)
+          .set({ orden: sql`${programaLineas.orden} + 1` })
+          .where(
+            and(eq(programaLineas.dia, d), eq(programaLineas.seccion, "llenado"), gt(programaLineas.orden, juntoA)),
+          );
+      }
       await tx.insert(programaLineas).values({
         dia: d,
         seccion,
         productoId,
         cantidad: n,
+        trompo,
         nota: textoNota,
-        orden: await siguienteOrden(d, seccion),
+        orden: juntoA !== null ? juntoA + 1 : await siguienteOrden(d, seccion),
         creadaPor: yo.nombre,
       });
       if (desmolde) {
@@ -137,6 +153,76 @@ export async function accionBorrarLinea(fd: FormData): Promise<Resultado<void>> 
 }
 
 /** Sube o baja una linea dentro de su seccion: el orden es el de la hoja. */
+/**
+ * Orden de la ultima linea de llenado del dia con ese grupo de color en ese
+ * trompo, o null si no hay (o el producto no tiene grupo).
+ */
+async function lugarJuntoASuGrupo(d: string, grupoId: number | null, trompo: "a" | "b" | null) {
+  if (grupoId === null) return null;
+  const defecto = await trompoPorDefecto();
+  const filas = await db
+    .select({ orden: programaLineas.orden, trompo: programaLineas.trompo })
+    .from(programaLineas)
+    .innerJoin(productos, eq(productos.id, programaLineas.productoId))
+    .where(
+      and(eq(programaLineas.dia, d), eq(programaLineas.seccion, "llenado"), eq(productos.grupoColorId, grupoId)),
+    );
+  const mismos = filas.filter((f) => (f.trompo ?? defecto) === (trompo ?? defecto));
+  return mismos.length ? Math.max(...mismos.map((f) => f.orden)) : null;
+}
+
+const trompoElegido = (v: FormDataEntryValue | null) => {
+  const t = String(v ?? "");
+  return t === "a" || t === "b" ? t : null;
+};
+
+/** Pasar una linea de llenado a otro trompo (para no lavar de mas). */
+export async function accionCambiarTrompo(fd: FormData): Promise<Resultado<void>> {
+  return ejecutar(async () => {
+    await autorizar("admin");
+    const l = await linea(Number(fd.get("id")));
+    if (l.seccion !== "llenado") fallar("El trompo se elige solo en las líneas de llenado.");
+    await exigirAbierto(l.dia);
+    const t = trompoElegido(fd.get("trompo"));
+    if (!t) fallar("Elegí el trompo.");
+    // Si es el por defecto se guarda vacio: sigue al por defecto si cambia.
+    const defecto = await trompoPorDefecto();
+    await db
+      .update(programaLineas)
+      .set({ trompo: t === defecto ? null : t })
+      .where(eq(programaLineas.id, l.id));
+    refrescar();
+  });
+}
+
+/**
+ * Ordena el llenado del dia para lavar lo menos posible: por trompo y, en cada
+ * uno, todo lo de un grupo de color seguido (ver lib/lavados-previstos.ts).
+ */
+export async function accionOrdenarPorGrupo(fd: FormData): Promise<Resultado<void>> {
+  return ejecutar(async () => {
+    await autorizar("admin");
+    const d = dia.parse(fd.get("dia"));
+    await exigirAbierto(d);
+    const filas = await db
+      .select({ id: programaLineas.id, trompo: programaLineas.trompo, grupoId: productos.grupoColorId })
+      .from(programaLineas)
+      .innerJoin(productos, eq(productos.id, programaLineas.productoId))
+      .where(and(eq(programaLineas.dia, d), eq(programaLineas.seccion, "llenado")))
+      .orderBy(programaLineas.orden, programaLineas.id);
+    const ordenadas = ordenarPorGrupo(filas, await trompoPorDefecto());
+    await db.transaction(async (tx) => {
+      for (const [k, l] of ordenadas.entries()) {
+        await tx
+          .update(programaLineas)
+          .set({ orden: k + 1 })
+          .where(eq(programaLineas.id, l.id));
+      }
+    });
+    refrescar();
+  });
+}
+
 export async function accionMoverLinea(fd: FormData): Promise<Resultado<void>> {
   return ejecutar(async () => {
     await autorizar("admin");

@@ -792,6 +792,8 @@ export const programaLineas = esq.table(
     productoId: integer("producto_id")
       .notNull()
       .references(() => productos.id),
+    /** Solo llenado: en que trompo va. Null: el trompo por defecto. */
+    trompo: trompoEnum("trompo"),
     cantidad: integer("cantidad").notNull(),
     /** Libre, como en el papel: cliente, pedido, "11/15", STR, "a confirmar". */
     nota: text("nota"),

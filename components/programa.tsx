@@ -4,12 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   accionBorrarLinea,
+  accionCambiarTrompo,
   accionEditarLinea,
   accionInformarMotivo,
   accionMoverLinea,
   accionReprogramar,
 } from "@/lib/acciones/programa";
-import type { Cemento, SeccionPrograma } from "@/lib/db/schema";
+import type { Cemento, SeccionPrograma, Trompo } from "@/lib/db/schema";
 import { usarAccion } from "@/components/usar-accion";
 import { Muestra } from "@/components/selector-producto";
 import { Aviso, Boton, Campo, Entrada, Selector } from "@/components/ui";
@@ -38,6 +39,10 @@ export type Linea = {
   motivoPor: string | null;
   reprogramadaA: string | null;
   origenDia: string | null;
+  /** Formula de color: para contar lavados del trompo. */
+  grupoColor?: string | null;
+  /** Solo llenado: null = el trompo por defecto. */
+  trompo?: Trompo | null;
 };
 
 export type Motivo = { id: number; nombre: string };
@@ -56,7 +61,10 @@ export function ListaPrograma({
   alElegir,
   advertencias = {},
   vacio = "No hay nada programado.",
+  trompoDefecto,
 }: {
+  /** Llenado: el trompo por defecto, para marcar las lineas que van al otro. */
+  trompoDefecto?: Trompo;
   lineas: Linea[];
   motivos: Motivo[];
   editar?: boolean;
@@ -90,6 +98,7 @@ export function ListaPrograma({
           manana={manana}
           alElegir={alElegir}
           advertencia={advertencias[l.id]}
+          trompoDefecto={trompoDefecto}
           primera={i === 0}
           ultima={i === lineas.length - 1}
         />
@@ -107,9 +116,11 @@ function FilaLinea({
   manana,
   alElegir,
   advertencia,
+  trompoDefecto,
   primera,
   ultima,
 }: {
+  trompoDefecto?: Trompo;
   l: Linea;
   motivos: Motivo[];
   editar: boolean;
@@ -129,6 +140,10 @@ function FilaLinea({
   };
   const mover = usarAccion(accionMoverLinea, { alTerminar: () => router.refresh() });
   const borrar = usarAccion(accionBorrarLinea, { alTerminar: () => router.refresh() });
+  const cambiarTrompo = usarAccion(accionCambiarTrompo, { alTerminar: () => router.refresh() });
+  // Llenado: en que trompo va y si es el otro (no el por defecto).
+  const trompo = trompoDefecto && l.seccion === "llenado" ? (l.trompo ?? trompoDefecto) : null;
+  const otroTrompo = trompo && trompo !== trompoDefecto;
 
   const completa = l.hechas >= l.cantidad;
   const incumplida = terminado && l.faltan > 0;
@@ -158,6 +173,14 @@ function FilaLinea({
           <span className="font-semibold text-slate-900">{l.producto}</span>
           {l.nota && <span className="text-sm text-slate-500"> · {l.nota}</span>}
         </span>
+        {otroTrompo && (
+          <span
+            title={`Va en el trompo ${trompo!.toUpperCase()}`}
+            className="shrink-0 rounded bg-violet-100 px-1 text-[10px] font-bold text-violet-800"
+          >
+            TROMPO {trompo!.toUpperCase()}
+          </span>
+        )}
         {l.cemento === "blanco" && (
           <span className="shrink-0 rounded border border-slate-900 px-1 text-[10px] font-bold">
             C. BLANCO
@@ -211,6 +234,24 @@ function FilaLinea({
       </div>
       {l.origenDia && (
         <div className="text-xs text-violet-700">Reprogramada desde el {corto(l.origenDia)}</div>
+      )}
+      {trompo && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+          <span>
+            Color: <strong>{l.grupoColor ?? "sin grupo"}</strong> · Trompo <strong>{trompo.toUpperCase()}</strong>
+          </span>
+          {editar && !terminado && (
+            <button
+              type="button"
+              className="font-semibold text-violet-700 hover:underline"
+              disabled={cambiarTrompo.cargando}
+              onClick={() => cambiarTrompo.enviar(datos({ id: l.id, trompo: trompo === "a" ? "b" : "a" }))}
+            >
+              Pasar al trompo {trompo === "a" ? "B" : "A"}
+            </button>
+          )}
+          {cambiarTrompo.error && <span className="text-red-700">{cambiarTrompo.error}</span>}
+        </div>
       )}
       {advertencia && (
         <div className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900 ring-1 ring-amber-200">

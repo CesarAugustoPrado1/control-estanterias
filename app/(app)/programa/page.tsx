@@ -10,6 +10,7 @@ import {
   leerDia,
   advertenciasDesmolde,
   cargaDesmolde,
+  cargaLlenado,
   disponibilidadDesmolde,
   listarMotivosIncumplimiento,
   metasSugeridas,
@@ -23,7 +24,8 @@ import { ListaPrograma } from "@/components/programa";
 import { clasesCaja, Flechita, Plegable } from "@/components/plegable";
 import { tonos } from "@/lib/escala";
 import { Pantalla, Seccion } from "@/components/ui";
-import { AccionesDia, AgregarLinea, MetaSeccion } from "./acciones";
+import { AccionesDia, AgregarLinea, LavadosPrevistos, MetaSeccion } from "./acciones";
+import { trompoPorDefecto } from "@/lib/acciones/motor";
 
 export const metadata = { title: "Programa · Control de Estanterías" };
 export const dynamic = "force-dynamic";
@@ -144,16 +146,22 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   const h = hoy();
   const dia = p.dia && FORMATO_DIA.test(p.dia) ? p.dia : h;
 
-  const [programa, motivos, productos, historial, sugeridas, disponible, carga, lavados, cal] = await Promise.all([
+  // Dias cercanos donde buscar lugar para un llenado (lavados del trompo).
+  const ventanaDesde = [h, sumarDias(dia, -10)].sort()[1];
+  const ventanaHasta = sumarDias(dia, 10);
+  const [programa, motivos, productos, historial, sugeridas, disponible, carga, lavados, cal, llenadosCerca, trompoDefecto] = await Promise.all([
     leerDia(dia),
     listarMotivosIncumplimiento(),
     productosParaProgramar(),
     historialCerrados(),
     metasSugeridas(dia),
     disponibilidadDesmolde(dia),
-    cargaDesmolde(sumarDias(dia, 1)),
+    // Desde el primer dia de la ventana: un llenado se puede pasar a otro dia.
+    cargaDesmolde(sumarDias(ventanaDesde < dia ? ventanaDesde : dia, 1)),
     lavadosDelDia(dia),
     leerCalendario(dia, dia),
+    cargaLlenado(ventanaDesde < dia ? ventanaDesde : dia, ventanaHasta),
+    trompoPorDefecto(),
   ]);
   const motivoDelDia = motivoDia(dia, cal);
   const habilDelDia = esHabil(dia, cal);
@@ -347,6 +355,19 @@ export default async function Programa({ searchParams }: { searchParams: Promise
               hechas={hechas}
               editar={editar}
             />
+            {seccion === "llenado" && (
+              <LavadosPrevistos
+                dia={dia}
+                lineas={lineas.map((l) => ({
+                  id: l.id,
+                  grupoId: l.grupoColorId,
+                  grupoColor: l.grupoColor,
+                  trompo: l.trompo,
+                }))}
+                trompoDefecto={trompoDefecto}
+                editar={editar && !cerrado}
+              />
+            )}
             {seccion === "desmolde" && tope !== null && (
               <p
                 className={`mb-3 rounded-lg px-3 py-2 text-sm ring-1 ${
@@ -372,6 +393,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
               manana={sumarDias(dia, 1)}
               advertencias={seccion === "desmolde" && !cerrado ? advertencias : {}}
               vacio={seccion === "llenado" ? "Sin llenados programados." : "Sin desmoldes programados."}
+              trompoDefecto={seccion === "llenado" ? trompoDefecto : undefined}
             />
             {editar && !cerrado && (
               <AgregarLinea
@@ -383,6 +405,9 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                 listas={seccion === "desmolde" ? listasParaAgregar : undefined}
                 carga={seccion === "llenado" ? carga : undefined}
                 llenadoDelDia={llenadoProgramado}
+                cargaLlenado={seccion === "llenado" ? llenadosCerca : undefined}
+                trompoDefecto={trompoDefecto}
+                hoy={h}
               />
             )}
             {fuera.length > 0 && (

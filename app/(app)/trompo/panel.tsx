@@ -155,6 +155,8 @@ export function PanelTrompo({
     setHecho(null);
     setCemento(l.cemento);
     setProductoId(l.productoId);
+    // El programa dice en que trompo va (para no lavar de mas).
+    setTrompo(l.trompo ?? trompoDefecto);
     setEstanteriaId(null);
     setBusqueda("");
     document.getElementById("form-llenado")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -223,6 +225,7 @@ export function PanelTrompo({
               informar={!programaCerrado}
               terminado={programaCerrado}
               alElegir={elegirDelPrograma}
+              trompoDefecto={trompoDefecto}
             />
           </div>
         </details>
