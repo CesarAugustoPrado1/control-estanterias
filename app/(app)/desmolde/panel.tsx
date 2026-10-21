@@ -1,5 +1,6 @@
 "use client";
 
+import type { Tono } from "@/lib/escala";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
@@ -25,9 +26,12 @@ function conIds(ids: number[]): FormData {
 export function PanelDesmolde({
   aDesmoldar,
   desmoldadores,
+  tono,
 }: {
   aDesmoldar: Tanda[];
   desmoldadores: Persona[];
+  /** Color de la escala de la pantalla (lib/escala.ts). */
+  tono?: Tono;
 }) {
   const router = useRouter();
   const [mostrarDevolver, setMostrarDevolver] = useState(false);
@@ -62,6 +66,7 @@ export function PanelDesmolde({
   if (verificando) {
     return (
       <Verificacion
+        tono={tono}
         tandas={aDesmoldar.filter((t) => verificando.includes(t.id))}
         desmoldadores={desmoldadores}
         cargando={desmoldar.cargando}
@@ -97,6 +102,7 @@ export function PanelDesmolde({
       )}
 
       <Seccion
+        tono={tono}
         titulo="Esperando desmolde"
         cantidad={aDesmoldar.length}
         ayuda="Marcá las que vas a desmoldar. Las piezas se cuentan en empaque, acá no hace falta ningún número."
@@ -163,6 +169,7 @@ export function PanelDesmolde({
 }
 
 function Verificacion({
+  tono,
   tandas,
   desmoldadores,
   cargando,
@@ -172,6 +179,7 @@ function Verificacion({
   alConfirmar,
   alCancelar,
 }: {
+  tono?: Tono;
   tandas: Tanda[];
   desmoldadores: Persona[];
   cargando: boolean;
@@ -188,6 +196,7 @@ function Verificacion({
 
   return (
     <Seccion
+      tono={tono}
       titulo="Antes de desmoldar: ¿coinciden?"
       ayuda="Mirá cada estantería: la tarjeta colgada tiene que estar en la placa que dice acá. Si alguna no coincide, avisá y no la desmoldes."
     >

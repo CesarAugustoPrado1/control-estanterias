@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 import { COLOR_ESTADO, ETIQUETA_ESTADO } from "@/lib/estados";
+import type { Tono } from "@/lib/escala";
 import type { Estado } from "@/lib/db/schema";
 
 /* -------------------------------------------------------------------------- */
@@ -55,16 +56,19 @@ export function Seccion({
   cantidad,
   ayuda,
   acciones,
+  tono,
   children,
 }: {
   titulo: string;
   cantidad?: number;
   ayuda?: ReactNode;
   acciones?: ReactNode;
+  /** Color de la escala de la pantalla (lib/escala.ts): franja a la izquierda. */
+  tono?: Tono;
   children: ReactNode;
 }) {
   return (
-    <section className="mb-6">
+    <section className={tono ? `mb-6 border-l-4 pl-3 ${tono.franja}` : "mb-6"}>
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold text-slate-900">
           {titulo}

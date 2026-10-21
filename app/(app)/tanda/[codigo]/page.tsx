@@ -1,3 +1,4 @@
+import { secuencia } from "@/lib/escala";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requerirSesion } from "@/lib/auth";
@@ -56,6 +57,9 @@ export default async function DetalleTanda({
 
   const motivos = sesion.roles.includes("admin") ? await listarMotivos() : [];
 
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const tono = secuencia(3);
+
   return (
     <Pantalla
       titulo={t.tarjetaPalabra ? t.tarjetaPalabra.toUpperCase() : t.codigo}
@@ -80,7 +84,7 @@ export default async function DetalleTanda({
         </div>
       )}
 
-      <Seccion titulo="Números">
+      <Seccion tono={tono()} titulo="Números">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Tarjeta>
             <div className="text-sm text-slate-600">Moldes llenados</div>
@@ -142,7 +146,7 @@ export default async function DetalleTanda({
         </p>
       </Seccion>
 
-      <Seccion titulo="Línea de tiempo" cantidad={movs.length}>
+      <Seccion tono={tono()} titulo="Línea de tiempo" cantidad={movs.length}>
         <ol className="space-y-2">
           {movs.map((m) => (
             <li
@@ -193,7 +197,7 @@ export default async function DetalleTanda({
       </Seccion>
 
       {sesion.roles.includes("admin") && (
-        <Seccion
+        <Seccion tono={tono()}
           titulo="Corregir"
           ayuda="Para arreglar un error de carga. Queda registrado como movimiento con su nota: nada se edita en silencio."
         >

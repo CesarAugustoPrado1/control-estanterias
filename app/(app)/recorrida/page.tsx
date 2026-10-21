@@ -1,3 +1,4 @@
+import { secuencia } from "@/lib/escala";
 import Link from "next/link";
 import { requerirRol } from "@/lib/auth";
 import { datosRecorrida, estadoDeTarjetas } from "@/lib/consultas";
@@ -61,6 +62,9 @@ export default async function Recorrida() {
   const sospechosas = vivas.filter((t) => esSospechosa(t.estado, t.estadoDesde, exentos));
   const estados = ["patio", "horno", "a_desmoldar", "a_empaquetar"] as const;
 
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const tono = secuencia(5);
+
   return (
     <Pantalla
       titulo="Recorrida"
@@ -107,7 +111,7 @@ export default async function Recorrida() {
         </Tarjeta>
       </div>
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Avisos del patio"
         cantidad={avisos.length}
         ayuda="Cosas que alguien vio que no cierran. Se resuelven mirando el patio, no la pantalla."
@@ -140,7 +144,7 @@ export default async function Recorrida() {
       </Seccion>
 
       {sospechosas.length > 0 && (
-        <Seccion
+        <Seccion tono={tono()}
           titulo="¿Falta registrar algo?"
           cantidad={sospechosas.length}
           ayuda="Maquinadas que llevan en su estado mucho más de lo normal. Casi siempre es un movimiento que no se cargó: fijate dónde están de verdad."
@@ -152,7 +156,7 @@ export default async function Recorrida() {
       {estados.map((e) => {
         const lista = vivas.filter((t) => t.estado === e);
         return (
-          <Seccion
+          <Seccion tono={tono()}
             key={e}
             titulo={TITULO_ESTADO[e]}
             cantidad={lista.length}
@@ -170,7 +174,7 @@ export default async function Recorrida() {
         );
       })}
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Tableros de ganchos"
         ayuda="Estos ganchos tienen que estar VACÍOS: su tarjeta está en el patio. Un gancho de la lista con tarjeta, o uno vacío que no está en la lista, es algo sin registrar."
       >
@@ -204,7 +208,7 @@ export default async function Recorrida() {
         </div>
       </Seccion>
 
-      <Seccion titulo="Tarjetas perdidas" cantidad={perdidas.length} ayuda="No se asignan hasta que aparezcan.">
+      <Seccion tono={tono()} titulo="Tarjetas perdidas" cantidad={perdidas.length} ayuda="No se asignan hasta que aparezcan.">
         {perdidas.length === 0 ? (
           <Vacio>No hay tarjetas perdidas.</Vacio>
         ) : (

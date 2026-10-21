@@ -6,6 +6,7 @@ import { accionGuardarDiaCalendario, accionQuitarDiaCalendario } from "@/lib/acc
 import { esFinDeSemana } from "@/lib/calendario";
 import { nombreDia } from "@/lib/periodo";
 import { usarAccion } from "@/components/usar-accion";
+import { escala } from "@/lib/escala";
 import { Aviso, Boton, Campo, Entrada, Seccion, Selector } from "@/components/ui";
 
 type Dia = { dia: string; laborable: boolean; nombre: string | null };
@@ -35,10 +36,12 @@ export function PanelCalendario({ dias, hoy }: { dias: Dia[]; hoy: string }) {
     porAnio.set(a, [...(porAnio.get(a) ?? []), d]);
   }
   const error = cambiar.error ?? quitar.error;
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const t = escala(porAnio.size + 1);
 
   return (
     <>
-      <Seccion titulo="Agregar o cambiar un día">
+      <Seccion tono={t[0]} titulo="Agregar o cambiar un día">
         <form
           className="grid gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:grid-cols-[10rem_12rem_1fr_auto] sm:items-end"
           onSubmit={(e) => {
@@ -79,8 +82,8 @@ export function PanelCalendario({ dias, hoy }: { dias: Dia[]; hoy: string }) {
         </div>
       )}
 
-      {[...porAnio].map(([anio, lista]) => (
-        <Seccion key={anio} titulo={anio} cantidad={lista.length}>
+      {[...porAnio].map(([anio, lista], k) => (
+        <Seccion key={anio} tono={t[k + 1]} titulo={anio} cantidad={lista.length}>
           <ul className="space-y-2">
             {lista.map((d) => {
               const pasado = d.dia < hoy;

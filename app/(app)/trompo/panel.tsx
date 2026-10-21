@@ -1,5 +1,7 @@
 "use client";
 
+import { clasesCaja } from "@/components/plegable";
+import type { Tono } from "@/lib/escala";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { accionLlenar, accionTarjetaNoEncontrada } from "@/lib/acciones/flujo";
@@ -83,7 +85,10 @@ export function PanelTrompo({
   programa,
   motivos,
   programaCerrado,
+  tono,
 }: {
+  /** Color de la caja del programa (lib/escala.ts). */
+  tono?: Tono;
   productos: Producto[];
   ultimoCemento: Record<Trompo, Cemento | null>;
   trompoDefecto: Trompo;
@@ -198,8 +203,8 @@ export function PanelTrompo({
   return (
     <div className="space-y-4">
       {programa.length > 0 && (
-        <details open className="group rounded-xl bg-slate-50 shadow-sm ring-1 ring-slate-200">
-          <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl bg-white px-4 py-2 select-none group-open:rounded-b-none [&::-webkit-details-marker]:hidden">
+        <details open className={clasesCaja(tono).caja}>
+          <summary className={clasesCaja(tono).resumen}>
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-slate-900">Programa de hoy</div>
               <div className="cifra text-sm text-slate-600">

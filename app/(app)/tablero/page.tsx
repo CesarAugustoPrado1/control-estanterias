@@ -1,3 +1,4 @@
+import { secuencia } from "@/lib/escala";
 import Link from "next/link";
 import { requerirSesion } from "@/lib/auth";
 import {
@@ -55,6 +56,9 @@ export default async function Tablero({
   const totalEstanterias = moldes.reduce((a, m) => a + m.total, 0);
   const totalLibres = moldes.reduce((a, m) => a + m.libres, 0);
 
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const tono = secuencia(4);
+
   return (
     <Pantalla
       titulo="Tablero"
@@ -98,7 +102,7 @@ export default async function Tablero({
         </>
       ) : (
         <>
-          <Seccion titulo="Dónde está el material">
+          <Seccion tono={tono()} titulo="Dónde está el material">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {ORDEN_ESTADOS.filter((e) => e !== "listo").map((e) => {
                 const r = enCurso.get(e);
@@ -124,7 +128,7 @@ export default async function Tablero({
           </Seccion>
 
           {abierto && detalle && (
-            <Seccion
+            <Seccion tono={tono()}
               titulo={`${TITULO_ESTADO[abierto]}, por producto`}
               acciones={
                 <Link
@@ -176,7 +180,7 @@ export default async function Tablero({
             </Seccion>
           )}
 
-          <Seccion
+          <Seccion tono={tono()}
             titulo="Horno"
             ayuda={
               enHorno >= cupo
@@ -206,7 +210,7 @@ export default async function Tablero({
             </Tarjeta>
           </Seccion>
 
-          <Seccion
+          <Seccion tono={tono()}
             titulo="Estanterías disponibles"
             cantidad={totalLibres}
             ayuda={

@@ -18,6 +18,10 @@ import { ChipCemento, NombreTanda, Placa } from "@/components/tanda";
 import { ChipEstado, Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
 import { LavadosTrompo } from "@/components/lavados";
 import { PanelTrompo } from "./panel";
+import { tonos } from "@/lib/escala";
+
+/** Colores de las cajas, de frio (arriba) a calido (abajo): lib/escala.ts. */
+const TONO = tonos(["programa", "llenados", "lavados", "estanterias"] as const);
 
 export const metadata = { title: "Trompo · Control de Estanterías" };
 export const dynamic = "force-dynamic";
@@ -63,9 +67,11 @@ export default async function Trompo() {
         programa={programaLlenado}
         motivos={motivos}
         programaCerrado={programa.cerrado !== null}
+        tono={TONO.programa}
       />
 
       <Seccion
+        tono={TONO.llenados}
         titulo="Llenados de hoy"
         cantidad={deHoy.length}
         acciones={
@@ -113,11 +119,13 @@ export default async function Trompo() {
       </Seccion>
 
       <LavadosTrompo
+        tono={TONO.lavados}
         hoy={{ dia: h, cantidad: lavHoy?.cantidad ?? null }}
         ayer={{ dia: ayer, cantidad: lavAyer?.cantidad ?? null }}
       />
 
       <Seccion
+        tono={TONO.estanterias}
         titulo="Estanterías libres ahora"
         cantidad={libres}
         ayuda={`De ${numero(total)}. El resto está en el circuito y se libera al desmoldarse.`}

@@ -511,6 +511,15 @@ La sugerencia es el primer día hábil desde llenado + tiempo mínimo (días
 corridos: el fragüe sigue el fin de semana) con lugar en la meta y el tope. El
 programa muestra en la cabecera de cada día si es feriado o fin de semana.
 
+## 7.13 Colores para ubicarse
+
+En pantallas largas cada caja plegable o sección lleva una franja de color a
+la izquierda (y el título apenas teñido en las plegables), de frío arriba a
+cálido abajo: violeta, azul, celeste, verde, amarillo, naranja
+(`lib/escala.ts`). En cada pantalla el color de cada caja es fijo: en Programa,
+Llenado siempre es verde y Desmolde amarillo, aparezcan o no las demás. El rojo
+queda afuera: es el color de los avisos.
+
 ## 8. Estadísticas
 
 Todo se consulta por **período de calendario** (un día o un rango, en hora de

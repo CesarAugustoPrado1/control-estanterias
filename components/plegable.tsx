@@ -10,6 +10,7 @@ import {
   type Periodo,
 } from "@/lib/periodo";
 import { Boton, Campo, Entrada } from "@/components/ui";
+import type { Tono } from "@/lib/escala";
 
 /**
  * Bloques que se pliegan con un toque en el titulo, y el selector de periodo
@@ -21,8 +22,21 @@ import { Boton, Campo, Entrada } from "@/components/ui";
  */
 
 export const PLEGABLE = "group rounded-xl bg-slate-50 shadow-sm ring-1 ring-slate-200";
-export const RESUMEN =
-  "flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl bg-white px-4 py-2 select-none group-open:rounded-b-none [&::-webkit-details-marker]:hidden";
+const RESUMEN_BASE =
+  "flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-2 select-none group-open:rounded-b-none [&::-webkit-details-marker]:hidden";
+export const RESUMEN = `${RESUMEN_BASE} bg-white`;
+
+/**
+ * Clases de una caja plegable y de su titulo, con el tono de la escala
+ * (lib/escala.ts) si lo tiene: franja de color a la izquierda y el titulo
+ * apenas teñido, para reconocerla plegada o abierta.
+ */
+export function clasesCaja(tono?: Tono) {
+  return {
+    caja: tono ? `${PLEGABLE} border-l-[6px] ${tono.franja}` : PLEGABLE,
+    resumen: `${RESUMEN_BASE} ${tono ? tono.fondo : "bg-white"}`,
+  };
+}
 const FLECHA =
   "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-xl font-bold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50";
 
@@ -44,9 +58,12 @@ export function Plegable({
   resumen,
   ayuda,
   abierto = true,
+  tono,
   children,
 }: {
   titulo: string;
+  /** Color de la escala de la pantalla (lib/escala.ts). */
+  tono?: Tono;
   /** Al lado del titulo: se ve tambien plegado. */
   insignia?: ReactNode;
   resumen: ReactNode;
@@ -54,9 +71,10 @@ export function Plegable({
   abierto?: boolean;
   children: ReactNode;
 }) {
+  const c = clasesCaja(tono);
   return (
-    <details open={abierto} className={`${PLEGABLE} mb-3`}>
-      <summary className={RESUMEN}>
+    <details open={abierto} className={`${c.caja} mb-3`}>
+      <summary className={c.resumen}>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-semibold text-slate-900">{titulo}</span>
@@ -90,7 +108,9 @@ export function SelectorPeriodo({
   eligiendo,
   extras = [],
   nota,
+  tono,
 }: {
+  tono?: Tono;
   ruta: string;
   periodo: Periodo;
   eligiendo: boolean;
@@ -113,9 +133,10 @@ export function SelectorPeriodo({
   ];
   const dia = (n: number) => urlPeriodo(ruta, { desde: sumarDias(desde, n), hasta: sumarDias(desde, n) });
 
+  const c = clasesCaja(tono);
   return (
-    <details key={`${desde}-${hasta}`} open={eligiendo} className={`${PLEGABLE} mb-3`}>
-      <summary className={RESUMEN}>
+    <details key={`${desde}-${hasta}`} open={eligiendo} className={`${c.caja} mb-3`}>
+      <summary className={c.resumen}>
         {unDia && (
           <Link href={dia(-1)} aria-label="Día anterior" className={FLECHA}>
             ‹

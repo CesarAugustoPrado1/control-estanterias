@@ -1,9 +1,13 @@
+import { secuencia } from "@/lib/escala";
 import { Aviso, Pantalla, Seccion, Tarjeta } from "@/components/ui";
 import { PanelPlanilla } from "./panel";
 
 export const metadata = { title: "Planilla Excel · Admin" };
 
 export default function Planilla() {
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const tono = secuencia(2);
+
   return (
     <Pantalla
       titulo="Planilla Excel"
@@ -22,11 +26,11 @@ export default function Planilla() {
         </Aviso>
       </div>
 
-      <Seccion titulo="Subir archivo">
+      <Seccion tono={tono()} titulo="Subir archivo">
         <PanelPlanilla />
       </Seccion>
 
-      <Seccion titulo="Cómo tiene que estar armado">
+      <Seccion tono={tono()} titulo="Cómo tiene que estar armado">
         <Tarjeta>
           <p className="mb-3 text-sm text-slate-700">
             Una hoja por tabla, en este orden. Productos y Estanterías

@@ -1,3 +1,4 @@
+import { secuencia } from "@/lib/escala";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
@@ -39,9 +40,12 @@ export default async function Admin() {
     { t: "Movimientos", v: numero(n.movimientos), p: "registrados" },
   ];
 
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const tono = secuencia(2);
+
   return (
     <Pantalla titulo="Administración">
-      <Seccion titulo="Qué hay cargado">
+      <Seccion tono={tono()} titulo="Qué hay cargado">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           {fichas.map((f) => (
             <Tarjeta key={f.t}>
@@ -55,7 +59,7 @@ export default async function Admin() {
         </div>
       </Seccion>
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Descargar datos"
         ayuda="El de maestros es el mismo formato que lee el import: exportás, editás en la compu y volvés a subir."
       >
