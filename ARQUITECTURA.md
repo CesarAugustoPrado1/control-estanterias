@@ -296,6 +296,8 @@ programa_dias    dia (PK), cerrado_en?, cerrado_por?, meta_llenado?, meta_desmol
 programa_lineas  dia, seccion (llenado|desmolde), producto_id, cantidad,
                  nota?, orden, hechas_cierre?, motivo_id? + nombre, nota y
                  quien, reprogramada_a?, origen_id?
+grupos_color     nombre, nota?, orden, activo   -- formula de color (§7.14)
+                 productos.grupo_color_id? apunta aca
 calendario       dia (PK), laborable, nombre?  -- excepciones a lunes-viernes (§7.12)
 lavados_trompo   dia (PK), cantidad, cargado_por?, actualizado_en
                  -- lavados del dia SIN contar el de fin de jornada (§7.10)
@@ -519,6 +521,19 @@ cálido abajo: violeta, azul, celeste, verde, amarillo, naranja
 (`lib/escala.ts`). En cada pantalla el color de cada caja es fijo: en Programa,
 Llenado siempre es verde y Desmolde amarillo, aparezcan o no las demás. El rojo
 queda afuera: es el color de los avisos.
+
+## 7.14 Grupos de color
+
+No todos los grises ni todos los beiges son iguales: un **grupo de color** es
+una misma fórmula. Producir seguido lo del mismo grupo evita lavar el trompo
+(Listón Gris y Uhma Gris van juntos; Green Deck Liso y Pino son otro gris). No
+es la familia: la familia dice con qué estanterías se llena; el grupo, qué
+mezcla lleva.
+
+Cada producto tiene a lo sumo un grupo (`productos.grupo_color_id`, null mientras
+no se asigne). Se arma en Admin › Grupos de color tildando los productos de cada
+grupo (tildar uno que estaba en otro lo mueve), o desde el producto. La misma
+pantalla lista los productos activos sin grupo.
 
 ## 8. Estadísticas
 

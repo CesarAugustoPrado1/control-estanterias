@@ -1,5 +1,5 @@
 import { guardarProducto } from "@/lib/acciones/admin";
-import { listarFamilias, listarModelos, listarProductos } from "@/lib/consultas";
+import { listarFamilias, listarGruposColor, listarModelos, listarProductos } from "@/lib/consultas";
 import { cantidadSalida, convertir, UNIDAD_SALIDA } from "@/lib/estados";
 import { ETIQUETA_ARIDO } from "@/lib/tarjetas";
 import { EditorFilas, type CampoDef } from "@/components/admin/editor";
@@ -9,10 +9,11 @@ export const metadata = { title: "Productos · Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function Productos() {
-  const [prods, mods, fams] = await Promise.all([
+  const [prods, mods, fams, grupos] = await Promise.all([
     listarProductos(),
     listarModelos(),
     listarFamilias(),
+    listarGruposColor(),
   ]);
 
   const campos: CampoDef[] = [
@@ -31,6 +32,13 @@ export default async function Productos() {
       requerido: true,
       opciones: fams.map((f) => ({ valor: f.id, texto: f.nombre })),
       ayuda: "Determina con qué estanterías se puede llenar.",
+    },
+    {
+      clave: "grupoColorId",
+      etiqueta: "Grupo de color (fórmula)",
+      tipo: "select",
+      opciones: grupos.filter((g) => g.activo).map((g) => ({ valor: g.id, texto: g.nombre })),
+      ayuda: "Los productos del mismo grupo llevan la misma fórmula y se producen seguidos sin lavar el trompo. Se crean en Admin › Grupos de color.",
     },
     {
       clave: "piezasPorMolde",
@@ -115,7 +123,7 @@ export default async function Productos() {
       id: x.p.id,
       titulo: x.p.nombre,
       subtitulo:
-        `${x.modelo} · ${x.familia} · ${ETIQUETA_ARIDO[x.p.arido]} · 40 moldes dan ${cantidadSalida(ej.paquetes, x.p.unidad)}` +
+        `${x.modelo} · ${x.familia} · ${x.grupoColor ? `color ${x.grupoColor}` : "sin grupo de color"} · ${ETIQUETA_ARIDO[x.p.arido]} · 40 moldes dan ${cantidadSalida(ej.paquetes, x.p.unidad)}` +
         ` · desmolde desde ${x.p.diasDesmolde === 1 ? "1 día" : `${x.p.diasDesmolde} días`}` +
         (x.p.m2PorPaquete ? ` · ${x.p.m2PorPaquete} m²/${UNIDAD_SALIDA[x.p.unidad].corto}` : "") +
         (x.p.codigoPlataformaProceso || x.p.codigoPlataformaTerminado
@@ -136,6 +144,7 @@ export default async function Productos() {
         nombre: x.p.nombre,
         modeloId: x.p.modeloId,
         familiaId: x.p.familiaId,
+        grupoColorId: x.p.grupoColorId ?? "",
         piezasPorMolde: x.p.piezasPorMolde,
         piezasPorPaquete: x.p.piezasPorPaquete,
         unidad: x.p.unidad,

@@ -10,6 +10,7 @@ const PESTANAS = [
   { href: "/admin/tarjetas", etiqueta: "Tarjetas" },
   { href: "/admin/imprimir", etiqueta: "Imprimir" },
   { href: "/admin/modelos", etiqueta: "Modelos y familias" },
+  { href: "/admin/grupos-color", etiqueta: "Grupos de color" },
   { href: "/admin/usuarios", etiqueta: "Usuarios" },
   { href: "/admin/planilla", etiqueta: "Planilla Excel" },
   { href: "/admin/calendario", etiqueta: "Calendario" },
