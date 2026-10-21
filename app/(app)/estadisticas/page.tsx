@@ -23,6 +23,7 @@ import { numero, porcentaje, soloFecha } from "@/lib/formato";
 import { atajosComunes, leerPeriodo } from "@/lib/periodo";
 import type { MotivoFraguado, TipoMovimiento } from "@/lib/db/schema";
 import { SelectorPeriodo } from "@/components/plegable";
+import { secuencia } from "@/lib/escala";
 import { Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
 
 export const metadata = { title: "Estadísticas · Control de Estanterías" };
@@ -144,11 +145,14 @@ export default async function Estadisticas({
   const pctGeneral = general?.pct == null ? null : Number(general.pct);
   const rotos = general?.tandas ? general.esperados - general.reales : 0;
 
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const tono = secuencia(15);
+
   return (
     <Pantalla titulo="Estadísticas">
-      <SelectorPeriodo ruta="/estadisticas" periodo={periodo} eligiendo={eligiendo} />
+      <SelectorPeriodo ruta="/estadisticas" periodo={periodo} eligiendo={eligiendo} tono={tono()} />
 
-      <Seccion titulo="Resumen">
+      <Seccion tono={tono()} titulo="Resumen">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Tarjeta
             className={`col-span-2 lg:col-span-1 ${pctGeneral !== null && pctGeneral >= 4 ? "ring-red-300" : ""}`}
@@ -206,37 +210,37 @@ export default async function Estadisticas({
         empaquetado, igual que la pantalla de Producción.
       </p>
 
-      <Seccion titulo="Por producto">
+      <Seccion tono={tono()} titulo="Por producto">
         <TablaRotura filas={porProducto} encabezado="Producto" />
       </Seccion>
 
       <div className="grid gap-x-6 lg:grid-cols-2">
-        <Seccion titulo="Por maquinista">
+        <Seccion tono={tono()} titulo="Por maquinista">
           <TablaRotura filas={porMaquinista} encabezado="Maquinista" />
         </Seccion>
-        <Seccion
+        <Seccion tono={tono()}
           titulo="Por desmoldador"
           ayuda="El grueso de la rotura pasa en el desmolde. El empaque no la genera: solo la evidencia."
         >
           <TablaRotura filas={porDesmoldador} encabezado="Desmoldador" />
         </Seccion>
-        <Seccion titulo="Por trompo">
+        <Seccion tono={tono()} titulo="Por trompo">
           <TablaRotura filas={porTrompo} encabezado="Trompo" />
         </Seccion>
-        <Seccion titulo="Con horno y sin horno">
+        <Seccion tono={tono()} titulo="Con horno y sin horno">
           <TablaRotura filas={segunHorno} encabezado="Camino" />
         </Seccion>
-        <Seccion titulo="Por cemento">
+        <Seccion tono={tono()} titulo="Por cemento">
           <TablaRotura filas={porCemento} encabezado="Cemento" />
         </Seccion>
-        <Seccion titulo="Por árido">
+        <Seccion tono={tono()} titulo="Por árido">
           <TablaRotura filas={porArido} encabezado="Árido" />
         </Seccion>
       </div>
 
       <h2 className="mb-4 mt-8 text-xl font-bold text-slate-900">Producción y tiempos</h2>
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Producción diaria"
         ayuda="Lo empaquetado cada día del período, por fecha de empaquetado."
       >
@@ -265,7 +269,7 @@ export default async function Estadisticas({
         )}
       </Seccion>
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Tiempo por etapa"
         ayuda="Cada movimiento mide cuánto duró el estado anterior. Donde el promedio es alto es donde se hace la cola."
       >
@@ -302,7 +306,7 @@ export default async function Estadisticas({
       </Seccion>
 
       {conDevolucion && sinDevolucion && (
-        <Seccion titulo="Cuánto hay que hornear de verdad">
+        <Seccion tono={tono()} titulo="Cuánto hay que hornear de verdad">
           <Tarjeta>
             <p className="text-sm text-slate-700">
               Las maquinadas que <strong>no</strong> necesitaron devolución estuvieron{" "}
@@ -318,7 +322,7 @@ export default async function Estadisticas({
         </Seccion>
       )}
 
-      <Seccion titulo="Tiempo de horno por producto">
+      <Seccion tono={tono()} titulo="Tiempo de horno por producto">
         {horno.length === 0 ? (
           <Vacio>Sin ciclos de horno en este período.</Vacio>
         ) : (
@@ -349,7 +353,7 @@ export default async function Estadisticas({
         )}
       </Seccion>
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Fraguado natural"
         ayuda="Por horno lleno es capacidad perdida; por clima es ahorro. Son opuestos y por eso van separados."
       >
@@ -369,7 +373,7 @@ export default async function Estadisticas({
         </div>
       </Seccion>
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Costo de las reasignaciones"
         cantidad={reasignaciones.length}
         ayuda={`Cuando una estantería cambia de familia o de cemento, las primeras maquinadas salen manchadas. Acá se mide cuánto: la rotura de las primeras ${TANDAS_DESPUES_DE_REASIGNAR} maquinadas contadas después del cambio contra la habitual de ese modelo, familia y cemento. No depende del período elegido arriba: mira siempre las primeras maquinadas después de cada cambio.`}

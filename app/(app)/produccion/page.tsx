@@ -12,8 +12,12 @@ import {
   type FilaLlenado,
 } from "@/lib/produccion";
 import { lavadosDelPeriodo } from "@/lib/lavados";
+import { tonos } from "@/lib/escala";
 import { Plegable, SelectorPeriodo } from "@/components/plegable";
 import { Pantalla, Vacio } from "@/components/ui";
+
+/** Colores de las cajas, de frio (arriba) a calido (abajo): lib/escala.ts. */
+const TONO = tonos(["periodo", "llenado", "empaque"] as const);
 
 export const metadata = { title: "Producción · Control de Estanterías" };
 export const dynamic = "force-dynamic";
@@ -67,6 +71,7 @@ export default async function Produccion({
       }
     >
       <SelectorPeriodo
+        tono={TONO.periodo}
         ruta="/produccion"
         periodo={{ desde, hasta }}
         eligiendo={eligiendo}
@@ -77,6 +82,7 @@ export default async function Produccion({
       />
 
       <Plegable
+        tono={TONO.llenado}
         titulo="Llenado en el trompo"
         resumen={
           <>
@@ -101,6 +107,7 @@ export default async function Produccion({
       </Plegable>
 
       <Plegable
+        tono={TONO.empaque}
         titulo="Empaquetado"
         resumen={
           empaque.length ? (

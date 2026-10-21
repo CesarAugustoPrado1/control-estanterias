@@ -1,3 +1,4 @@
+import { secuencia } from "@/lib/escala";
 import { capacidadHorno, trompoPorDefecto } from "@/lib/acciones/motor";
 import { guardarConfig, guardarMaquinista, guardarTrompoDefecto } from "@/lib/acciones/admin";
 import { db } from "@/lib/db";
@@ -22,9 +23,12 @@ export default async function Config() {
     listarMotivosIncumplimiento(false),
   ]);
 
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const tono = secuencia(4);
+
   return (
     <Pantalla titulo="Parámetros">
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Horno"
         ayuda="Cuántas estanterías entran a la vez. La pantalla del hornero no deja meter más de esto."
       >
@@ -34,13 +38,13 @@ export default async function Config() {
           accion={guardarConfig}
         />
       </Seccion>
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Trompo por defecto"
         ayuda="El que aparece elegido en la pantalla del trompo. El operario lo puede cambiar en cada llenado."
       >
         <FormularioTrompo trompo={trompo} accion={guardarTrompoDefecto} />
       </Seccion>
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Maquinistas y desmoldadores"
         cantidad={maqs.length}
         ayuda="Una sola lista, porque rotan de puesto: de acá se elige el maquinista en cada llenado del trompo y el desmoldador en cada desmolde. No son usuarios de la app. Solo aparecen los activos."
@@ -60,7 +64,7 @@ export default async function Config() {
           }))}
         />
       </Seccion>
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Motivos de incumplimiento del programa"
         cantidad={motivosPrograma.length}
         ayuda="Los que eligen el trompo y el desmolde cuando no se llegó a lo programado. Aparecen ordenados por el número de orden."

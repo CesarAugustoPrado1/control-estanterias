@@ -1,3 +1,4 @@
+import { secuencia } from "@/lib/escala";
 import {
   guardarFamilia,
   guardarModelo,
@@ -31,6 +32,9 @@ export default async function ModelosYFamilias() {
     db.select().from(motivosRotura).orderBy(asc(motivosRotura.nombre)),
   ]);
 
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const tono = secuencia(3);
+
   return (
     <Pantalla titulo="Modelos y familias">
       <div className="mb-4">
@@ -42,7 +46,7 @@ export default async function ModelosYFamilias() {
         </Aviso>
       </div>
 
-      <Seccion titulo="Modelos" cantidad={mods.length}>
+      <Seccion tono={tono()} titulo="Modelos" cantidad={mods.length}>
         <EditorFilas
           campos={CAMPOS_BASE("activo")}
           accion={guardarModelo}
@@ -56,7 +60,7 @@ export default async function ModelosYFamilias() {
         />
       </Seccion>
 
-      <Seccion titulo="Familias" cantidad={fams.length}>
+      <Seccion tono={tono()} titulo="Familias" cantidad={fams.length}>
         <EditorFilas
           campos={CAMPOS_BASE("activa")}
           accion={guardarFamilia}
@@ -70,7 +74,7 @@ export default async function ModelosYFamilias() {
         />
       </Seccion>
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Motivos de rotura"
         cantidad={motivos.length}
         ayuda="Los que elige empaque cuando salieron menos paquetes de los que correspondían."

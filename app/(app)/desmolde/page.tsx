@@ -1,4 +1,5 @@
 import { requerirRol } from "@/lib/auth";
+import { tonos } from "@/lib/escala";
 import { cola, maquinistasActivos } from "@/lib/consultas";
 import { numero } from "@/lib/formato";
 import { Pantalla, Seccion, Vacio } from "@/components/ui";
@@ -9,6 +10,9 @@ import { Plegable } from "@/components/plegable";
 import { hoy } from "@/lib/periodo";
 import { leerDia, listarMotivosIncumplimiento } from "@/lib/programa";
 import { NombreTanda } from "@/components/tanda";
+
+/** Colores de las cajas, de frio (arriba) a calido (abajo): lib/escala.ts. */
+const TONO = tonos(["programa", "esperando", "empaque"] as const);
 
 export const metadata = { title: "Desmolde · Control de Estanterías" };
 export const dynamic = "force-dynamic";
@@ -31,6 +35,7 @@ export default async function Desmolde() {
     >
       {lineas.length > 0 && (
         <Plegable
+          tono={TONO.programa}
           titulo="Programa de hoy"
           resumen={`${lineas.reduce((a, l) => a + Math.min(l.hechas, l.cantidad), 0)} de ${lineas.reduce((a, l) => a + l.cantidad, 0)} maquinadas desmoldadas`}
         >
@@ -43,9 +48,10 @@ export default async function Desmolde() {
         </Plegable>
       )}
 
-      <PanelDesmolde aDesmoldar={aDesmoldar} desmoldadores={desmoldadores} />
+      <PanelDesmolde aDesmoldar={aDesmoldar} desmoldadores={desmoldadores} tono={TONO.esperando} />
 
       <Seccion
+        tono={TONO.empaque}
         titulo="Desmoldadas, esperando empaque"
         cantidad={aEmpaquetar.length}
         ayuda="Ya no retienen moldes. Las cuenta y las cierra empaque."

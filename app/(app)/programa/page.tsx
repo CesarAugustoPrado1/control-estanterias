@@ -20,7 +20,8 @@ import type { SeccionPrograma } from "@/lib/db/schema";
 import { lavadosDelDia } from "@/lib/lavados";
 import { esHabil, motivoDia } from "@/lib/calendario";
 import { ListaPrograma } from "@/components/programa";
-import { Flechita, PLEGABLE, Plegable, RESUMEN } from "@/components/plegable";
+import { clasesCaja, Flechita, Plegable } from "@/components/plegable";
+import { tonos } from "@/lib/escala";
 import { Pantalla, Seccion } from "@/components/ui";
 import { AccionesDia, AgregarLinea, MetaSeccion } from "./acciones";
 
@@ -31,6 +32,11 @@ const TITULO: Record<SeccionPrograma, string> = {
   llenado: "Llenado (trompo)",
   desmolde: "Desmolde y paletizado",
 };
+
+/** Colores de las cajas, de frio (arriba) a calido (abajo). Fijos por caja, haya o no las otras. */
+const TONO = tonos(["fecha", "estado", "llenado", "desmolde", "historial"] as const);
+const CAJA_FECHA = clasesCaja(TONO.fecha);
+const CAJA_ESTADO = clasesCaja(TONO.estado);
 
 const FLECHA =
   "inline-flex h-11 min-w-11 items-center justify-center rounded-lg bg-white px-3 text-sm font-bold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50";
@@ -195,8 +201,8 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   return (
     <Pantalla titulo="Programa" bajada="La hoja de producción del día: lo que se pide y lo que se hizo.">
       {/* Dia: plegado queda la barra con las flechas, que andan sin desplegarlo. */}
-      <details open className={`${PLEGABLE} mb-3`}>
-        <summary className={RESUMEN}>
+      <details open className={`${CAJA_FECHA.caja} mb-3`}>
+        <summary className={CAJA_FECHA.resumen}>
           <Link href={url(sumarDias(dia, -1))} aria-label="Día anterior" className={FLECHA}>
             ‹
           </Link>
@@ -246,8 +252,8 @@ export default async function Programa({ searchParams }: { searchParams: Promise
 
       {/* Estado del dia: plegado queda el resumen; los botones van adentro. */}
       {programa.lineas.length > 0 && (
-        <details open className={`${PLEGABLE} mb-4 ${cerrado ? "ring-emerald-300" : ""}`}>
-          <summary className={RESUMEN}>
+        <details open className={`${CAJA_ESTADO.caja} mb-4 ${cerrado ? "ring-emerald-300" : ""}`}>
+          <summary className={CAJA_ESTADO.resumen}>
             <div className="min-w-0 flex-1">
               <div className="text-sm text-slate-600">
                 {estado}
@@ -327,6 +333,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
         return (
           <Plegable
             key={seccion}
+            tono={TONO[seccion]}
             titulo={TITULO[seccion]}
             insignia={<EstadoPrograma programadas={programadas} meta={meta} />}
             resumen={<ResumenSeccion lineas={lineas} hechas={hechas} meta={meta} terminado={terminado} />}
@@ -397,7 +404,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
       })}
 
       {historial.length > 0 && (
-        <Seccion titulo="Días cerrados" ayuda="Cumplimiento registrado al cerrar cada día.">
+        <Seccion tono={TONO.historial} titulo="Días cerrados" ayuda="Cumplimiento registrado al cerrar cada día.">
           <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
             <table className="w-full text-sm">
               <thead className="border-b border-slate-200 text-left text-xs text-slate-500">

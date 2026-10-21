@@ -1,3 +1,4 @@
+import { secuencia } from "@/lib/escala";
 import Link from "next/link";
 import { estadoDeTarjetas } from "@/lib/consultas";
 import { ETIQUETA_ESTADO } from "@/lib/estados";
@@ -31,6 +32,9 @@ export default async function Tarjetas({
     };
   });
 
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const tono = secuencia(2);
+
   return (
     <Pantalla
       titulo="Tarjetas"
@@ -45,14 +49,14 @@ export default async function Tarjetas({
         </div>
       )}
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Cuántas existen físicamente"
         ayuda="La app nunca manda a buscar una tarjeta más allá de este número. Subilo a medida que se fabriquen más."
       >
         <FormularioFabricadas fabricadas={fabricadas} />
       </Seccion>
 
-      <Seccion titulo="Por día">
+      <Seccion tono={tono()} titulo="Por día">
         <div className="mb-3 flex flex-wrap gap-2">
           {resumen.map((r) => (
             <Link

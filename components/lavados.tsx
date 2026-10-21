@@ -5,6 +5,7 @@ import { useState } from "react";
 import { accionGuardarLavados } from "@/lib/acciones/lavados";
 import { usarAccion } from "@/components/usar-accion";
 import { Aviso, Boton } from "@/components/ui";
+import type { Tono } from "@/lib/escala";
 
 type Dia = { dia: string; cantidad: number | null };
 
@@ -18,7 +19,7 @@ const MAS_MENOS =
  *
  * Arranca en hoy; "Ayer" queda a mano por si se olvidaron de cargarlo.
  */
-export function LavadosTrompo({ hoy, ayer }: { hoy: Dia; ayer: Dia }) {
+export function LavadosTrompo({ hoy, ayer, tono }: { hoy: Dia; ayer: Dia; tono?: Tono }) {
   const router = useRouter();
   const [cual, setCual] = useState<"hoy" | "ayer">("hoy");
   const elegido = cual === "hoy" ? hoy : ayer;
@@ -40,7 +41,7 @@ export function LavadosTrompo({ hoy, ayer }: { hoy: Dia; ayer: Dia }) {
   }
 
   return (
-    <section className="mb-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+    <section className={`mb-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 ${tono ? `border-l-[6px] ${tono.franja}` : ""}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold text-slate-900">Lavados del trompo</h2>
         <div className="flex rounded-lg bg-slate-100 p-1 text-sm font-semibold">

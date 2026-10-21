@@ -1,5 +1,6 @@
 "use client";
 
+import { secuencia } from "@/lib/escala";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
@@ -54,6 +55,9 @@ export function PanelHorno({
   const detalle = entrar.detalle ?? salir.detalle ?? fraguar.detalle;
   const cargando = entrar.cargando || salir.cargando || fraguar.cargando;
 
+  // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
+  const tono = secuencia(2);
+
   return (
     <>
       {error && (
@@ -63,7 +67,7 @@ export function PanelHorno({
         </div>
       )}
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="Adentro del horno"
         cantidad={adentro.length}
         ayuda={`${libres} de ${cupo} lugares libres. Elegí cuáles sacás: no hace falta sacar todo junto.`}
@@ -91,7 +95,7 @@ export function PanelHorno({
         />
       </Seccion>
 
-      <Seccion
+      <Seccion tono={tono()}
         titulo="En el patio, esperando horno"
         cantidad={enPatio.length}
         ayuda="Lo más viejo primero. Las marcadas REHORNEAR vienen demoradas y van antes que todo."
