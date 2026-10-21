@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, getTableColumns, gte, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { db } from "./db";
 import {
+  gruposColor,
   avisos,
   config,
   estanterias,
@@ -398,11 +399,17 @@ export async function listarProductos() {
       p: productos,
       modelo: modelos.nombre,
       familia: familias.nombre,
+      grupoColor: gruposColor.nombre,
     })
     .from(productos)
     .innerJoin(modelos, eq(modelos.id, productos.modeloId))
     .innerJoin(familias, eq(familias.id, productos.familiaId))
+    .leftJoin(gruposColor, eq(gruposColor.id, productos.grupoColorId))
     .orderBy(asc(modelos.orden), asc(productos.nombre));
+}
+
+export async function listarGruposColor() {
+  return db.select().from(gruposColor).orderBy(asc(gruposColor.orden), asc(gruposColor.nombre));
 }
 
 export async function listarEstanterias() {

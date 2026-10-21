@@ -227,6 +227,19 @@ export const familias = esq.table("familias", {
 });
 
 /**
+ * Grupo de color: una misma formula de color. Producir seguido lo del mismo
+ * grupo evita lavar el trompo. No es la familia (que dice con que moldes se
+ * llena): Liston Gris y Uhma Gris comparten grupo; Green Deck es otro gris.
+ */
+export const gruposColor = esq.table("grupos_color", {
+  id: serial("id").primaryKey(),
+  nombre: text("nombre").notNull().unique(),
+  nota: text("nota"),
+  orden: integer("orden").notNull().default(0),
+  activo: boolean("activo").notNull().default(true),
+});
+
+/**
  * Producto = modelo (forma) x tono exacto.
  *
  * Las tres conversiones de unidad del negocio salen de dos enteros chicos,
@@ -256,6 +269,8 @@ export const productos = esq.table(
     familiaId: integer("familia_id")
       .notNull()
       .references(() => familias.id),
+    /** Formula de color (ver gruposColor). Null: todavia sin asignar. */
+    grupoColorId: integer("grupo_color_id").references(() => gruposColor.id),
     piezasPorMolde: integer("piezas_por_molde").notNull().default(1),
     piezasPorPaquete: integer("piezas_por_paquete").notNull().default(1),
     /** Ver `unidadSalidaEnum`. */

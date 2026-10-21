@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { autorizar, hashearPin } from "../auth";
@@ -9,6 +9,7 @@ import {
   config,
   estanterias,
   familias,
+  gruposColor,
   maquinistas,
   modelos,
   motivosRotura,
@@ -146,15 +147,67 @@ export async function guardarProducto(fd: FormData): Promise<Resultado<void>> {
       diasDesmolde: numeroOpcional(fd.get("diasDesmolde")) ?? 2,
     });
     const activo = fd.get("activo") === "on" || fd.get("activo") === "true";
+    const grupoColorId = numeroOpcional(fd.get("grupoColorId"));
 
     if (id) {
       // Cambiar las conversiones NO reescribe el pasado: cada tanda guarda las
       // suyas al llenarse. De otro modo, corregir un factor cambiaria en
       // silencio la rotura de todos los meses anteriores.
-      await db.update(productos).set({ ...datos, activo }).where(eq(productos.id, id));
+      await db.update(productos).set({ ...datos, grupoColorId, activo }).where(eq(productos.id, id));
     } else {
-      await db.insert(productos).values(datos);
+      await db.insert(productos).values({ ...datos, grupoColorId });
     }
+    refrescarAdmin();
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Grupos de color                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Un grupo y sus productos. Los productos se tildan desde el grupo: los
+ * tildados pasan a este grupo (si estaban en otro, se mueven: un producto
+ * tiene una sola formula) y los destildados quedan sin grupo.
+ */
+export async function guardarGrupoColor(fd: FormData): Promise<Resultado<void>> {
+  return ejecutar(async () => {
+    await autorizar();
+    const id = numeroOpcional(fd.get("id"));
+    const nombre = texto().parse(fd.get("nombre"));
+    const nota = String(fd.get("nota") ?? "").trim().slice(0, 200) || null;
+    const orden = numeroOpcional(fd.get("orden")) ?? 0;
+    const activo = id ? fd.get("activo") === "on" || fd.get("activo") === "true" : true;
+    const tildados = fd
+      .getAll("productos")
+      .map(Number)
+      .filter((n) => Number.isInteger(n) && n > 0);
+
+    const repetido = await db
+      .select()
+      .from(gruposColor)
+      .where(id ? and(eq(gruposColor.nombre, nombre), ne(gruposColor.id, id)) : eq(gruposColor.nombre, nombre));
+    if (repetido.length) fallar(`Ya existe un grupo de color llamado "${nombre}".`);
+
+    await db.transaction(async (tx) => {
+      let grupoId = id;
+      if (grupoId) {
+        await tx.update(gruposColor).set({ nombre, nota, orden, activo }).where(eq(gruposColor.id, grupoId));
+        await tx
+          .update(productos)
+          .set({ grupoColorId: null })
+          .where(
+            tildados.length
+              ? and(eq(productos.grupoColorId, grupoId), notInArray(productos.id, tildados))
+              : eq(productos.grupoColorId, grupoId),
+          );
+      } else {
+        [{ id: grupoId }] = await tx.insert(gruposColor).values({ nombre, nota, orden }).returning({ id: gruposColor.id });
+      }
+      if (tildados.length) {
+        await tx.update(productos).set({ grupoColorId: grupoId }).where(inArray(productos.id, tildados));
+      }
+    });
     refrescarAdmin();
   });
 }
