@@ -768,6 +768,20 @@ export const calendario = esq.table("calendario", {
   actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Periodos en que un trompo esta fuera de servicio. Sin `hasta`: hasta que se
+ * vuelva a poner en servicio.
+ */
+export const tromposFuera = esq.table("trompos_fuera", {
+  id: serial("id").primaryKey(),
+  trompo: trompoEnum("trompo").notNull(),
+  desde: date("desde", { mode: "string" }).notNull(),
+  hasta: date("hasta", { mode: "string" }),
+  motivo: text("motivo"),
+  creadoPor: text("creado_por"),
+  creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const programaDias = esq.table("programa_dias", {
   dia: date("dia", { mode: "string" }).primaryKey(),
   cerradoEn: timestamp("cerrado_en", { withTimezone: true }),

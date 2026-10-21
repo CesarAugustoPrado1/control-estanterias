@@ -14,8 +14,8 @@ import {
 } from "../db/schema";
 import { FORMATO_DIA, nombreDia } from "../periodo";
 import { tieneAlguno } from "../permisos";
-import { leerDia, siguienteOrden } from "../programa";
-import { ordenarPorGrupo } from "../lavados-previstos";
+import { leerDia, leerTromposFuera, siguienteOrden } from "../programa";
+import { disponiblesEn, ordenarPorGrupo, trompoDe, type Trompos } from "../lavados-previstos";
 import { trompoPorDefecto } from "./motor";
 import { ejecutar, fallar, numeroOpcional, type Resultado } from "./comun";
 
@@ -159,7 +159,7 @@ export async function accionBorrarLinea(fd: FormData): Promise<Resultado<void>> 
  */
 async function lugarJuntoASuGrupo(d: string, grupoId: number | null, trompo: "a" | "b" | null) {
   if (grupoId === null) return null;
-  const defecto = await trompoPorDefecto();
+  const c = await tromposDelDia(d);
   const filas = await db
     .select({ orden: programaLineas.orden, trompo: programaLineas.trompo })
     .from(programaLineas)
@@ -167,8 +167,38 @@ async function lugarJuntoASuGrupo(d: string, grupoId: number | null, trompo: "a"
     .where(
       and(eq(programaLineas.dia, d), eq(programaLineas.seccion, "llenado"), eq(productos.grupoColorId, grupoId)),
     );
-  const mismos = filas.filter((f) => (f.trompo ?? defecto) === (trompo ?? defecto));
+  const suyo = trompoDe({ grupoId, trompo }, c);
+  const mismos = filas.filter((f) => trompoDe({ grupoId, trompo: f.trompo }, c) === suyo);
   return mismos.length ? Math.max(...mismos.map((f) => f.orden)) : null;
+}
+
+/** El trompo por defecto y los que andan ese dia (los fuera de servicio no). */
+async function tromposDelDia(d: string): Promise<Trompos> {
+  const [defecto, fuera] = await Promise.all([trompoPorDefecto(), leerTromposFuera(d, d)]);
+  return { defecto, disponibles: disponiblesEn(d, fuera) };
+}
+
+/**
+ * Reacomoda el llenado de un dia por grupo de color (ver ordenarPorGrupo). Si
+ * ya estaba agrupado no cambia nada; si algo quedo intercalado, lo junta.
+ */
+async function ordenarLlenado(d: string) {
+  const filas = await db
+    .select({ id: programaLineas.id, orden: programaLineas.orden, trompo: programaLineas.trompo, grupoId: productos.grupoColorId })
+    .from(programaLineas)
+    .innerJoin(productos, eq(productos.id, programaLineas.productoId))
+    .where(and(eq(programaLineas.dia, d), eq(programaLineas.seccion, "llenado")))
+    .orderBy(programaLineas.orden, programaLineas.id);
+  const ordenadas = ordenarPorGrupo(filas, await tromposDelDia(d));
+  await db.transaction(async (tx) => {
+    for (const [k, l] of ordenadas.entries()) {
+      if (l.orden === k + 1) continue;
+      await tx
+        .update(programaLineas)
+        .set({ orden: k + 1 })
+        .where(eq(programaLineas.id, l.id));
+    }
+  });
 }
 
 const trompoElegido = (v: FormDataEntryValue | null) => {
@@ -185,12 +215,17 @@ export async function accionCambiarTrompo(fd: FormData): Promise<Resultado<void>
     await exigirAbierto(l.dia);
     const t = trompoElegido(fd.get("trompo"));
     if (!t) fallar("Elegí el trompo.");
+    const c = await tromposDelDia(l.dia);
+    if (!c.disponibles.includes(t)) {
+      fallar(`El trompo ${t.toUpperCase()} está fuera de servicio el ${nombreDia(l.dia, false)}.`);
+    }
     // Si es el por defecto se guarda vacio: sigue al por defecto si cambia.
-    const defecto = await trompoPorDefecto();
     await db
       .update(programaLineas)
-      .set({ trompo: t === defecto ? null : t })
+      .set({ trompo: t === c.defecto ? null : t })
       .where(eq(programaLineas.id, l.id));
+    // Que quede junto a las de su color en el trompo nuevo.
+    await ordenarLlenado(l.dia);
     refrescar();
   });
 }
@@ -204,21 +239,7 @@ export async function accionOrdenarPorGrupo(fd: FormData): Promise<Resultado<voi
     await autorizar("admin");
     const d = dia.parse(fd.get("dia"));
     await exigirAbierto(d);
-    const filas = await db
-      .select({ id: programaLineas.id, trompo: programaLineas.trompo, grupoId: productos.grupoColorId })
-      .from(programaLineas)
-      .innerJoin(productos, eq(productos.id, programaLineas.productoId))
-      .where(and(eq(programaLineas.dia, d), eq(programaLineas.seccion, "llenado")))
-      .orderBy(programaLineas.orden, programaLineas.id);
-    const ordenadas = ordenarPorGrupo(filas, await trompoPorDefecto());
-    await db.transaction(async (tx) => {
-      for (const [k, l] of ordenadas.entries()) {
-        await tx
-          .update(programaLineas)
-          .set({ orden: k + 1 })
-          .where(eq(programaLineas.id, l.id));
-      }
-    });
+    await ordenarLlenado(d);
     refrescar();
   });
 }
@@ -311,12 +332,15 @@ export async function accionReprogramar(fd: FormData): Promise<Resultado<void>> 
         productoId: l.productoId,
         cantidad: n,
         nota: l.nota,
+        trompo: l.trompo,
         orden: await siguienteOrden(destino, l.seccion),
         origenId: l.id,
         creadaPor: yo.nombre,
       });
       await tx.update(programaLineas).set({ reprogramadaA: destino }).where(eq(programaLineas.id, l.id));
     });
+    // Junto a las de su color ese dia, como al agregar.
+    if (l.seccion === "llenado") await ordenarLlenado(destino);
     refrescar();
   });
 }
@@ -419,12 +443,15 @@ export async function accionCopiarDia(fd: FormData): Promise<Resultado<number>> 
           productoId: l.productoId,
           cantidad: l.cantidad,
           nota: l.nota,
+          trompo: l.trompo,
           orden: base[l.seccion]++,
           creadaPor: yo.nombre,
         });
         n++;
       }
     });
+    // Lo copiado se junta con lo que ya habia del mismo color.
+    await ordenarLlenado(hacia);
     refrescar();
     return n;
   });

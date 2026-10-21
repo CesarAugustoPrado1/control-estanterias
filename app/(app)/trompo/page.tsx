@@ -2,7 +2,8 @@ import { requerirRol } from "@/lib/auth";
 import { trompoPorDefecto } from "@/lib/acciones/motor";
 import { hoy, sumarDias } from "@/lib/periodo";
 import { lavadosDelDia } from "@/lib/lavados";
-import { leerDia, listarMotivosIncumplimiento } from "@/lib/programa";
+import { leerDia, leerTromposFuera, listarMotivosIncumplimiento } from "@/lib/programa";
+import { disponiblesEn } from "@/lib/lavados-previstos";
 import {
   disponibilidadDeMoldes,
   llenadosDeHoy,
@@ -31,7 +32,7 @@ export default async function Trompo() {
 
   const h = hoy();
   const ayer = sumarDias(h, -1);
-  const [productos, ultimoCemento, moldes, deHoy, trompoDefecto, maquinistas, programa, motivos, lavHoy, lavAyer] =
+  const [productos, ultimoCemento, moldes, deHoy, trompoDefecto, maquinistas, programa, motivos, lavHoy, lavAyer, fuera] =
     await Promise.all([
     productosParaTrompo(),
     ultimoCementoPorTrompo(),
@@ -43,6 +44,7 @@ export default async function Trompo() {
     listarMotivosIncumplimiento(),
     lavadosDelDia(h),
     lavadosDelDia(ayer),
+    leerTromposFuera(h, h),
   ]);
   const programaLlenado = programa.lineas.filter((l) => l.seccion === "llenado");
 
@@ -63,6 +65,7 @@ export default async function Trompo() {
         productos={productos}
         ultimoCemento={ultimoCemento}
         trompoDefecto={trompoDefecto}
+        disponibles={disponiblesEn(h, fuera)}
         maquinistas={maquinistas}
         programa={programaLlenado}
         motivos={motivos}

@@ -5,6 +5,7 @@ import {
   calendario,
   familias,
   gruposColor,
+  tromposFuera,
   modelos,
   motivosIncumplimiento,
   productos,
@@ -17,6 +18,7 @@ import {
 } from "./db/schema";
 import { hoy, nombreDia, sumarDias } from "./periodo";
 import { esHabil, motivoDia, type Calendario } from "./calendario";
+import { disponiblesEn, type PeriodoFuera } from "./lavados-previstos";
 import { TZ } from "./tarjetas";
 
 /**
@@ -496,11 +498,13 @@ export type CargaLlenado = Record<
     meta: number | null;
     cerrado: boolean;
     habil: boolean;
+    /** Trompos en servicio ese dia. */
+    disponibles: Trompo[];
   }
 >;
 
 export async function cargaLlenado(desde: string, hasta: string): Promise<CargaLlenado> {
-  const [cabs, lineas, cal] = await Promise.all([
+  const [cabs, lineas, cal, fuera] = await Promise.all([
     db
       .select()
       .from(programaDias)
@@ -519,6 +523,7 @@ export async function cargaLlenado(desde: string, hasta: string): Promise<CargaL
         sql`${programaLineas.seccion} = 'llenado' and ${programaLineas.dia} between ${desde}::date and ${hasta}::date`,
       ),
     leerCalendario(desde, hasta),
+    leerTromposFuera(desde, hasta),
   ]);
   const porDia = new Map(cabs.map((c) => [c.dia, c]));
   let meta: number | null = null;
@@ -534,7 +539,35 @@ export async function cargaLlenado(desde: string, hasta: string): Promise<CargaL
       meta,
       cerrado: !!cab?.cerradoEn,
       habil: esHabil(d, cal),
+      disponibles: disponiblesEn(d, fuera),
     };
   }
   return r;
+}
+
+/**
+ * Periodos de trompos fuera de servicio que tocan el rango (sin rango: los
+ * vigentes y los que vienen, desde hoy).
+ */
+export async function leerTromposFuera(
+  desde = hoy(),
+  hasta?: string,
+): Promise<(PeriodoFuera & { id: number; motivo: string | null; creadoPor: string | null })[]> {
+  const filas = await db
+    .select()
+    .from(tromposFuera)
+    .where(
+      hasta
+        ? sql`${tromposFuera.desde} <= ${hasta}::date and (${tromposFuera.hasta} is null or ${tromposFuera.hasta} >= ${desde}::date)`
+        : sql`${tromposFuera.hasta} is null or ${tromposFuera.hasta} >= ${desde}::date`,
+    )
+    .orderBy(asc(tromposFuera.desde));
+  return filas.map((f) => ({
+    id: f.id,
+    trompo: f.trompo,
+    desde: f.desde,
+    hasta: f.hasta,
+    motivo: f.motivo,
+    creadoPor: f.creadoPor,
+  }));
 }

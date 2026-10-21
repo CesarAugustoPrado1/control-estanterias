@@ -13,6 +13,7 @@ import {
 import type { Cemento, SeccionPrograma, Trompo } from "@/lib/db/schema";
 import { usarAccion } from "@/components/usar-accion";
 import { Muestra } from "@/components/selector-producto";
+import { defectoDelDia, trompoDe, type Trompos } from "@/lib/lavados-previstos";
 import { Aviso, Boton, Campo, Entrada, Selector } from "@/components/ui";
 
 /**
@@ -61,10 +62,10 @@ export function ListaPrograma({
   alElegir,
   advertencias = {},
   vacio = "No hay nada programado.",
-  trompoDefecto,
+  trompos,
 }: {
-  /** Llenado: el trompo por defecto, para marcar las lineas que van al otro. */
-  trompoDefecto?: Trompo;
+  /** Llenado: trompo por defecto y disponibles ese dia, para marcar las que van al otro. */
+  trompos?: Trompos;
   lineas: Linea[];
   motivos: Motivo[];
   editar?: boolean;
@@ -98,7 +99,7 @@ export function ListaPrograma({
           manana={manana}
           alElegir={alElegir}
           advertencia={advertencias[l.id]}
-          trompoDefecto={trompoDefecto}
+          trompos={trompos}
           primera={i === 0}
           ultima={i === lineas.length - 1}
         />
@@ -116,11 +117,11 @@ function FilaLinea({
   manana,
   alElegir,
   advertencia,
-  trompoDefecto,
+  trompos,
   primera,
   ultima,
 }: {
-  trompoDefecto?: Trompo;
+  trompos?: Trompos;
   l: Linea;
   motivos: Motivo[];
   editar: boolean;
@@ -142,8 +143,10 @@ function FilaLinea({
   const borrar = usarAccion(accionBorrarLinea, { alTerminar: () => router.refresh() });
   const cambiarTrompo = usarAccion(accionCambiarTrompo, { alTerminar: () => router.refresh() });
   // Llenado: en que trompo va y si es el otro (no el por defecto).
-  const trompo = trompoDefecto && l.seccion === "llenado" ? (l.trompo ?? trompoDefecto) : null;
-  const otroTrompo = trompo && trompo !== trompoDefecto;
+  const trompo = trompos && l.seccion === "llenado" ? trompoDe({ grupoId: null, trompo: l.trompo ?? null }, trompos) : null;
+  const otroTrompo = trompos && trompo && trompo !== defectoDelDia(trompos);
+  const alternativo = trompo === "a" ? "b" : "a";
+  const puedePasar = !!trompos?.disponibles.includes(alternativo);
 
   const completa = l.hechas >= l.cantidad;
   const incumplida = terminado && l.faltan > 0;
@@ -240,15 +243,18 @@ function FilaLinea({
           <span>
             Color: <strong>{l.grupoColor ?? "sin grupo"}</strong> · Trompo <strong>{trompo.toUpperCase()}</strong>
           </span>
-          {editar && !terminado && (
+          {editar && !terminado && puedePasar && (
             <button
               type="button"
               className="font-semibold text-violet-700 hover:underline"
               disabled={cambiarTrompo.cargando}
-              onClick={() => cambiarTrompo.enviar(datos({ id: l.id, trompo: trompo === "a" ? "b" : "a" }))}
+              onClick={() => cambiarTrompo.enviar(datos({ id: l.id, trompo: alternativo }))}
             >
-              Pasar al trompo {trompo === "a" ? "B" : "A"}
+              Pasar al trompo {alternativo.toUpperCase()}
             </button>
+          )}
+          {editar && !terminado && !puedePasar && (
+            <span className="text-slate-500">El trompo {alternativo.toUpperCase()} está fuera de servicio.</span>
           )}
           {cambiarTrompo.error && <span className="text-red-700">{cambiarTrompo.error}</span>}
         </div>

@@ -11,7 +11,15 @@ import {
   accionReabrirDia,
 } from "@/lib/acciones/programa";
 import type { Cemento, SeccionPrograma, Trompo } from "@/lib/db/schema";
-import { costoAgregar, lavadosEnOrden, lavadosPrevistos, TROMPOS, trompoDe } from "@/lib/lavados-previstos";
+import {
+  costoAgregar,
+  defectoDelDia,
+  lavadosEnOrden,
+  lavadosPrevistos,
+  TROMPOS,
+  trompoDe,
+  type Trompos,
+} from "@/lib/lavados-previstos";
 import { usarAccion } from "@/components/usar-accion";
 import { Aviso, Boton, Campo, Entrada } from "@/components/ui";
 import { SelectorProducto } from "@/components/selector-producto";
@@ -167,8 +175,13 @@ export function AgregarLinea({
   const nombreGrupo = new Map(productos.map((p) => [p.grupoColorId, p.grupoColor]));
   const grupo = elegido?.grupoColorId ?? null;
   const delDia = cargaLlenado?.[dia];
+  // Con los trompos en servicio cada dia.
+  const tromposEn = (d: string): Trompos => ({
+    defecto: trompoDefecto,
+    disponibles: cargaLlenado?.[d]?.disponibles ?? TROMPOS,
+  });
   const costo =
-    seccion === "llenado" && elegido && delDia ? costoAgregar(delDia.lineas, trompoDefecto, grupo) : null;
+    seccion === "llenado" && elegido && delDia ? costoAgregar(delDia.lineas, tromposEn(dia), grupo) : null;
   let mejor: { dia: string; trompo: Trompo; lugares: number | null } | null = null;
   if (costo && costo.costo > 0 && cargaLlenado) {
     for (let k = 1; k <= 10 && !mejor; k++) {
@@ -176,7 +189,8 @@ export function AgregarLinea({
         const c = cargaLlenado[d];
         if (!c || !c.habil || c.cerrado || (hoy && d < hoy)) continue;
         if (c.meta !== null && c.programadas + (n || 1) > c.meta) continue;
-        const x = costoAgregar(c.lineas, trompoDefecto, grupo);
+        if (!c.disponibles.length) continue;
+        const x = costoAgregar(c.lineas, tromposEn(d), grupo);
         if (x.costo === 0 && x.yaTiene) {
           mejor = { dia: d, trompo: x.trompo, lugares: c.meta === null ? null : c.meta - c.programadas };
           break;
@@ -188,7 +202,7 @@ export function AgregarLinea({
     [
       ...new Set(
         (delDia?.lineas ?? [])
-          .filter((l) => l.grupoId !== null && trompoDe(l, trompoDefecto) === t)
+          .filter((l) => l.grupoId !== null && trompoDe(l, tromposEn(dia)) === t)
           .map((l) => nombreGrupo.get(l.grupoId) ?? "otro grupo"),
       ),
     ].join(", ");
@@ -203,7 +217,7 @@ export function AgregarLinea({
         productoId,
         cantidad,
         nota,
-        trompo: trompo === trompoDefecto ? "" : trompo,
+        trompo: trompo === defectoDelDia(tromposEn(otroDia)) ? "" : trompo,
         desmoldeDia: dDesmolde,
       }),
     );
@@ -230,7 +244,7 @@ export function AgregarLinea({
         productoId,
         cantidad,
         nota,
-        trompo: costo && costo.trompo !== trompoDefecto ? costo.trompo : "",
+        trompo: costo && costo.trompo !== defectoDelDia(tromposEn(dia)) ? costo.trompo : "",
         desmoldeDia: seccion === "llenado" && conDesmolde && desmoldeDia ? desmoldeDia : "",
       }),
     );
@@ -539,7 +553,7 @@ export function AccionesDia({
             {copiar.cargando ? "Copiando…" : "Copiar"}
           </Boton>
           <p className="w-full text-xs text-slate-500">
-            Se agregan al final. No se copia lo hecho ni los motivos.
+            Se agregan al final; en el llenado se juntan con lo del mismo grupo de color. No se copia lo hecho ni los motivos.
           </p>
         </div>
       )}
@@ -719,25 +733,26 @@ type LineaColor = { id: number; grupoId: number | null; grupoColor: string | nul
 export function LavadosPrevistos({
   dia,
   lineas,
-  trompoDefecto,
+  trompos,
   editar,
 }: {
   dia: string;
   lineas: LineaColor[];
-  trompoDefecto: Trompo;
+  /** Trompo por defecto y los que andan ese dia. */
+  trompos: Trompos;
   /** Admin y dia abierto: puede ordenar. */
   editar: boolean;
 }) {
   const router = useRouter();
   const ordenar = usarAccion(accionOrdenarPorGrupo, { alTerminar: () => router.refresh() });
   if (!lineas.length) return null;
-  const p = lavadosPrevistos(lineas, trompoDefecto);
-  const enOrden = lavadosEnOrden(lineas, trompoDefecto);
+  const p = lavadosPrevistos(lineas, trompos);
+  const enOrden = lavadosEnOrden(lineas, trompos);
   // Secuencia de grupos de cada trompo, en el orden de las lineas.
   const secuencia = (t: Trompo) => {
     const r: string[] = [];
     for (const l of lineas) {
-      if (l.grupoId === null || trompoDe(l, trompoDefecto) !== t) continue;
+      if (l.grupoId === null || trompoDe(l, trompos) !== t) continue;
       const nombre = l.grupoColor ?? "?";
       if (r[r.length - 1] !== nombre) r.push(nombre);
     }

@@ -553,6 +553,15 @@ productos con grupo de color (`lib/lavados-previstos.ts`).
 - Una línea nueva cae justo después de las de su grupo en su trompo, no al
   final, para no intercalar colores.
 - En el trompo, elegir una línea del programa pone su trompo.
+- Reprogramar, copiar un día o pasar una línea de trompo también la juntan
+  con las de su grupo (se reacomoda el llenado del día). Mover con ↑ ↓ queda
+  como la forma de cambiar el orden a mano.
+- **Trompos fuera de servicio** (`trompos_fuera`: trompo, desde, hasta?,
+  motivo), en Admin › Parámetros. Cada día se calcula con los trompos que
+  andan: lo que iba al parado pasa al otro, no se ofrece pasar líneas a un
+  trompo parado y la sugerencia de día lo tiene en cuenta. Volver a servicio
+  termina el período ayer (o lo borra si no empezó). La cabecera del día en
+  Programa y la pantalla del Trompo lo muestran.
 
 ## 8. Estadísticas
 

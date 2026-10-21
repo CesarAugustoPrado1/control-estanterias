@@ -11,6 +11,7 @@ import {
   advertenciasDesmolde,
   cargaDesmolde,
   cargaLlenado,
+  leerTromposFuera,
   disponibilidadDesmolde,
   listarMotivosIncumplimiento,
   metasSugeridas,
@@ -26,6 +27,7 @@ import { tonos } from "@/lib/escala";
 import { Pantalla, Seccion } from "@/components/ui";
 import { AccionesDia, AgregarLinea, LavadosPrevistos, MetaSeccion } from "./acciones";
 import { trompoPorDefecto } from "@/lib/acciones/motor";
+import { disponiblesEn } from "@/lib/lavados-previstos";
 
 export const metadata = { title: "Programa · Control de Estanterías" };
 export const dynamic = "force-dynamic";
@@ -149,7 +151,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   // Dias cercanos donde buscar lugar para un llenado (lavados del trompo).
   const ventanaDesde = [h, sumarDias(dia, -10)].sort()[1];
   const ventanaHasta = sumarDias(dia, 10);
-  const [programa, motivos, productos, historial, sugeridas, disponible, carga, lavados, cal, llenadosCerca, trompoDefecto] = await Promise.all([
+  const [programa, motivos, productos, historial, sugeridas, disponible, carga, lavados, cal, llenadosCerca, trompoDefecto, fueraDelDia] = await Promise.all([
     leerDia(dia),
     listarMotivosIncumplimiento(),
     productosParaProgramar(),
@@ -162,7 +164,10 @@ export default async function Programa({ searchParams }: { searchParams: Promise
     leerCalendario(dia, dia),
     cargaLlenado(ventanaDesde < dia ? ventanaDesde : dia, ventanaHasta),
     trompoPorDefecto(),
+    leerTromposFuera(dia, dia),
   ]);
+  // Trompos que andan ese dia: los calculos de lavados se hacen con esos.
+  const trompos = { defecto: trompoDefecto, disponibles: disponiblesEn(dia, fueraDelDia) };
   const motivoDelDia = motivoDia(dia, cal);
   const habilDelDia = esHabil(dia, cal);
   // Tiempo de desmolde: avisos (no bloquean) en las lineas de desmolde, y
@@ -226,6 +231,11 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                 {motivoDelDia}
               </div>
             )}
+            {fueraDelDia.map((f) => (
+              <div key={f.id} className="mt-0.5 truncate text-xs font-semibold text-red-700">
+                Trompo {f.trompo.toUpperCase()} fuera de servicio{f.motivo ? ` · ${f.motivo}` : ""}
+              </div>
+            ))}
           </div>
           <Link href={url(sumarDias(dia, 1))} aria-label="Día siguiente" className={FLECHA}>
             ›
@@ -364,7 +374,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                   grupoColor: l.grupoColor,
                   trompo: l.trompo,
                 }))}
-                trompoDefecto={trompoDefecto}
+                trompos={trompos}
                 editar={editar && !cerrado}
               />
             )}
@@ -393,7 +403,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
               manana={sumarDias(dia, 1)}
               advertencias={seccion === "desmolde" && !cerrado ? advertencias : {}}
               vacio={seccion === "llenado" ? "Sin llenados programados." : "Sin desmoldes programados."}
-              trompoDefecto={seccion === "llenado" ? trompoDefecto : undefined}
+              trompos={seccion === "llenado" ? trompos : undefined}
             />
             {editar && !cerrado && (
               <AgregarLinea
