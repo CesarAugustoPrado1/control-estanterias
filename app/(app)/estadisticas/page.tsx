@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { requerirRol } from "@/lib/auth";
 import {
   costoDeReasignaciones,
@@ -24,9 +25,9 @@ import { cantidadSalida, ETIQUETA_MOTIVO_FRAGUADO, QUE_MIDE_LA_DURACION } from "
 import { numero, porcentaje, soloFecha } from "@/lib/formato";
 import { atajosComunes, leerPeriodo } from "@/lib/periodo";
 import type { MotivoFraguado, TipoMovimiento } from "@/lib/db/schema";
-import { SelectorPeriodo } from "@/components/plegable";
+import { Plegable, SelectorPeriodo } from "@/components/plegable";
 import { secuencia, type Tono } from "@/lib/escala";
-import { Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
+import { Pantalla, Tarjeta, Vacio } from "@/components/ui";
 
 export const metadata = { title: "Estadísticas · Control de Estanterías" };
 export const dynamic = "force-dynamic";
@@ -110,7 +111,17 @@ function SeccionLavados({
 
   return (
     <>
-      <Seccion tono={tonoResumen} titulo="Resumen de lavados">
+      <Plegable
+        tono={tonoResumen}
+        titulo="Resumen de lavados"
+        resumen={
+          <>
+            {numero(total)} de más · mínimo {numero(minimo)}
+            {evitables > 0 && <strong className="text-amber-700"> · {numero(evitables)} por encima</strong>}
+            {sinCargar > 0 && <span className="text-amber-700"> · {numero(sinCargar)} sin cargar</span>}
+          </>
+        }
+      >
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Tarjeta>
             <div className="text-sm text-slate-600">Lavados de más</div>
@@ -142,14 +153,19 @@ function SeccionLavados({
           </Tarjeta>
         </div>
         {sinGrupo > 0 && (
-          <p className="mt-3 text-sm text-slate-600">
+          <p className="text-sm text-slate-600">
             {numero(sinGrupo)} maquinada{sinGrupo === 1 ? "" : "s"} de productos sin grupo de color: no entran en el
             mínimo. Se asigna en Admin › Grupos de color.
           </p>
         )}
-      </Seccion>
+      </Plegable>
 
-      <Seccion tono={tonoDias} titulo="Lavados por día" cantidad={dias.length}>
+      <Plegable
+        tono={tonoDias}
+        titulo="Lavados por día"
+        insignia={<Cantidad n={dias.length} />}
+        resumen={dias.length ? `${dias.length} ${dias.length === 1 ? "día" : "días"} con llenados o lavados` : "Sin datos en este período"}
+      >
         {dias.length === 0 ? (
           <Vacio>Sin llenados ni lavados cargados en este período.</Vacio>
         ) : (
@@ -198,10 +214,32 @@ function SeccionLavados({
             </table>
           </Tarjeta>
         )}
-      </Seccion>
+      </Plegable>
     </>
   );
 }
+
+/** Plegada, una tabla de rotura dice cuantas filas tiene y cual es la peor. */
+function resumenRotura(filas: FilaRotura[]): ReactNode {
+  if (!filas.length) return "Sin datos en este período";
+  const peor = filas
+    .filter((f) => f.pct !== null)
+    .reduce<FilaRotura | null>((a, f) => (!a || Number(f.pct) > Number(a.pct) ? f : a), null);
+  return (
+    <>
+      {filas.length} {filas.length === 1 ? "fila" : "filas"}
+      {peor && (
+        <>
+          {" · "}la peor: {peor.clave ?? "—"}{" "}
+          <strong className={colorRotura(Number(peor.pct))}>{porcentaje(Number(peor.pct), 2)}</strong>
+        </>
+      )}
+    </>
+  );
+}
+
+/** El contador al lado del titulo, como el que tenian las secciones. */
+const Cantidad = ({ n }: { n: number }) => <span className="cifra text-sm font-semibold text-slate-500">{n}</span>;
 
 export default async function Estadisticas({
   searchParams,
@@ -264,6 +302,10 @@ export default async function Estadisticas({
   const perdidoPorHorno = fraguado.find((f) => f.motivo === "horno_lleno");
   const pctGeneral = general?.pct == null ? null : Number(general.pct);
   const rotos = general?.tandas ? general.esperados - general.reales : 0;
+  const etapaMasLarga = etapas.reduce<(typeof etapas)[number] | null>(
+    (a, e) => (!a || Number(e.prom) > Number(a.prom) ? e : a),
+    null,
+  );
 
   // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
   const tono = secuencia(17);
@@ -272,7 +314,16 @@ export default async function Estadisticas({
     <Pantalla titulo="Estadísticas">
       <SelectorPeriodo ruta="/estadisticas" periodo={periodo} eligiendo={eligiendo} tono={tono()} />
 
-      <Seccion tono={tono()} titulo="Resumen">
+      <Plegable
+        tono={tono()}
+        titulo="Resumen"
+        resumen={
+          <>
+            Rotura <strong className={colorRotura(pctGeneral)}>{porcentaje(pctGeneral, 2)}</strong> · producción{" "}
+            <strong className="text-slate-900">{numero(totalM2, 1)} m²</strong>
+          </>
+        }
+      >
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Tarjeta
             className={`col-span-2 lg:col-span-1 ${pctGeneral !== null && pctGeneral >= 4 ? "ring-red-300" : ""}`}
@@ -322,7 +373,7 @@ export default async function Estadisticas({
             </div>
           </Tarjeta>
         </div>
-      </Seccion>
+      </Plegable>
 
       <h2 className="mb-1 mt-8 text-xl font-bold text-slate-900">Rotura</h2>
       <p className="mb-4 text-sm text-slate-600">
@@ -330,39 +381,42 @@ export default async function Estadisticas({
         empaquetado, igual que la pantalla de Producción.
       </p>
 
-      <Seccion tono={tono()} titulo="Por producto">
-        <TablaRotura filas={porProducto} encabezado="Producto" />
-      </Seccion>
+      <Plegable tono={tono()} titulo="Por producto" resumen={resumenRotura(porProducto)}>
+          <TablaRotura filas={porProducto} encabezado="Producto" />
+        </Plegable>
 
       <div className="grid gap-x-6 lg:grid-cols-2">
-        <Seccion tono={tono()} titulo="Por maquinista">
+        <Plegable tono={tono()} titulo="Por maquinista" resumen={resumenRotura(porMaquinista)}>
           <TablaRotura filas={porMaquinista} encabezado="Maquinista" />
-        </Seccion>
-        <Seccion tono={tono()}
-          titulo="Por desmoldador"
-          ayuda="El grueso de la rotura pasa en el desmolde. El empaque no la genera: solo la evidencia."
-        >
+        </Plegable>
+        <Plegable tono={tono()} titulo="Por desmoldador" ayuda="El grueso de la rotura pasa en el desmolde. El empaque no la genera: solo la evidencia." resumen={resumenRotura(porDesmoldador)}>
           <TablaRotura filas={porDesmoldador} encabezado="Desmoldador" />
-        </Seccion>
-        <Seccion tono={tono()} titulo="Por trompo">
+        </Plegable>
+        <Plegable tono={tono()} titulo="Por trompo" resumen={resumenRotura(porTrompo)}>
           <TablaRotura filas={porTrompo} encabezado="Trompo" />
-        </Seccion>
-        <Seccion tono={tono()} titulo="Con horno y sin horno">
+        </Plegable>
+        <Plegable tono={tono()} titulo="Con horno y sin horno" resumen={resumenRotura(segunHorno)}>
           <TablaRotura filas={segunHorno} encabezado="Camino" />
-        </Seccion>
-        <Seccion tono={tono()} titulo="Por cemento">
+        </Plegable>
+        <Plegable tono={tono()} titulo="Por cemento" resumen={resumenRotura(porCemento)}>
           <TablaRotura filas={porCemento} encabezado="Cemento" />
-        </Seccion>
-        <Seccion tono={tono()} titulo="Por árido">
+        </Plegable>
+        <Plegable tono={tono()} titulo="Por árido" resumen={resumenRotura(porArido)}>
           <TablaRotura filas={porArido} encabezado="Árido" />
-        </Seccion>
+        </Plegable>
       </div>
 
       <h2 className="mb-4 mt-8 text-xl font-bold text-slate-900">Producción y tiempos</h2>
 
-      <Seccion tono={tono()}
+      <Plegable
+        tono={tono()}
         titulo="Producción diaria"
         ayuda="Lo empaquetado cada día del período, por fecha de empaquetado."
+        resumen={
+          diaria.length
+            ? `${diaria.length} ${diaria.length === 1 ? "día" : "días"} · ${numero(totalM2, 1)} m²`
+            : "Sin maquinadas empaquetadas"
+        }
       >
         {diaria.length === 0 ? (
           <Vacio>Sin maquinadas empaquetadas en este período.</Vacio>
@@ -387,11 +441,17 @@ export default async function Estadisticas({
             </ul>
           </Tarjeta>
         )}
-      </Seccion>
+      </Plegable>
 
-      <Seccion tono={tono()}
+      <Plegable
+        tono={tono()}
         titulo="Tiempo por etapa"
         ayuda="Cada movimiento mide cuánto duró el estado anterior. Donde el promedio es alto es donde se hace la cola."
+        resumen={
+          etapaMasLarga
+            ? `La más larga: ${QUE_MIDE_LA_DURACION[etapaMasLarga.tipo as TipoMovimiento] ?? etapaMasLarga.tipo} · ${etapaMasLarga.prom} h`
+            : "Sin movimientos en este período"
+        }
       >
         {etapas.length === 0 ? (
           <Vacio>Sin movimientos en este período.</Vacio>
@@ -423,10 +483,14 @@ export default async function Estadisticas({
             </table>
           </Tarjeta>
         )}
-      </Seccion>
+      </Plegable>
 
       {conDevolucion && sinDevolucion && (
-        <Seccion tono={tono()} titulo="Cuánto hay que hornear de verdad">
+        <Plegable
+          tono={tono()}
+          titulo="Cuánto hay que hornear de verdad"
+          resumen={`Sin devolución ${sinDevolucion.prom} h · con devolución ${conDevolucion.prom} h`}
+        >
           <Tarjeta>
             <p className="text-sm text-slate-700">
               Las maquinadas que <strong>no</strong> necesitaron devolución estuvieron{" "}
@@ -439,10 +503,15 @@ export default async function Estadisticas({
               debajo de ese número, la maquinada vuelve.
             </p>
           </Tarjeta>
-        </Seccion>
+        </Plegable>
       )}
 
-      <Seccion tono={tono()} titulo="Tiempo de horno por producto">
+      <Plegable
+        tono={tono()}
+        titulo="Tiempo de horno por producto"
+        insignia={horno.length ? <Cantidad n={horno.length} /> : undefined}
+        resumen={horno.length ? `${horno.length} ${horno.length === 1 ? "producto" : "productos"}` : "Sin ciclos de horno en este período"}
+      >
         {horno.length === 0 ? (
           <Vacio>Sin ciclos de horno en este período.</Vacio>
         ) : (
@@ -471,11 +540,19 @@ export default async function Estadisticas({
             </table>
           </Tarjeta>
         )}
-      </Seccion>
+      </Plegable>
 
-      <Seccion tono={tono()}
+      <Plegable
+        tono={tono()}
         titulo="Fraguado natural"
         ayuda="Por horno lleno es capacidad perdida; por clima es ahorro. Son opuestos y por eso van separados."
+        resumen={
+          <>
+            {ETIQUETA_MOTIVO_FRAGUADO.horno_lleno}{" "}
+            <strong className="text-amber-700">{numero(Number(perdidoPorHorno?.m2 ?? 0), 1)} m²</strong> ·{" "}
+            {ETIQUETA_MOTIVO_FRAGUADO.clima} {numero(Number(fraguado.find((f) => f.motivo === "clima")?.m2 ?? 0), 1)} m²
+          </>
+        }
       >
         <div className="grid gap-3 sm:grid-cols-3">
           {(["horno_lleno", "clima", "otro"] as MotivoFraguado[]).map((m) => {
@@ -491,7 +568,7 @@ export default async function Estadisticas({
             );
           })}
         </div>
-      </Seccion>
+      </Plegable>
 
       <h2 className="mb-1 mt-8 text-xl font-bold text-slate-900">Lavados del trompo</h2>
       <p className="mb-4 text-sm text-slate-600">
@@ -502,9 +579,15 @@ export default async function Estadisticas({
 
       <SeccionLavados dias={lavados} tonoResumen={tono()} tonoDias={tono()} />
 
-      <Seccion tono={tono()}
+      <Plegable
+        tono={tono()}
         titulo="Costo de las reasignaciones"
-        cantidad={reasignaciones.length}
+        insignia={<Cantidad n={reasignaciones.length} />}
+        resumen={
+          reasignaciones.length
+            ? `${reasignaciones.length} ${reasignaciones.length === 1 ? "cambio" : "cambios"} de familia o cemento`
+            : "No hubo reasignaciones"
+        }
         ayuda={`Cuando una estantería cambia de familia o de cemento, las primeras maquinadas salen manchadas. Acá se mide cuánto: la rotura de las primeras ${TANDAS_DESPUES_DE_REASIGNAR} maquinadas contadas después del cambio contra la habitual de ese modelo, familia y cemento. No depende del período elegido arriba: mira siempre las primeras maquinadas después de cada cambio.`}
       >
         {reasignaciones.length === 0 ? (
@@ -557,7 +640,7 @@ export default async function Estadisticas({
             </table>
           </Tarjeta>
         )}
-      </Seccion>
+      </Plegable>
     </Pantalla>
   );
 }
