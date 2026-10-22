@@ -438,7 +438,8 @@ incluido.
 ## 7.9 Programa de producción
 
 La hoja que se escribía a mano, en la app (`/programa`). **La arma solo el admin**;
-oficina y auditoría la ven.
+oficina, auditoría y los puestos (trompo, horno, desmolde, empaque) la ven, sin
+poder cambiarla: las acciones del programa exigen admin por su cuenta.
 Cada día tiene dos secciones, como el papel: **llenado (trompo)** y **desmolde y
 empaque**. Cada línea es *N maquinadas de un producto* con una nota libre
 (cliente, pedido, "11/15", STR, "a confirmar").
@@ -481,8 +482,16 @@ los lavados **de más** -cambios de cemento, etc.-, el operario carga en la
 pantalla del Trompo cuántas veces se lavó **sin contar el último**. Es un número
 por día: se guarda el valor, no se suma, así que guardar dos veces no duplica.
 Sin cargar (null) no es lo mismo que cero. El operario carga hoy o ayer; el
-admin, cualquier día. Se ve en Producción (total del período) y en el estado
-del día del Programa.
+admin, cualquier día. Se ve en Producción (total del período), en el estado
+del día del Programa y en Estadísticas.
+
+En **Estadísticas › Lavados del trompo**, por el mismo período que el resto, cada
+día compara lo cargado con el **mínimo según lo llenado**: por trompo, sus grupos
+de color distintos menos uno (la regla de §7.15, con lo hecho y no con lo
+programado; usa el grupo que el producto tiene hoy, y lo sin grupo no entra).
+Cuenta por fecha de llenado, como Producción. Lo que pasa del mínimo se suma
+solo en los días cargados, y aparte se cuentan los días con llenados y sin
+lavados cargados: un día sin cargar no es un día sin lavados.
 
 ## 7.11 Tablero por modelo
 

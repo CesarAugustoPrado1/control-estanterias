@@ -141,8 +141,9 @@ function Cumplimiento({
 }
 
 export default async function Programa({ searchParams }: { searchParams: Promise<{ dia?: string }> }) {
-  const sesion = await requerirRol("oficina", "auditor");
-  // Solo el admin arma el programa; oficina y auditoria lo miran.
+  const sesion = await requerirRol("oficina", "auditor", "trompo", "horno", "desmolde", "empaque");
+  // Solo el admin arma el programa; oficina, auditoria y los puestos lo miran.
+  // Las acciones vuelven a exigir admin por su cuenta (lib/acciones/programa.ts).
   const editar = sesion.roles.includes("admin");
   const p = await searchParams;
   const h = hoy();
