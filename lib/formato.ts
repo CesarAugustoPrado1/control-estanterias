@@ -36,7 +36,9 @@ export function fechaCompleta(d: Date | string | null | undefined): string {
 
 export function soloFecha(d: Date | string | null | undefined): string {
   if (!d) return "—";
-  const f = typeof d === "string" ? new Date(d) : d;
+  // Un "AAAA-MM-DD" suelto es un dia de calendario: new Date() lo toma como
+  // medianoche UTC, que en Argentina es el dia anterior. Se lee al mediodia.
+  const f = typeof d === "string" ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T12:00:00Z` : d) : d;
   return new Intl.DateTimeFormat("es-AR", {
     timeZone: TZ,
     day: "2-digit",

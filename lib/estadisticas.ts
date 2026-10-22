@@ -411,3 +411,87 @@ export async function ocupacionHorno() {
   `);
   return Number((r.rows[0] as { n: number }).n);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Lavados del trompo                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Lavados del trompo dia por dia: lo que cargo el operario contra el minimo
+ * que hacia falta segun lo que se lleno de verdad.
+ *
+ * Los lavados cargados son los DE MAS (sin el de fin de jornada), un numero
+ * por dia; null es "no se cargo", que no es lo mismo que cero.
+ *
+ * El minimo sale de las maquinadas llenadas ese dia (por fecha de llenado,
+ * como Produccion): por trompo, sus grupos de color distintos menos uno. Es la
+ * misma regla que los lavados previstos del programa (lib/lavados-previstos.ts),
+ * pero con lo hecho y no con lo pedido. Usa el grupo que el producto tiene
+ * hoy. Las maquinadas sin grupo no entran: se informan aparte.
+ *
+ * Sale un dia si se lleno algo o si se cargaron lavados.
+ */
+export async function lavadosPorDia(p: Periodo) {
+  const r = await db.execute(sql`
+    with llenado as (
+      select (t.creada_en at time zone ${TZ})::date as dia,
+             t.trompo,
+             pr.grupo_color_id
+      from estanterias.tandas t
+      join estanterias.productos pr on pr.id = t.producto_id
+      where ${enPeriodo(sql`t.creada_en`, p)}
+    ),
+    por_trompo as (
+      select dia, trompo, count(distinct grupo_color_id)::int as grupos
+      from llenado
+      group by dia, trompo
+    ),
+    minimo as (
+      select dia, sum(greatest(grupos - 1, 0))::int as minimo
+      from por_trompo
+      group by dia
+    ),
+    dias as (
+      select dia,
+             count(*)::int                                          as maquinadas,
+             (count(*) filter (where grupo_color_id is null))::int  as sin_grupo,
+             count(distinct trompo)::int                            as trompos
+      from llenado
+      group by dia
+    ),
+    cargados as (
+      select dia, cantidad
+      from estanterias.lavados_trompo
+      where dia between ${p.desde}::date and ${p.hasta}::date
+    )
+    select to_char(coalesce(d.dia, c.dia), 'YYYY-MM-DD') as dia,
+           c.cantidad                                     as cargados,
+           coalesce(d.maquinadas, 0)                      as maquinadas,
+           coalesce(d.sin_grupo, 0)                       as sin_grupo,
+           coalesce(d.trompos, 0)                         as trompos,
+           coalesce(m.minimo, 0)                          as minimo
+    from dias d
+    full join cargados c on c.dia = d.dia
+    left join minimo m on m.dia = coalesce(d.dia, c.dia)
+    order by 1
+  `);
+  return (
+    r.rows as {
+      dia: string;
+      cargados: number | null;
+      maquinadas: number;
+      sin_grupo: number;
+      trompos: number;
+      minimo: number;
+    }[]
+  ).map((f) => ({
+    ...f,
+    cargados: f.cargados === null ? null : Number(f.cargados),
+    maquinadas: Number(f.maquinadas),
+    sin_grupo: Number(f.sin_grupo),
+    trompos: Number(f.trompos),
+    minimo: Number(f.minimo),
+  }));
+}
+
+export type DiaLavados = Awaited<ReturnType<typeof lavadosPorDia>>[number];

@@ -3,6 +3,7 @@ import {
   costoDeReasignaciones,
   efectoDeLaDevolucion,
   fraguadoNaturalPorMotivo,
+  lavadosPorDia,
   moldesSinLlenar,
   produccionDiaria,
   roturaGeneral,
@@ -16,6 +17,7 @@ import {
   TANDAS_DESPUES_DE_REASIGNAR,
   tiempoDeHorno,
   tiemposPorEtapa,
+  type DiaLavados,
   type FilaRotura,
 } from "@/lib/estadisticas";
 import { cantidadSalida, ETIQUETA_MOTIVO_FRAGUADO, QUE_MIDE_LA_DURACION } from "@/lib/estados";
@@ -23,7 +25,7 @@ import { numero, porcentaje, soloFecha } from "@/lib/formato";
 import { atajosComunes, leerPeriodo } from "@/lib/periodo";
 import type { MotivoFraguado, TipoMovimiento } from "@/lib/db/schema";
 import { SelectorPeriodo } from "@/components/plegable";
-import { secuencia } from "@/lib/escala";
+import { secuencia, type Tono } from "@/lib/escala";
 import { Pantalla, Seccion, Tarjeta, Vacio } from "@/components/ui";
 
 export const metadata = { title: "Estadísticas · Control de Estanterías" };
@@ -85,6 +87,122 @@ function TablaRotura({ filas, encabezado }: { filas: FilaRotura[]; encabezado: s
   );
 }
 
+/**
+ * Resumen y detalle por dia de los lavados del trompo. Lo "evitable" se mide
+ * solo en los dias cargados: un dia sin cargar no es un dia sin lavados.
+ */
+function SeccionLavados({
+  dias,
+  tonoResumen,
+  tonoDias,
+}: {
+  dias: DiaLavados[];
+  tonoResumen?: Tono;
+  tonoDias?: Tono;
+}) {
+  const cargados = dias.filter((d) => d.cargados !== null);
+  const total = cargados.reduce((a, d) => a + d.cargados!, 0);
+  const minimo = cargados.reduce((a, d) => a + d.minimo, 0);
+  const evitables = cargados.reduce((a, d) => a + Math.max(0, d.cargados! - d.minimo), 0);
+  const sinCargar = dias.filter((d) => d.cargados === null && d.maquinadas > 0).length;
+  const sinGrupo = dias.reduce((a, d) => a + d.sin_grupo, 0);
+  const promedio = cargados.length ? total / cargados.length : null;
+
+  return (
+    <>
+      <Seccion tono={tonoResumen} titulo="Resumen de lavados">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Tarjeta>
+            <div className="text-sm text-slate-600">Lavados de más</div>
+            <div className="cifra mt-1 text-2xl font-bold">{numero(total)}</div>
+            <div className="text-xs text-slate-500">
+              {cargados.length
+                ? `${numero(cargados.length)} ${cargados.length === 1 ? "día cargado" : "días cargados"} · ${numero(promedio!, 1)} por día`
+                : "ningún día cargado"}
+            </div>
+          </Tarjeta>
+          <Tarjeta>
+            <div className="text-sm text-slate-600">Mínimo según lo llenado</div>
+            <div className="cifra mt-1 text-2xl font-bold">{numero(minimo)}</div>
+            <div className="text-xs text-slate-500">en los días cargados</div>
+          </Tarjeta>
+          <Tarjeta className={evitables > 0 ? "ring-amber-300" : ""}>
+            <div className="text-sm text-slate-600">Por encima del mínimo</div>
+            <div className={`cifra mt-1 text-2xl font-bold ${evitables > 0 ? "text-amber-700" : ""}`}>
+              {numero(evitables)}
+            </div>
+            <div className="text-xs text-slate-500">más de lo que pedían los cambios de color</div>
+          </Tarjeta>
+          <Tarjeta className={sinCargar > 0 ? "ring-amber-300" : ""}>
+            <div className="text-sm text-slate-600">Días sin cargar</div>
+            <div className={`cifra mt-1 text-2xl font-bold ${sinCargar > 0 ? "text-amber-700" : ""}`}>
+              {numero(sinCargar)}
+            </div>
+            <div className="text-xs text-slate-500">con llenados y sin lavados cargados</div>
+          </Tarjeta>
+        </div>
+        {sinGrupo > 0 && (
+          <p className="mt-3 text-sm text-slate-600">
+            {numero(sinGrupo)} maquinada{sinGrupo === 1 ? "" : "s"} de productos sin grupo de color: no entran en el
+            mínimo. Se asigna en Admin › Grupos de color.
+          </p>
+        )}
+      </Seccion>
+
+      <Seccion tono={tonoDias} titulo="Lavados por día" cantidad={dias.length}>
+        {dias.length === 0 ? (
+          <Vacio>Sin llenados ni lavados cargados en este período.</Vacio>
+        ) : (
+          <Tarjeta className="overflow-x-auto p-0">
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-200 text-left text-slate-600">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Día</th>
+                  <th className="px-4 py-2 text-right font-medium">Maquinadas</th>
+                  <th className="px-4 py-2 text-right font-medium">Mínimo</th>
+                  <th className="px-4 py-2 text-right font-medium">Cargados</th>
+                  <th className="px-4 py-2 text-right font-medium">Diferencia</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {dias.map((d) => {
+                  const dif = d.cargados === null ? null : d.cargados - d.minimo;
+                  return (
+                    <tr key={d.dia}>
+                      <td className="px-4 py-2 font-medium text-slate-800">{soloFecha(d.dia)}</td>
+                      <td className="cifra px-4 py-2 text-right text-slate-600">
+                        {numero(d.maquinadas)}
+                        {d.sin_grupo > 0 && (
+                          <span className="block text-xs text-slate-400">{numero(d.sin_grupo)} sin grupo</span>
+                        )}
+                      </td>
+                      <td className="cifra px-4 py-2 text-right">{numero(d.minimo)}</td>
+                      <td className="cifra px-4 py-2 text-right font-semibold">
+                        {d.cargados === null ? (
+                          <span className="text-xs font-normal text-amber-700">sin cargar</span>
+                        ) : (
+                          numero(d.cargados)
+                        )}
+                      </td>
+                      <td
+                        className={`cifra px-4 py-2 text-right font-bold ${
+                          dif === null ? "text-slate-400" : dif > 0 ? "text-amber-700" : "text-emerald-700"
+                        }`}
+                      >
+                        {dif === null ? "—" : dif > 0 ? `+${numero(dif)}` : numero(dif)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Tarjeta>
+        )}
+      </Seccion>
+    </>
+  );
+}
+
 export default async function Estadisticas({
   searchParams,
 }: {
@@ -113,6 +231,7 @@ export default async function Estadisticas({
     porCemento,
     porArido,
     reasignaciones,
+    lavados,
   ] = await Promise.all([
     roturaGeneral(periodo),
     tiemposPorEtapa(periodo),
@@ -129,6 +248,7 @@ export default async function Estadisticas({
     roturaPorCemento(periodo),
     roturaPorArido(periodo),
     costoDeReasignaciones(),
+    lavadosPorDia(periodo),
   ]);
 
   const conDevolucion = devolucion.find((d) => d.volvio);
@@ -146,7 +266,7 @@ export default async function Estadisticas({
   const rotos = general?.tandas ? general.esperados - general.reales : 0;
 
   // Colores de las secciones, de frio (arriba) a calido (abajo): lib/escala.ts.
-  const tono = secuencia(15);
+  const tono = secuencia(17);
 
   return (
     <Pantalla titulo="Estadísticas">
@@ -372,6 +492,15 @@ export default async function Estadisticas({
           })}
         </div>
       </Seccion>
+
+      <h2 className="mb-1 mt-8 text-xl font-bold text-slate-900">Lavados del trompo</h2>
+      <p className="mb-4 text-sm text-slate-600">
+        Los lavados de más que carga el operario (sin el de fin del día) contra el mínimo que hacía falta según lo
+        que se llenó: por trompo, un lavado por cada cambio de grupo de color. Cuenta por fecha de llenado, igual
+        que la pantalla de Producción.
+      </p>
+
+      <SeccionLavados dias={lavados} tonoResumen={tono()} tonoDias={tono()} />
 
       <Seccion tono={tono()}
         titulo="Costo de las reasignaciones"
