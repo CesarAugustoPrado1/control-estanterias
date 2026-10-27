@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Estado } from "@/lib/db/schema";
 import { COLOR_ESTADO, TITULO_ESTADO } from "@/lib/estados";
-import { haceCuanto, numero } from "@/lib/formato";
+import { haceCuanto, maquinadas, numero } from "@/lib/formato";
 import { Muestra } from "@/components/selector-producto";
 import { NombreTanda, Placa } from "@/components/tanda";
 import { MarcaRehornear, Vacio } from "@/components/ui";
@@ -33,9 +33,9 @@ export function agruparPorProducto(filas: FilaCircuito[]): Producto[] {
   for (const f of filas) {
     let p = productos.get(f.producto);
     if (!p) productos.set(f.producto, (p = { nombre: f.producto, familia: f.familia, total: 0, moldes: 0, por: vacio() }));
-    p.total += f.n;
+    p.total += Number(f.n);
     p.moldes += f.moldes;
-    p.por[f.estado] += f.n;
+    p.por[f.estado] += Number(f.n);
   }
   return [...productos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
@@ -48,6 +48,8 @@ type TandaDetalle = {
   tarjetaLetra: string | null;
   estanteriaEtiqueta: string | null;
   moldesLlenados: number;
+  /** 0,5 cada lado de un producto en par. */
+  peso: string;
   estadoDesde: Date | string;
   rehornear: boolean;
 };
@@ -68,7 +70,7 @@ function Cajas({ producto, por, abierta }: { producto: string; por: Conteo; abie
         const c = COLOR_ESTADO[e];
         const contenido = (
           <>
-            <div className="cifra text-2xl font-bold text-slate-900">{n}</div>
+            <div className="cifra text-2xl font-bold text-slate-900">{maquinadas(n)}</div>
             <div className="text-[11px] font-medium leading-tight text-slate-600">{TITULO_ESTADO[e]}</div>
           </>
         );
@@ -104,7 +106,8 @@ function Detalle({ estado, tandas }: { estado: Estado; tandas: TandaDetalle[] })
     <div className="mt-3 rounded-xl bg-slate-50 p-2 ring-1 ring-slate-200">
       <div className="flex items-center justify-between px-1 pb-2 text-sm">
         <span className="font-semibold text-slate-800">
-          {TITULO_ESTADO[estado]} · {tandas.length} maquinada{tandas.length === 1 ? "" : "s"}
+          {TITULO_ESTADO[estado]} · {maquinadas(tandas.reduce((a, t) => a + Number(t.peso), 0))} maquinada
+          {tandas.reduce((a, t) => a + Number(t.peso), 0) === 1 ? "" : "s"}
         </span>
         <Link href="/tablero?vista=modelo" scroll={false} className="font-semibold text-blue-700 hover:underline">
           Cerrar
@@ -165,7 +168,7 @@ export function TableroPorModelo({
                 <span className="text-lg font-semibold leading-tight text-slate-900">{p.nombre}</span>
               </div>
               <div className="shrink-0 text-right">
-                <div className="cifra text-3xl font-bold leading-none text-slate-900">{p.total}</div>
+                <div className="cifra text-3xl font-bold leading-none text-slate-900">{maquinadas(p.total)}</div>
                 <div className="cifra mt-1 text-xs text-slate-500">
                   maquinada{p.total === 1 ? "" : "s"} · {numero(p.moldes)} moldes
                 </div>

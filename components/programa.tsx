@@ -1,5 +1,6 @@
 "use client";
 
+import { maquinadas } from "@/lib/formato";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
@@ -205,7 +206,7 @@ function FilaLinea({
         <span
           className={`cifra shrink-0 font-bold ${completa ? "text-emerald-700" : incumplida ? "text-red-700" : "text-slate-900"}`}
         >
-          {l.hechas}
+          {maquinadas(l.hechas)}
           <span className="text-sm font-medium text-slate-400">/{l.cantidad}</span>
         </span>
         {!alElegir && (
@@ -229,8 +230,8 @@ function FilaLinea({
         {completa
           ? "Cumplida"
           : incumplida
-            ? `Faltó ${l.faltan}`
-            : `Falta${l.faltan === 1 ? "" : "n"} ${l.faltan}`}
+            ? `Faltó ${maquinadas(l.faltan)}`
+            : `Falta${l.faltan <= 1 ? "" : "n"} ${maquinadas(l.faltan)}`}
         {elige && (
           <span className="font-semibold text-blue-700"> · tocá el renglón para cargar este producto</span>
         )}
@@ -398,7 +399,7 @@ function FormMotivo({ l, motivos, alTerminar }: { l: Linea; motivos: Motivo[]; a
   const a = usarAccion(accionInformarMotivo, { alTerminar });
   return (
     <div className="space-y-2 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
-      <Campo etiqueta={`¿Por qué no se hicieron las ${l.faltan} que faltan?`}>
+      <Campo etiqueta={`¿Por qué no se hicieron las ${maquinadas(l.faltan)} que faltan?`}>
         <Selector value={motivoId} onChange={(e) => setMotivoId(e.target.value)}>
           <option value="">Elegí el motivo…</option>
           {motivos.map((m) => (

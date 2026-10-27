@@ -123,7 +123,7 @@ export async function efectoDeLaDevolucion(p: Periodo) {
  */
 const roturaPor = (campo: SQL, p: Periodo) => sql`
   select ${campo}                                       as clave,
-         count(*)::int                                  as tandas,
+         sum(peso)::float8                              as tandas,
          -- Sin floor(): en Postgres la division entre enteros ya trunca, y
          -- floor() devuelve double precision, que despues rompe round(x, 2)
          -- porque no existe round(double precision, integer).
@@ -320,7 +320,7 @@ export async function costoDeReasignaciones() {
 export async function fraguadoNaturalPorMotivo(p: Periodo) {
   const r = await db.execute(sql`
     select mv.motivo_fraguado                          as motivo,
-           count(*)::int                               as tandas,
+           sum(t.peso)::float8                         as tandas,
            round(sum(
              (t.moldes_llenados * t.piezas_por_molde / t.piezas_por_paquete)
              * coalesce(t.m2_por_paquete, 0)
@@ -343,7 +343,7 @@ export async function fraguadoNaturalPorMotivo(p: Periodo) {
  */
 export async function moldesSinLlenar(p: Periodo) {
   const r = await db.execute(sql`
-    select count(*)::int                                          as tandas,
+    select coalesce(sum(peso), 0)::float8                          as tandas,
            sum(coalesce(moldes_nominal, moldes_llenados))::int     as nominal,
            sum(moldes_llenados)::int                               as llenados,
            sum(coalesce(moldes_nominal, moldes_llenados) - moldes_llenados)::int as faltantes,
@@ -377,7 +377,7 @@ export async function moldesSinLlenar(p: Periodo) {
 export async function produccionDiaria(p: Periodo) {
   const r = await db.execute(sql`
     select to_char((e.empaquetada_en at time zone ${TZ})::date, 'YYYY-MM-DD') as dia,
-           count(*)::int                                   as tandas,
+           sum(peso)::float8                               as tandas,
            sum(paquetes)::int                              as paquetes,
            -- Por unidad: sumar paquetes con unidades sueltas no dice nada.
            (sum(paquetes) filter (where unidad = 'paquete'))::int as en_paquetes,
@@ -436,6 +436,7 @@ export async function lavadosPorDia(p: Periodo) {
     with llenado as (
       select (t.creada_en at time zone ${TZ})::date as dia,
              t.trompo,
+             t.peso,
              pr.grupo_color_id
       from estanterias.tandas t
       join estanterias.productos pr on pr.id = t.producto_id
@@ -453,8 +454,8 @@ export async function lavadosPorDia(p: Periodo) {
     ),
     dias as (
       select dia,
-             count(*)::int                                          as maquinadas,
-             (count(*) filter (where grupo_color_id is null))::int  as sin_grupo,
+             sum(peso)::float8                                      as maquinadas,
+             coalesce(sum(peso) filter (where grupo_color_id is null), 0)::float8 as sin_grupo,
              count(distinct trompo)::int                            as trompos
       from llenado
       group by dia

@@ -44,7 +44,8 @@ export async function GET(req: NextRequest) {
       { header: "m2", key: "m2", width: 12 },
     ],
     llenado.map((f) => ({
-      producto: f.producto,
+      // Productos en par: una fila por lado (Irregular Gris · Irregular 1).
+      producto: f.lados ? `${f.producto} · ${f.modelo}` : f.producto,
       codigo: f.codigo ?? "",
       tandas: f.tandas,
       moldes: f.moldes,
@@ -68,7 +69,8 @@ export async function GET(req: NextRequest) {
       { header: "m2 empaquetados", key: "m2o", width: 16 },
     ],
     empaque.map((f) => ({
-      producto: f.producto,
+      // Productos en par: una fila por lado (Irregular Gris · Irregular 1).
+      producto: f.lados ? `${f.producto} · ${f.modelo}` : f.producto,
       codigo: f.codigo ?? "",
       tandas: f.tandas,
       esperados: f.esperados,

@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { accionLlenar, accionTarjetaNoEncontrada } from "@/lib/acciones/flujo";
 import type { Arido, Cemento, Trompo, UnidadSalida } from "@/lib/db/schema";
 import { cantidadSalida, convertir, TIPO_TROMPO, UNIDAD_SALIDA } from "@/lib/estados";
-import { numero } from "@/lib/formato";
+import { maquinadas, numero } from "@/lib/formato";
 import { DIA_DE_LETRA, ETIQUETA_ARIDO, ETIQUETA_CEMENTO, type Letra } from "@/lib/tarjetas";
 import { usarAccion } from "@/components/usar-accion";
 import { ListaPrograma, type Linea, type Motivo } from "@/components/programa";
@@ -43,6 +43,17 @@ type Producto = {
   unidad: UnidadSalida;
   m2PorPaquete: string | null;
   estanterias: EstanteriaDelProducto[];
+  /** Producto en par (la Irregular): el otro modelo, que se llena a la vez. */
+  par: { modelo: string; estanterias: EstanteriaDelProducto[] } | null;
+};
+
+/** "Irregular 1 + Irregular 2" en los productos en par. */
+const modelosDe = (p: Producto) => (p.par ? `${p.modelo} + ${p.par.modelo}` : p.modelo);
+
+/** Libres para llenar: en un par hace falta una de cada lado. */
+const libresDe = (p: Producto) => {
+  const n = p.estanterias.filter((e) => !e.ocupadaPor).length;
+  return p.par ? Math.min(n, p.par.estanterias.filter((e) => !e.ocupadaPor).length) : n;
 };
 
 type Resultado = {
@@ -107,6 +118,7 @@ export function PanelTrompo({
   const [busqueda, setBusqueda] = useState("");
   const [productoId, setProductoId] = useState<number | null>(null);
   const [estanteriaId, setEstanteriaId] = useState<number | null>(null);
+  const [estanteriaParId, setEstanteriaParId] = useState<number | null>(null);
   // Si el trompo por defecto esta fuera de servicio, arranca en el otro.
   const trompos = { defecto: defectoConfig, disponibles };
   const trompoDefecto = defectoDelDia(trompos);
@@ -114,7 +126,9 @@ export function PanelTrompo({
   const [maquinistaId, setMaquinistaId] = useState("");
   const [lavado, setLavado] = useState(false);
   const [moldes, setMoldes] = useState("");
-  const [hecho, setHecho] = useState<Resultado | null>(null);
+  const [moldesPar, setMoldesPar] = useState("");
+  // Una tarjeta por estanteria: dos en los productos en par.
+  const [hecho, setHecho] = useState<Resultado[] | null>(null);
 
   const delCemento = useMemo(() => productos.filter((p) => p.cemento === cemento), [productos, cemento]);
 
@@ -124,18 +138,21 @@ export function PanelTrompo({
     const palabras = normalizar(busqueda).split(/\s+/).filter(Boolean);
     if (!palabras.length) return [];
     return delCemento.filter((p) => {
-      const texto = normalizar(`${p.nombre} ${p.modelo} ${p.familia}`);
+      const texto = normalizar(`${p.nombre} ${modelosDe(p)} ${p.familia}`);
       return palabras.every((w) => texto.includes(w));
     });
   }, [delCemento, busqueda]);
 
   const prod = delCemento.find((p) => p.id === productoId) ?? null;
   const est = prod?.estanterias.find((e) => e.id === estanteriaId) ?? null;
-  const libres = prod ? prod.estanterias.filter((e) => !e.ocupadaPor) : [];
+  const estPar = prod?.par?.estanterias.find((e) => e.id === estanteriaParId) ?? null;
 
   useEffect(() => {
     setMoldes(est ? String(est.moldes) : "");
   }, [est]);
+  useEffect(() => {
+    setMoldesPar(estPar ? String(estPar.moldes) : "");
+  }, [estPar]);
 
   const cambiaCemento = ultimoCemento[trompo] !== null && ultimoCemento[trompo] !== cemento;
 
@@ -146,6 +163,7 @@ export function PanelTrompo({
     setCemento(c);
     setProductoId(null);
     setEstanteriaId(null);
+    setEstanteriaParId(null);
     setBusqueda("");
   };
 
@@ -153,6 +171,7 @@ export function PanelTrompo({
     llenar.limpiar();
     setProductoId(p.id);
     setEstanteriaId(null);
+    setEstanteriaParId(null);
     setBusqueda("");
   };
 
@@ -165,6 +184,7 @@ export function PanelTrompo({
     // El programa dice en que trompo va (para no lavar de mas).
     setTrompo(trompoDe({ grupoId: null, trompo: l.trompo ?? null }, trompos));
     setEstanteriaId(null);
+    setEstanteriaParId(null);
     setBusqueda("");
     document.getElementById("form-llenado")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -174,8 +194,10 @@ export function PanelTrompo({
     setBusqueda("");
     setProductoId(null);
     setEstanteriaId(null);
+    setEstanteriaParId(null);
     setTrompo(trompoDefecto);
     setMoldes("");
+    setMoldesPar("");
   };
 
   const llenar = usarAccion(accionLlenar, {
@@ -187,15 +209,13 @@ export function PanelTrompo({
   });
   const noEncuentro = usarAccion(accionTarjetaNoEncontrada, {
     alTerminar: (r) => {
-      setHecho((h) => (h ? { ...h, palabra: r.palabra, orden: r.orden } : h));
+      setHecho((h) =>
+        h ? h.map((x) => (x.codigo === r.codigo ? { ...x, palabra: r.palabra, orden: r.orden } : x)) : h,
+      );
       router.refresh();
     },
   });
 
-  const n = Number(moldes);
-  const previsto =
-    prod && Number.isInteger(n) && n > 0 ? convertir(n, prod.piezasPorMolde, prod.piezasPorPaquete) : null;
-  const m2 = previsto && prod?.m2PorPaquete ? previsto.paquetes * Number(prod.m2PorPaquete) : null;
 
   // Si el admin dio de baja al maquinista elegido, la lista ya no lo trae y
   // hay que volver a elegir.
@@ -206,6 +226,7 @@ export function PanelTrompo({
     est !== null &&
     !est.ocupadaPor &&
     moldes !== "" &&
+    (!prod.par || (estPar !== null && !estPar.ocupadaPor && moldesPar !== "")) &&
     maquinista !== null &&
     (!cambiaCemento || lavado);
 
@@ -217,7 +238,7 @@ export function PanelTrompo({
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-slate-900">Programa de hoy</div>
               <div className="cifra text-sm text-slate-600">
-                {programa.reduce((a, l) => a + Math.min(l.hechas, l.cantidad), 0)} de{" "}
+                {maquinadas(programa.reduce((a, l) => a + Math.min(l.hechas, l.cantidad), 0))} de{" "}
                 {programa.reduce((a, l) => a + l.cantidad, 0)} maquinadas
               </div>
             </div>
@@ -238,19 +259,21 @@ export function PanelTrompo({
         </details>
       )}
 
-      {hecho && (
+      {hecho?.map((r, i) => (
         <TarjetaAsignada
-          r={hecho}
+          key={r.tandaId}
+          r={r}
+          titulo={hecho.length > 1 ? `Tarjeta ${i + 1} de ${hecho.length}` : undefined}
           cargando={noEncuentro.cargando}
           error={noEncuentro.error}
           alNoEncontrar={() => {
             const fd = new FormData();
-            fd.set("tandaId", String(hecho.tandaId));
+            fd.set("tandaId", String(r.tandaId));
             noEncuentro.enviar(fd);
           }}
-          alCerrar={() => setHecho(null)}
+          alCerrar={() => setHecho((h) => (h && h.length > 1 ? h.filter((x) => x.tandaId !== r.tandaId) : null))}
         />
-      )}
+      ))}
 
       <div id="form-llenado" className="scroll-mt-20" />
       <Tarjeta>
@@ -258,6 +281,8 @@ export function PanelTrompo({
           action={(fd) => {
             setHecho(null);
             fd.set("estanteriaId", String(estanteriaId ?? ""));
+            fd.set("estanteriaParId", prod?.par ? String(estanteriaParId ?? "") : "");
+            fd.set("moldesParLlenados", prod?.par ? moldesPar : "");
             fd.set("productoId", String(productoId ?? ""));
             fd.set("trompo", trompo);
             fd.set("maquinistaId", maquinista ? String(maquinista.id) : "");
@@ -302,8 +327,13 @@ export function PanelTrompo({
                 <div className="min-w-0">
                   <div className="text-lg font-bold text-slate-900">{prod.nombre}</div>
                   <div className="text-sm text-slate-600">
-                    {prod.modelo} · {prod.familia} · {ETIQUETA_ARIDO[prod.arido]}
+                    {modelosDe(prod)} · {prod.familia} · {ETIQUETA_ARIDO[prod.arido]}
                   </div>
+                  {prod.par && (
+                    <div className="mt-1 text-sm font-semibold text-blue-800">
+                      Se llenan las dos estanterías juntas, una de cada modelo: cuenta 1 maquinada.
+                    </div>
+                  )}
                 </div>
                 <Boton
                   type="button"
@@ -312,6 +342,7 @@ export function PanelTrompo({
                     llenar.limpiar();
                     setProductoId(null);
                     setEstanteriaId(null);
+    setEstanteriaParId(null);
                   }}
                 >
                   Cambiar
@@ -335,7 +366,7 @@ export function PanelTrompo({
                   ) : (
                     <ul className="max-h-80 divide-y divide-slate-100 overflow-y-auto rounded-xl bg-white ring-1 ring-slate-200">
                       {encontrados.map((p) => {
-                        const lib = p.estanterias.filter((e) => !e.ocupadaPor).length;
+                        const lib = libresDe(p);
                         return (
                           <li key={p.id}>
                             <button
@@ -346,15 +377,15 @@ export function PanelTrompo({
                               <span className="min-w-0">
                                 <span className="block font-semibold text-slate-900">{p.nombre}</span>
                                 <span className="block text-xs text-slate-500">
-                                  {p.modelo} · {p.familia} · {ETIQUETA_ARIDO[p.arido]}
+                                  {modelosDe(p)} · {p.familia} · {ETIQUETA_ARIDO[p.arido]}
                                 </span>
                               </span>
                               <span
                                 className={`shrink-0 text-xs font-semibold ${lib === 0 ? "text-amber-700" : "text-emerald-700"}`}
                               >
-                                {p.estanterias.length === 0
+                                {p.estanterias.length === 0 || (p.par && p.par.estanterias.length === 0)
                                   ? "sin estanterías"
-                                  : `${lib} libre${lib === 1 ? "" : "s"}`}
+                                  : `${lib} libre${lib === 1 ? "" : "s"}${p.par ? " (de a par)" : ""}`}
                               </span>
                             </button>
                           </li>
@@ -366,67 +397,35 @@ export function PanelTrompo({
             )}
           </div>
 
-          {/* 3. Estanteria */}
+          {/* 3. Estanteria (dos en los productos en par) */}
           {prod && (
             <div className="space-y-3">
-              <h2 className="text-base font-bold text-slate-900">3. Estantería</h2>
-              {prod.estanterias.length === 0 ? (
-                <Aviso tono="atencion">
-                  No hay estanterías cargadas para {prod.modelo} · {prod.familia} · {ETIQUETA_CEMENTO[prod.cemento]}.
-                  Pedile al administrador que las cargue.
-                </Aviso>
-              ) : (
-                <>
-                  {libres.length === 0 && (
-                    <Aviso tono="atencion">
-                      Todas las estanterías de {prod.modelo} · {prod.familia} están llenas. Se liberan al desmoldarse.
-                    </Aviso>
-                  )}
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {prod.estanterias.map((e) => (
-                      <button
-                        key={e.id}
-                        type="button"
-                        disabled={!!e.ocupadaPor}
-                        onClick={() => {
-                          llenar.limpiar();
-                          setEstanteriaId(e.id);
-                        }}
-                        className={`min-h-16 rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                          estanteriaId === e.id
-                            ? "bg-blue-700 text-white"
-                            : "bg-white text-slate-800 ring-1 ring-slate-300"
-                        }`}
-                      >
-                        <span className="cifra block text-xl font-bold">
-                          N.º {String(e.numero ?? "?").padStart(2, "0")}
-                        </span>
-                        <span className="block text-xs">
-                          {e.ocupadaPor ? `llena (${e.ocupadaPor})` : `${e.moldes} moldes`}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {est && (
-                <div
-                  className={`rounded-xl p-4 ${
-                    prod.cemento === "blanco"
-                      ? "border-4 border-slate-900 bg-white"
-                      : "bg-slate-100 ring-1 ring-slate-300"
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Placa etiqueta={est.etiqueta} grande />
-                    <ChipCemento cemento={prod.cemento} grande />
-                  </div>
-                  <p className="mt-2 text-sm text-slate-700">
-                    {est.moldes} moldes · Verificá que la placa y los laterales coincidan{" "}
-                    <strong>antes de volcar</strong>.
-                  </p>
-                </div>
+              <h2 className="text-base font-bold text-slate-900">
+                3. {prod.par ? "Estanterías: una de cada modelo" : "Estantería"}
+              </h2>
+              <ElegirEstanteria
+                prod={prod}
+                modelo={prod.modelo}
+                estanterias={prod.estanterias}
+                elegida={estanteriaId}
+                titulo={prod.par ? prod.modelo : undefined}
+                alElegir={(id) => {
+                  llenar.limpiar();
+                  setEstanteriaId(id);
+                }}
+              />
+              {prod.par && (
+                <ElegirEstanteria
+                  prod={prod}
+                  modelo={prod.par.modelo}
+                  estanterias={prod.par.estanterias}
+                  elegida={estanteriaParId}
+                  titulo={prod.par.modelo}
+                  alElegir={(id) => {
+                    llenar.limpiar();
+                    setEstanteriaParId(id);
+                  }}
+                />
               )}
             </div>
           )}
@@ -500,53 +499,28 @@ export function PanelTrompo({
             )}
           </div>
 
-          {/* 5. Moldes */}
-          {prod && est && (
+          {/* 5. Moldes (de cada estanteria, en los productos en par) */}
+          {prod && (est || estPar) && (
             <div className="space-y-3">
               <h2 className="text-base font-bold text-slate-900">5. Moldes llenados</h2>
-              <Campo
-                etiqueta="Moldes llenados"
-                ayuda={`La estantería tiene ${est.moldes} moldes. Si no alcanzó la mezcla, bajalo.`}
-              >
-                <Entrada
-                  name="moldesLlenados"
-                  inputMode="numeric"
-                  pattern="\d*"
-                  value={moldes}
-                  onChange={(e) => setMoldes(e.target.value.replace(/\D/g, ""))}
-                  className="cifra text-2xl font-bold"
+              {est && (
+                <CampoMoldes
+                  prod={prod}
+                  est={est}
+                  titulo={prod.par ? prod.modelo : undefined}
+                  nombre="moldesLlenados"
+                  valor={moldes}
+                  alCambiar={setMoldes}
                 />
-              </Campo>
-              <div className="flex flex-wrap gap-2">
-                {[0, 1, 2, 3].map((menos) => {
-                  const v = est.moldes - menos;
-                  if (v < 1) return null;
-                  return (
-                    <button
-                      key={menos}
-                      type="button"
-                      onClick={() => setMoldes(String(v))}
-                      className={`cifra min-h-11 rounded-lg px-4 text-sm font-bold transition-colors ${
-                        Number(moldes) === v ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-300"
-                      }`}
-                    >
-                      {menos === 0 ? `Completa (${v})` : `−${menos} (${v})`}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {previsto && (
-                <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
-                  Van a salir <strong className="cifra">{cantidadSalida(previsto.paquetes, prod.unidad, numero)}</strong>
-                  {m2 !== null && <> · {numero(m2, 1)} m²</>}
-                  {previsto.sueltas > 0 && (
-                    <div className="mt-1 text-amber-800">
-                      {previsto.sueltas === 1 ? "Queda 1 pieza suelta" : `Quedan ${previsto.sueltas} piezas sueltas`}:
-                      este producto lleva {prod.piezasPorPaquete} piezas por {UNIDAD_SALIDA[prod.unidad].uno}.
-                    </div>
-                  )}
-                </div>
+              )}
+              {prod.par && estPar && (
+                <CampoMoldes
+                  prod={prod}
+                  est={estPar}
+                  titulo={prod.par.modelo}
+                  valor={moldesPar}
+                  alCambiar={setMoldesPar}
+                />
               )}
             </div>
           )}
@@ -570,6 +544,150 @@ export function PanelTrompo({
   );
 }
 
+/** Las estanterias de un modelo para elegir, y la placa en grande al elegirla. */
+function ElegirEstanteria({
+  prod,
+  modelo,
+  estanterias,
+  elegida,
+  titulo,
+  alElegir,
+}: {
+  prod: Producto;
+  modelo: string;
+  estanterias: EstanteriaDelProducto[];
+  elegida: number | null;
+  /** En los productos en par: de que modelo es esta. */
+  titulo?: string;
+  alElegir: (id: number) => void;
+}) {
+  const est = estanterias.find((e) => e.id === elegida) ?? null;
+  const libres = estanterias.filter((e) => !e.ocupadaPor);
+  return (
+    <div className="space-y-3">
+      {titulo && <h3 className="text-sm font-bold uppercase tracking-wide text-slate-600">{titulo}</h3>}
+      {estanterias.length === 0 ? (
+        <Aviso tono="atencion">
+          No hay estanterías cargadas para {modelo} · {prod.familia} · {ETIQUETA_CEMENTO[prod.cemento]}.
+          Pedile al administrador que las cargue.
+        </Aviso>
+      ) : (
+        <>
+          {libres.length === 0 && (
+            <Aviso tono="atencion">
+              Todas las estanterías de {modelo} · {prod.familia} están llenas. Se liberan al desmoldarse.
+            </Aviso>
+          )}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {estanterias.map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                disabled={!!e.ocupadaPor}
+                onClick={() => alElegir(e.id)}
+                className={`min-h-16 rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  elegida === e.id ? "bg-blue-700 text-white" : "bg-white text-slate-800 ring-1 ring-slate-300"
+                }`}
+              >
+                <span className="cifra block text-xl font-bold">N.º {String(e.numero ?? "?").padStart(2, "0")}</span>
+                <span className="block text-xs">
+                  {e.ocupadaPor ? `llena (${e.ocupadaPor})` : `${e.moldes} moldes`}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {est && (
+        <div
+          className={`rounded-xl p-4 ${
+            prod.cemento === "blanco" ? "border-4 border-slate-900 bg-white" : "bg-slate-100 ring-1 ring-slate-300"
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <Placa etiqueta={est.etiqueta} grande />
+            <ChipCemento cemento={prod.cemento} grande />
+          </div>
+          <p className="mt-2 text-sm text-slate-700">
+            {est.moldes} moldes · Verificá que la placa y los laterales coincidan <strong>antes de volcar</strong>.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Moldes llenados de una estanteria, con los atajos y lo que va a salir. */
+function CampoMoldes({
+  prod,
+  est,
+  titulo,
+  nombre,
+  valor,
+  alCambiar,
+}: {
+  prod: Producto;
+  est: EstanteriaDelProducto;
+  titulo?: string;
+  nombre?: string;
+  valor: string;
+  alCambiar: (v: string) => void;
+}) {
+  const n = Number(valor);
+  const previsto =
+    Number.isInteger(n) && n > 0 && valor !== "" ? convertir(n, prod.piezasPorMolde, prod.piezasPorPaquete) : null;
+  const m2 = previsto && prod.m2PorPaquete ? previsto.paquetes * Number(prod.m2PorPaquete) : null;
+  return (
+    <div className="space-y-3">
+      <Campo
+        etiqueta={titulo ? `Moldes llenados · ${titulo}` : "Moldes llenados"}
+        ayuda={`La estantería tiene ${est.moldes} moldes. Si no alcanzó la mezcla, bajalo.`}
+      >
+        <Entrada
+          name={nombre}
+          inputMode="numeric"
+          pattern="\d*"
+          value={valor}
+          onChange={(e) => alCambiar(e.target.value.replace(/\D/g, ""))}
+          className="cifra text-2xl font-bold"
+        />
+      </Campo>
+      <div className="flex flex-wrap gap-2">
+        {[0, 1, 2, 3].map((menos) => {
+          const v = est.moldes - menos;
+          if (v < 1) return null;
+          return (
+            <button
+              key={menos}
+              type="button"
+              onClick={() => alCambiar(String(v))}
+              className={`cifra min-h-11 rounded-lg px-4 text-sm font-bold transition-colors ${
+                Number(valor) === v ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-300"
+              }`}
+            >
+              {menos === 0 ? `Completa (${v})` : `−${menos} (${v})`}
+            </button>
+          );
+        })}
+      </div>
+
+      {previsto && (
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
+          Van a salir <strong className="cifra">{cantidadSalida(previsto.paquetes, prod.unidad, numero)}</strong>
+          {m2 !== null && <> · {numero(m2, 1)} m²</>}
+          {previsto.sueltas > 0 && (
+            <div className="mt-1 text-amber-800">
+              {previsto.sueltas === 1 ? "Queda 1 pieza suelta" : `Quedan ${previsto.sueltas} piezas sueltas`}: este
+              producto lleva {prod.piezasPorPaquete} piezas por {UNIDAD_SALIDA[prod.unidad].uno}.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Lo que el operario tiene que hacer despues de registrar: colgar la tarjeta.
  * Queda en pantalla hasta que la cierre o registre otro llenado, porque entre
@@ -578,12 +696,15 @@ export function PanelTrompo({
  */
 function TarjetaAsignada({
   r,
+  titulo,
   cargando,
   error,
   alNoEncontrar,
   alCerrar,
 }: {
   r: Resultado;
+  /** "Tarjeta 1 de 2" en los productos en par. */
+  titulo?: string;
   cargando: boolean;
   error: string | null;
   alNoEncontrar: () => void;
@@ -593,7 +714,9 @@ function TarjetaAsignada({
   if (!r.palabra) {
     return (
       <Aviso tono="atencion">
-        <strong>Llenado registrado ({r.codigo}), pero no quedan tarjetas libres del {dia.dia}.</strong>{" "}
+        <strong>
+          {titulo && `${titulo} · `}Llenado registrado ({r.codigo}), pero no quedan tarjetas libres del {dia.dia}.
+        </strong>{" "}
         Escribí <strong className="cifra">{r.codigo}</strong> en una tarjeta provisoria y colgala en la
         estantería {r.etiqueta}. Avisale al administrador.
         <div className="mt-2">
@@ -606,7 +729,10 @@ function TarjetaAsignada({
   }
   return (
     <div className="rounded-2xl p-5 shadow-sm" style={{ backgroundColor: `${dia.hex}22`, border: `3px solid ${dia.hex}` }}>
-      <div className="text-sm font-semibold text-slate-700">Llenado registrado. Colgá esta tarjeta:</div>
+      <div className="text-sm font-semibold text-slate-700">
+        {titulo && <span className="mr-1 font-bold text-slate-900">{titulo} ·</span>}
+        Llenado registrado. Colgá esta tarjeta:
+      </div>
       <div className="mt-2 flex items-center gap-3">
         <LetraDia letra={r.letra} tamano="grande" />
         <span className="text-4xl font-black tracking-wide text-slate-900">{r.palabra.toUpperCase()}</span>

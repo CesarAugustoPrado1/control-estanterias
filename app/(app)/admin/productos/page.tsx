@@ -26,6 +26,13 @@ export default async function Productos() {
       opciones: mods.map((m) => ({ valor: m.id, texto: m.nombre })),
     },
     {
+      clave: "modeloParId",
+      etiqueta: "Segundo modelo (solo productos en par)",
+      tipo: "select",
+      opciones: mods.map((m) => ({ valor: m.id, texto: m.nombre })),
+      ayuda: "Para la Irregular: el modelo complementario (Irregular 2 si el modelo es Irregular 1). El trompo llena una estantería de cada uno con el mismo pastón; cada lado vale media maquinada y en Producción se ven los juegos. Vacío en los productos comunes.",
+    },
+    {
       clave: "familiaId",
       etiqueta: "Familia (compatibilidad de molde)",
       tipo: "select",
@@ -123,7 +130,7 @@ export default async function Productos() {
       id: x.p.id,
       titulo: x.p.nombre,
       subtitulo:
-        `${x.modelo} · ${x.familia} · ${x.grupoColor ? `color ${x.grupoColor}` : "sin grupo de color"} · ${ETIQUETA_ARIDO[x.p.arido]} · 40 moldes dan ${cantidadSalida(ej.paquetes, x.p.unidad)}` +
+        `${x.modelo}${x.p.modeloParId ? ` + ${mods.find((m) => m.id === x.p.modeloParId)?.nombre ?? "?"}` : ""} · ${x.familia} · ${x.grupoColor ? `color ${x.grupoColor}` : "sin grupo de color"} · ${ETIQUETA_ARIDO[x.p.arido]} · 40 moldes dan ${cantidadSalida(ej.paquetes, x.p.unidad)}` +
         ` · desmolde desde ${x.p.diasDesmolde === 1 ? "1 día" : `${x.p.diasDesmolde} días`}` +
         (x.p.m2PorPaquete ? ` · ${x.p.m2PorPaquete} m²/${UNIDAD_SALIDA[x.p.unidad].corto}` : "") +
         (x.p.codigoPlataformaProceso || x.p.codigoPlataformaTerminado
@@ -133,6 +140,7 @@ export default async function Productos() {
         ...(x.p.activo ? [] : [{ texto: "de baja", tono: "rojo" as const }]),
         ...(x.p.cemento === "blanco" ? [{ texto: "CEMENTO BLANCO", tono: "gris" as const }] : []),
         ...(x.p.requiereTunel ? [] : [{ texto: "sin túnel", tono: "ambar" as const }]),
+        ...(x.p.modeloParId ? [{ texto: "en par", tono: "gris" as const }] : []),
         ...(x.p.piezasPorPaquete > 1
           ? [{ texto: `${x.p.piezasPorPaquete} piezas/${UNIDAD_SALIDA[x.p.unidad].uno}`, tono: "gris" as const }]
           : []),
@@ -143,6 +151,7 @@ export default async function Productos() {
       valores: {
         nombre: x.p.nombre,
         modeloId: x.p.modeloId,
+        modeloParId: x.p.modeloParId ?? "",
         familiaId: x.p.familiaId,
         grupoColorId: x.p.grupoColorId ?? "",
         piezasPorMolde: x.p.piezasPorMolde,

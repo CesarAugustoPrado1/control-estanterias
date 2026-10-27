@@ -29,6 +29,13 @@ const esquemaLlenado = z.object({
     .positive("Cargá cuántos moldes llenaste.")
     .nullable(),
   confirmoLavado: z.boolean(),
+  // Solo productos en par (la Irregular): la estanteria del otro modelo.
+  estanteriaParId: z.number().int().positive().nullable(),
+  moldesParLlenados: z
+    .number()
+    .int("Los moldes se cuentan de a uno.")
+    .positive("Cargá cuántos moldes llenaste.")
+    .nullable(),
 });
 
 export async function accionLlenar(
@@ -43,6 +50,8 @@ export async function accionLlenar(
       maquinistaId: Number(fd.get("maquinistaId")),
       moldesLlenados: numeroOpcional(fd.get("moldesLlenados")),
       confirmoLavado: fd.get("confirmoLavado") === "on" || fd.get("confirmoLavado") === "true",
+      estanteriaParId: numeroOpcional(fd.get("estanteriaParId")),
+      moldesParLlenados: numeroOpcional(fd.get("moldesParLlenados")),
     });
     const r = await motor.llenar(sesion, datos);
     refrescar("/trompo", "/horno", "/recorrida");

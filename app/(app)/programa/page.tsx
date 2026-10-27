@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requerirRol } from "@/lib/auth";
-import { fechaHora, porcentaje } from "@/lib/formato";
+import { fechaHora, maquinadas, porcentaje } from "@/lib/formato";
 import { FORMATO_DIA, hoy, nombrePeriodo, sumarDias } from "@/lib/periodo";
 import { MARGEN_DESMOLDE, topeDesmolde } from "@/lib/reglas";
 import {
@@ -68,7 +68,7 @@ function ResumenSeccion({
         <span>
           Meta{" "}
           <strong className={hechas >= meta ? "text-emerald-700" : "text-slate-900"}>
-            {hechas}/{meta}
+            {maquinadas(hechas)}/{meta}
           </strong>{" "}
           <span className={hechas >= meta ? "text-emerald-700" : "text-blue-700"}>
             {Math.round((100 * hechas) / meta)} %
@@ -134,7 +134,7 @@ function Cumplimiento({
       </span>
       <span className="text-sm text-slate-500">
         {" "}
-        · {c.hechas} de {c.programadas}
+        · {maquinadas(c.hechas)} de {c.programadas}
       </span>
     </span>
   );
@@ -295,7 +295,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                         {k > 0 && " · "}
                         {m.nombre}{" "}
                         <strong className={m.hechas >= m.meta ? "text-emerald-700" : "text-slate-900"}>
-                          {m.hechas}/{m.meta}
+                          {maquinadas(m.hechas)}/{m.meta}
                         </strong>{" "}
                         <span className={m.hechas >= m.meta ? "text-emerald-700" : "text-blue-700"}>
                           {Math.round((100 * m.hechas) / m.meta)} %
@@ -429,7 +429,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                 <ul className="mt-1 text-amber-900">
                   {fuera.map((f) => (
                     <li key={f.productoId}>
-                      <span className="cifra font-bold">{f.hechas}</span> {f.producto}
+                      <span className="cifra font-bold">{maquinadas(f.hechas)}</span> {f.producto}
                     </li>
                   ))}
                 </ul>
@@ -469,7 +469,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
                               {porcentaje(c.pct, 0)}
                             </span>
                             <span className="block text-xs text-slate-500">
-                              {c.hechas}/{c.programadas}
+                              {maquinadas(c.hechas)}/{c.programadas}
                             </span>
                           </>
                         ) : (

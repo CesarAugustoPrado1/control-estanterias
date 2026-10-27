@@ -270,7 +270,8 @@ usuarios         usuario, nombre, pin_hash, roles[], rol (principal), activo,
 modelos          nombre, activo, orden                      -- la forma
 familias         nombre, activa, orden                      -- el color
 productos        modelo_id, familia_id, cemento, nombre, dias_desmolde, piezas_por_molde,
-                 piezas_por_paquete, requiere_tunel, m2_por_paquete, activo
+                 piezas_por_paquete, requiere_tunel, m2_por_paquete, activo,
+                 modelo_par_id?  -- segundo modelo de un producto en par (§7.16)
 estanterias      codigo, modelo_id, familia_id, cemento, numero (placa),
                  moldes, activa
 tarjetas         letra, orden, palabra, activa, perdida_desde?      (§10.3)
@@ -281,7 +282,8 @@ tandas           codigo, estanteria_id?, producto_id + snapshots,
                  maquinista_id? + nombre (snapshot),
                  desmoldador_id? + nombre (snapshot), moldes_nominal,
                  moldes_llenados, paquetes?, motivo_rotura, estado,
-                 estado_desde, estanteria_liberada_en, rehornear
+                 estado_desde, estanteria_liberada_en, rehornear,
+                 peso (1, o 0,5 cada mitad de un par), par_tanda_id? (§7.16)
 movimientos      tanda_id + codigo y palabra (snapshot), tipo, estado_desde,
                  estado_hasta, usuario_id + nombre, duracion_min, trompo?,
                  moldes_llenados?, paquetes?, motivo_fraguado?, nota, creado_en
@@ -577,6 +579,35 @@ productos con grupo de color (`lib/lavados-previstos.ts`).
   trompo parado y la sugerencia de día lo tiene en cuenta. Volver a servicio
   termina el período ayer (o lo borra si no empezó). La cabecera del día en
   Programa y la pantalla del Trompo lo muestran.
+
+## 7.16 Productos en par (la Irregular)
+
+La Irregular usa dos modelos de molde complementarios, Irregular 1 e Irregular
+2: de cada uno salen piezas distintas, cada lado arma sus propios paquetes y se
+entrega siempre la misma cantidad de los dos. En el trompo se llena una
+estantería de cada modelo a la vez, con el mismo pastón: cada una es medio
+trompo.
+
+- Es **un solo producto** por color ("Irregular Gris", "Irregular Beige"), con
+  dos modelos: `productos.modelo_id` (el primer lado) y `modelo_par_id` (el
+  segundo). Se marca en Admin › Productos, campo "Segundo modelo". Así se habla
+  de Irregular Gris en el programa, el tablero y las estadísticas.
+- El trompo **exige las dos estanterías**, una de cada modelo, y los moldes de
+  cada una. El llenado crea dos tandas en la misma transacción, cada una con su
+  tarjeta y su estantería, que siguen su camino por separado (horno, desmolde,
+  empaque) y se apuntan entre sí (`tandas.par_tanda_id`).
+- Cada mitad **vale media maquinada** (`tandas.peso` = 0,5; las comunes, 1).
+  Todo lo que cuenta maquinadas suma `peso`, no filas: programa, metas,
+  tablero, Producción y Estadísticas. Un llenado de Irregular es 1. Lo físico
+  se sigue contando de a una: estanterías ocupadas, lugar en el horno,
+  tarjetas.
+- La rotura se mide por mitad, como cualquier tanda: cada lado tiene sus
+  moldes y sus paquetes.
+- En Producción cada lado es una fila ("Irregular Gris · Irregular 1") y abajo
+  van los **juegos**: el menor de los dos lados, con aviso de cuánto sobra del
+  otro esperando su complemento.
+- Las tandas de antes de marcar el producto como par quedan como estaban (peso
+  1, cada una con su producto viejo): el historial no se reescribe.
 
 ## 8. Estadísticas
 
