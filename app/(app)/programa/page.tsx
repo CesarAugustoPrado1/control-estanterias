@@ -177,7 +177,7 @@ export default async function Programa({ searchParams }: { searchParams: Promise
   const listasParaAgregar: Record<number, number> = {};
   for (const [id, d] of disponible) {
     const yaProgramadas = programa.lineas
-      .filter((l) => l.seccion === "desmolde" && l.productoId === id)
+      .filter((l) => l.seccion === "desmolde" && l.productoId === id && !l.reprogramadaA)
       .reduce((a, l) => a + l.faltan, 0);
     listasParaAgregar[id] = Math.max(0, d.listas - yaProgramadas);
   }

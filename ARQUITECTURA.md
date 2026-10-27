@@ -518,6 +518,12 @@ con los trasladables ya movidos; los días no laborables (puentes, Jueves Santo)
 quedan cargados como días que se trabajan, para marcarlos con un toque. Los
 puentes de cada año salen por decreto: hay que agregarlos a mano.
 
+Cuántas van a estar listas un día se cuenta día por día desde hoy: cada
+maquinada queda lista el día de su llenado + el tiempo mínimo, y cada desmolde
+programado antes se lleva solo lo que ya está listo ese día. Un desmolde que no
+se va a poder hacer (tiene su propio aviso) no le saca a lo que queda listo
+después, y las líneas reprogramadas no cuentan: cuenta su copia.
+
 La sugerencia es el primer día hábil desde llenado + tiempo mínimo (días
 corridos: el fragüe sigue el fin de semana) con lugar en la meta y el tope. El
 programa muestra en la cabecera de cada día si es feriado o fin de semana.
