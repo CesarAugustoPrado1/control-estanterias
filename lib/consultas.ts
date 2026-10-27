@@ -76,7 +76,7 @@ export async function tandaPorCodigo(codigo: string) {
     .from(tandas)
     .where(sql`upper(${tandas.codigo}) = upper(${codigo})`);
   if (!t) return null;
-  const [movs, est] = await Promise.all([
+  const [movs, est, par] = await Promise.all([
     db
       .select()
       .from(movimientos)
@@ -85,8 +85,20 @@ export async function tandaPorCodigo(codigo: string) {
     t.estanteriaId
       ? db.select().from(estanterias).where(eq(estanterias.id, t.estanteriaId))
       : Promise.resolve([]),
+    // Producto en par: la otra mitad del mismo llenado.
+    t.parTandaId
+      ? db
+          .select({
+            codigo: tandas.codigo,
+            tarjetaPalabra: tandas.tarjetaPalabra,
+            modeloNombre: tandas.modeloNombre,
+            estado: tandas.estado,
+          })
+          .from(tandas)
+          .where(eq(tandas.id, t.parTandaId))
+      : Promise.resolve([]),
   ]);
-  return { tanda: t, movimientos: movs, estanteria: est[0] ?? null };
+  return { tanda: t, movimientos: movs, estanteria: est[0] ?? null, par: par[0] ?? null };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -97,7 +109,10 @@ export async function resumenPorEstado() {
   const filas = await db
     .select({
       estado: tandas.estado,
+      /** Estanterias: lo fisico, lo que ocupa lugar (el horno se llena de estas). */
       n: sql<number>`count(*)::int`,
+      /** Maquinadas: cada lado de un producto en par vale media. */
+      maquinadas: sql<number>`sum(${tandas.peso})::float8`,
       masVieja: sql<string | null>`min(${tandas.estadoDesde})`,
     })
     .from(tandas)
@@ -105,7 +120,7 @@ export async function resumenPorEstado() {
     .groupBy(tandas.estado);
 
   const listas = await db
-    .select({ n: sql<number>`count(*)::int` })
+    .select({ n: sql<number>`coalesce(sum(${tandas.peso}), 0)::float8` })
     .from(tandas)
     .where(
       and(
@@ -129,7 +144,7 @@ export async function circuitoPorProducto() {
       familia: tandas.familiaNombre,
       producto: tandas.productoNombre,
       estado: tandas.estado,
-      n: sql<number>`count(*)::int`,
+      n: sql<number>`sum(${tandas.peso})::float8`,
       moldes: sql<number>`coalesce(sum(${tandas.moldesLlenados}), 0)::int`,
     })
     .from(tandas)
@@ -151,7 +166,7 @@ export async function detallePorProducto(estado: Estado) {
   return db
     .select({
       producto: tandas.productoNombre,
-      n: sql<number>`count(*)::int`,
+      n: sql<number>`sum(${tandas.peso})::float8`,
       moldes: sql<number>`sum(${tandas.moldesLlenados})::int`,
       masVieja: sql<string>`min(${tandas.estadoDesde})`,
     })
@@ -212,7 +227,7 @@ export async function disponibilidadDeMoldes() {
  * quien avisarle.
  */
 export async function productosParaTrompo() {
-  const [ests, prods] = await Promise.all([
+  const [ests, prods, mods] = await Promise.all([
     db
       .select({
         e: estanterias,
@@ -236,7 +251,19 @@ export async function productosParaTrompo() {
       .innerJoin(familias, eq(familias.id, productos.familiaId))
       .where(eq(productos.activo, true))
       .orderBy(asc(productos.nombre)),
+    db.select({ id: modelos.id, nombre: modelos.nombre }).from(modelos),
   ]);
+  const nombreModelo = new Map(mods.map((m) => [m.id, m.nombre]));
+  const estanteriasDe = (modeloId: number, p: typeof productos.$inferSelect) =>
+    ests
+      .filter((e) => e.e.modeloId === modeloId && e.e.familiaId === p.familiaId && e.e.cemento === p.cemento)
+      .map((e) => ({
+        id: e.e.id,
+        etiqueta: etiquetaPlaca(e.modelo, e.familia, e.e.numero, e.e.cemento),
+        numero: e.e.numero,
+        moldes: e.e.moldes,
+        ocupadaPor: e.ocupadaPor,
+      }));
 
   return prods.map((x) => ({
     id: x.p.id,
@@ -249,20 +276,15 @@ export async function productosParaTrompo() {
     piezasPorPaquete: x.p.piezasPorPaquete,
     unidad: x.p.unidad,
     m2PorPaquete: x.p.m2PorPaquete,
-    estanterias: ests
-      .filter(
-        (e) =>
-          e.e.modeloId === x.p.modeloId &&
-          e.e.familiaId === x.p.familiaId &&
-          e.e.cemento === x.p.cemento,
-      )
-      .map((e) => ({
-        id: e.e.id,
-        etiqueta: etiquetaPlaca(e.modelo, e.familia, e.e.numero, e.e.cemento),
-        numero: e.e.numero,
-        moldes: e.e.moldes,
-        ocupadaPor: e.ocupadaPor,
-      })),
+    estanterias: estanteriasDe(x.p.modeloId, x.p),
+    /**
+     * Producto en par (la Irregular): el otro modelo y sus estanterias. Cada
+     * llenado usa una de cada lado. Null en los productos comunes.
+     */
+    par:
+      x.p.modeloParId === null
+        ? null
+        : { modelo: nombreModelo.get(x.p.modeloParId) ?? "—", estanterias: estanteriasDe(x.p.modeloParId, x.p) },
   }));
 }
 

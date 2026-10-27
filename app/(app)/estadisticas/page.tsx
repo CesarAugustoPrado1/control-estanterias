@@ -22,7 +22,7 @@ import {
   type FilaRotura,
 } from "@/lib/estadisticas";
 import { cantidadSalida, ETIQUETA_MOTIVO_FRAGUADO, QUE_MIDE_LA_DURACION } from "@/lib/estados";
-import { numero, porcentaje, soloFecha } from "@/lib/formato";
+import { maquinadas, numero, porcentaje, soloFecha } from "@/lib/formato";
 import { atajosComunes, leerPeriodo } from "@/lib/periodo";
 import type { MotivoFraguado, TipoMovimiento } from "@/lib/db/schema";
 import { Plegable, SelectorPeriodo } from "@/components/plegable";
@@ -62,7 +62,7 @@ function TablaRotura({ filas, encabezado }: { filas: FilaRotura[]; encabezado: s
                 <td className="px-3 py-2">
                   <div className="font-medium text-slate-800">{f.clave ?? "—"}</div>
                   <div className="text-xs text-slate-500">
-                    {numero(f.tandas)} maquinada{f.tandas === 1 ? "" : "s"}
+                    {maquinadas(f.tandas)} maquinada{Number(f.tandas) === 1 ? "" : "s"}
                   </div>
                 </td>
                 <td className="cifra whitespace-nowrap px-3 py-2 text-right text-slate-600">
@@ -154,7 +154,7 @@ function SeccionLavados({
         </div>
         {sinGrupo > 0 && (
           <p className="text-sm text-slate-600">
-            {numero(sinGrupo)} maquinada{sinGrupo === 1 ? "" : "s"} de productos sin grupo de color: no entran en el
+            {maquinadas(sinGrupo)} maquinada{sinGrupo === 1 ? "" : "s"} de productos sin grupo de color: no entran en el
             mínimo. Se asigna en Admin › Grupos de color.
           </p>
         )}
@@ -187,9 +187,9 @@ function SeccionLavados({
                     <tr key={d.dia}>
                       <td className="px-4 py-2 font-medium text-slate-800">{soloFecha(d.dia)}</td>
                       <td className="cifra px-4 py-2 text-right text-slate-600">
-                        {numero(d.maquinadas)}
+                        {maquinadas(d.maquinadas)}
                         {d.sin_grupo > 0 && (
-                          <span className="block text-xs text-slate-400">{numero(d.sin_grupo)} sin grupo</span>
+                          <span className="block text-xs text-slate-400">{maquinadas(d.sin_grupo)} sin grupo</span>
                         )}
                       </td>
                       <td className="cifra px-4 py-2 text-right">{numero(d.minimo)}</td>
@@ -360,7 +360,7 @@ export default async function Estadisticas({
               {perdidoPorHorno ? `${numero(Number(perdidoPorHorno.m2), 1)} m²` : "0 m²"}
             </div>
             <div className="text-xs text-slate-500">
-              {perdidoPorHorno?.tandas ?? 0} maquinadas fuera del horno
+              {maquinadas(perdidoPorHorno?.tandas ?? 0)} maquinadas fuera del horno
             </div>
           </Tarjeta>
           <Tarjeta>
@@ -563,7 +563,7 @@ export default async function Estadisticas({
                 <div className="cifra mt-1 text-2xl font-bold text-slate-900">
                   {numero(Number(f?.m2 ?? 0), 1)} m²
                 </div>
-                <div className="text-xs text-slate-500">{f?.tandas ?? 0} maquinadas</div>
+                <div className="text-xs text-slate-500">{maquinadas(f?.tandas ?? 0)} maquinadas</div>
               </Tarjeta>
             );
           })}

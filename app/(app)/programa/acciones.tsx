@@ -1,5 +1,6 @@
 "use client";
 
+import { maquinadas } from "@/lib/formato";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
@@ -672,7 +673,7 @@ export function MetaSeccion({
           <div className="cifra">
             <span className="text-sm text-slate-600">Hechas </span>
             <span className={`text-2xl font-bold ${llego ? "text-emerald-700" : "text-slate-900"}`}>
-              {hechas}
+              {maquinadas(hechas)}
             </span>
             <span className="text-lg font-medium text-slate-400"> / {meta}</span>
           </div>

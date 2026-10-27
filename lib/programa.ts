@@ -84,7 +84,7 @@ export type DiaPrograma = {
 async function hechasDelDia(dia: string): Promise<Record<SeccionPrograma, Map<number, number>>> {
   const [llenado, desmolde] = await Promise.all([
     db.execute(sql`
-      select producto_id as id, count(*)::int as n
+      select producto_id as id, sum(peso)::float8 as n
       from estanterias.tandas
       where (creada_en at time zone ${TZ})::date = ${dia}::date
       group by producto_id`),
@@ -330,7 +330,7 @@ export async function disponibilidadDesmolde(dia: string): Promise<Map<number, D
     db.execute(sql`
       select t.producto_id as id,
              to_char((t.creada_en at time zone ${TZ})::date, 'YYYY-MM-DD') as dia,
-             count(*)::int as n
+             sum(t.peso)::float8 as n
       from estanterias.tandas t
       join estanterias.productos p on p.id = t.producto_id
       where t.estado in ('patio', 'horno', 'a_desmoldar')

@@ -48,7 +48,7 @@ export default async function DetalleTanda({
   const datos = await tandaPorCodigo(decodeURIComponent(codigo));
   if (!datos) notFound();
 
-  const { tanda: t, movimientos: movs, estanteria } = datos;
+  const { tanda: t, movimientos: movs, estanteria, par } = datos;
   const previsto = convertir(t.moldesLlenados, t.piezasPorMolde, t.piezasPorPaquete);
   const rotura = t.paquetes === null ? null : previsto.paquetes - t.paquetes;
   const m2 =
@@ -76,6 +76,17 @@ export default async function DetalleTanda({
       }
       acciones={<ChipEstado estado={t.estado} />}
     >
+      {par && (
+        <div className="mb-4">
+          <Aviso>
+            Media maquinada de {t.productoNombre}: se llenó junto con{" "}
+            <Link href={`/tanda/${par.codigo}`} className="font-semibold text-blue-700 hover:underline">
+              {par.tarjetaPalabra ? par.tarjetaPalabra.toUpperCase() : par.codigo}
+            </Link>{" "}
+            ({par.modeloNombre}), con el mismo pastón. Las dos juntas cuentan 1 maquinada.
+          </Aviso>
+        </div>
+      )}
       {t.rehornear && (
         <div className="mb-4">
           <Aviso tono="atencion">

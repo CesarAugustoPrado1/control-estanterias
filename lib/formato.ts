@@ -76,6 +76,16 @@ export function haceCuanto(d: Date | string | null | undefined): string {
   return `hace ${duracion(desde(d))}`;
 }
 
+/**
+ * Maquinadas: enteras casi siempre, pero un lado de un producto en par (la
+ * Irregular) vale media. "3", "2,5".
+ */
+export function maquinadas(n: number | string | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  const v = Number(n);
+  return numero(v, Number.isInteger(v) ? 0 : 1);
+}
+
 export function numero(n: number | null | undefined, decimales = 0): string {
   if (n === null || n === undefined) return "—";
   return new Intl.NumberFormat("es-AR", {

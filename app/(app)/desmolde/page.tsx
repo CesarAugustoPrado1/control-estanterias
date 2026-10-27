@@ -1,7 +1,7 @@
 import { requerirRol } from "@/lib/auth";
 import { tonos } from "@/lib/escala";
 import { cola, maquinistasActivos } from "@/lib/consultas";
-import { numero } from "@/lib/formato";
+import { maquinadas, numero } from "@/lib/formato";
 import { Pantalla, Seccion, Vacio } from "@/components/ui";
 import { haceCuanto } from "@/lib/formato";
 import { PanelDesmolde } from "./panel";
@@ -37,7 +37,7 @@ export default async function Desmolde() {
         <Plegable
           tono={TONO.programa}
           titulo="Programa de hoy"
-          resumen={`${lineas.reduce((a, l) => a + Math.min(l.hechas, l.cantidad), 0)} de ${lineas.reduce((a, l) => a + l.cantidad, 0)} maquinadas desmoldadas`}
+          resumen={`${maquinadas(lineas.reduce((a, l) => a + Math.min(l.hechas, l.cantidad), 0))} de ${lineas.reduce((a, l) => a + l.cantidad, 0)} maquinadas desmoldadas`}
         >
           <ListaPrograma
             lineas={lineas}

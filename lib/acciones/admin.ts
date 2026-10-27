@@ -148,14 +148,19 @@ export async function guardarProducto(fd: FormData): Promise<Resultado<void>> {
     });
     const activo = fd.get("activo") === "on" || fd.get("activo") === "true";
     const grupoColorId = numeroOpcional(fd.get("grupoColorId"));
+    // Producto en par (la Irregular): el modelo complementario.
+    const modeloParId = numeroOpcional(fd.get("modeloParId"));
+    if (modeloParId !== null && modeloParId === datos.modeloId) {
+      fallar("El segundo modelo tiene que ser distinto del primero: es el complementario.");
+    }
 
     if (id) {
       // Cambiar las conversiones NO reescribe el pasado: cada tanda guarda las
       // suyas al llenarse. De otro modo, corregir un factor cambiaria en
       // silencio la rotura de todos los meses anteriores.
-      await db.update(productos).set({ ...datos, grupoColorId, activo }).where(eq(productos.id, id));
+      await db.update(productos).set({ ...datos, grupoColorId, modeloParId, activo }).where(eq(productos.id, id));
     } else {
-      await db.insert(productos).values({ ...datos, grupoColorId });
+      await db.insert(productos).values({ ...datos, grupoColorId, modeloParId });
     }
     refrescarAdmin();
   });

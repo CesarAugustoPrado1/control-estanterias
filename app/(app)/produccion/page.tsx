@@ -1,9 +1,10 @@
 import { requerirRol } from "@/lib/auth";
 import type { UnidadSalida } from "@/lib/db/schema";
 import { cantidadSalida, concordar, UNIDAD_SALIDA } from "@/lib/estados";
-import { m2, numero, porcentaje } from "@/lib/formato";
+import { m2, maquinadas, numero, porcentaje } from "@/lib/formato";
 import {
   empaquePorProducto,
+  juegos,
   llenadoPorProducto,
   porUnidad,
   resolverPeriodo,
@@ -102,7 +103,10 @@ export default async function Produccion({
         {llenado.length === 0 ? (
           <Vacio>No se llenó nada en este período.</Vacio>
         ) : (
-          <TablaLlenado filas={llenado} />
+          <>
+            <TablaLlenado filas={llenado} />
+            <Juegos lista={juegos(llenado, (f) => f.esperados)} que="esperados" />
+          </>
         )}
       </Plegable>
 
@@ -124,7 +128,10 @@ export default async function Produccion({
         {empaque.length === 0 ? (
           <Vacio>No se empaquetó nada en este período.</Vacio>
         ) : (
-          <TablaEmpaque filas={empaque} />
+          <>
+            <TablaEmpaque filas={empaque} />
+            <Juegos lista={juegos(empaque, (f) => f.obtenidos)} que="empaquetados" />
+          </>
         )}
       </Plegable>
     </Pantalla>
@@ -133,8 +140,47 @@ export default async function Produccion({
 
 const tandasDe = (filas: { tandas: number }[]) => {
   const n = filas.reduce((a, f) => a + f.tandas, 0);
-  return `${numero(n)} maquinada${n === 1 ? "" : "s"}`;
+  return `${maquinadas(n)} maquinada${n === 1 ? "" : "s"}`;
 };
+
+/**
+ * Productos en par (la Irregular): los juegos completos y cuanto hay de cada
+ * lado. Se entrega siempre la misma cantidad de los dos, asi que si no
+ * coinciden se avisa cuanto sobra de uno.
+ */
+function Juegos({ lista, que }: { lista: ReturnType<typeof juegos>; que: string }) {
+  if (!lista.length) return null;
+  return (
+    <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Juegos ({que})</div>
+      <ul className="space-y-2">
+        {lista.map((j) => {
+          const max = Math.max(...j.lados.map((l) => l.n));
+          const sobra = max - j.juegos;
+          const deCual = j.lados.find((l) => l.n === max)?.modelo;
+          return (
+            <li key={j.productoId} className="text-sm">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-semibold text-slate-900">{j.producto}</span>
+                <span className="cifra text-lg font-bold text-slate-900">
+                  {numero(j.juegos)} juego{j.juegos === 1 ? "" : "s"}
+                </span>
+              </div>
+              <div className="cifra text-slate-600">
+                {j.lados.map((l) => `${l.modelo}: ${numero(l.n)}`).join(" · ")}
+              </div>
+              {sobra > 0 && (
+                <div className="text-amber-700">
+                  Sobran {numero(sobra)} de {deCual}: esperan a su complemento.
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 const CAJA_TABLA = "overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-slate-200";
 const TH = "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500";
@@ -145,6 +191,7 @@ function Producto({ f }: { f: FilaLlenado }) {
   return (
     <td className={TD}>
       <div className="font-medium text-slate-900">{f.producto}</div>
+      {f.lados && <div className="text-xs font-semibold text-slate-600">{f.modelo}</div>}
       {f.codigo && <div className="cifra text-xs text-slate-500">{f.codigo}</div>}
     </td>
   );
@@ -166,9 +213,9 @@ function TablaLlenado({ filas }: { filas: FilaLlenado[] }) {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filas.map((f) => (
-              <tr key={`${f.productoId}-${f.unidad}`}>
+              <tr key={`${f.productoId}-${f.modelo}-${f.unidad}`}>
                 <Producto f={f} />
-                <td className={NUM}>{numero(f.tandas)}</td>
+                <td className={NUM}>{maquinadas(f.tandas)}</td>
                 <td className={NUM}>{numero(f.moldes)}</td>
                 <td className={NUM}>{cantidadSalida(f.esperados, f.unidad, numero)}</td>
                 <td className={NUM}>{m2(f.m2)}</td>
@@ -179,7 +226,7 @@ function TablaLlenado({ filas }: { filas: FilaLlenado[] }) {
             <tfoot className="border-t border-slate-200 bg-slate-50 font-semibold">
               <tr>
                 <td className={TD}>Total</td>
-                <td className={NUM}>{numero(filas.reduce((a, f) => a + f.tandas, 0))}</td>
+                <td className={NUM}>{maquinadas(filas.reduce((a, f) => a + f.tandas, 0))}</td>
                 <td className={NUM}>{numero(filas.reduce((a, f) => a + f.moldes, 0))}</td>
                 <td className={NUM}>
                   <PorUnidad m={porUnidad(filas, (f) => f.esperados)} />
@@ -226,9 +273,9 @@ function TablaEmpaque({ filas }: { filas: FilaEmpaque[] }) {
             {filas.map((f) => {
               const rotos = f.esperados - f.obtenidos;
               return (
-                <tr key={`${f.productoId}-${f.unidad}`}>
+                <tr key={`${f.productoId}-${f.modelo}-${f.unidad}`}>
                   <Producto f={f} />
-                  <td className={NUM}>{numero(f.tandas)}</td>
+                  <td className={NUM}>{maquinadas(f.tandas)}</td>
                   <td className={NUM}>{cantidadSalida(f.esperados, f.unidad, numero)}</td>
                   <td className={`${NUM} font-semibold`}>{cantidadSalida(f.obtenidos, f.unidad, numero)}</td>
                   <td className={`${NUM} ${rotos ? "font-semibold text-red-700" : "text-slate-400"}`}>
@@ -244,7 +291,7 @@ function TablaEmpaque({ filas }: { filas: FilaEmpaque[] }) {
             <tfoot className="border-t border-slate-200 bg-slate-50 font-semibold">
               <tr>
                 <td className={TD}>Total</td>
-                <td className={NUM}>{numero(filas.reduce((a, f) => a + f.tandas, 0))}</td>
+                <td className={NUM}>{maquinadas(filas.reduce((a, f) => a + f.tandas, 0))}</td>
                 <td className={NUM}>
                   <PorUnidad m={porUnidad(filas, (f) => f.esperados)} />
                 </td>
@@ -344,11 +391,14 @@ function TarjetaMovil({
       <ul className="mt-2 space-y-1">
         {filas.map(({ f, detalle, valor, m2: superficie }, i) => (
           <li
-            key={`${f.productoId}-${f.unidad}`}
+            key={`${f.productoId}-${f.modelo}-${f.unidad}`}
             className={`flex items-start justify-between gap-3 rounded-lg px-3 py-2 ${i % 2 === 0 ? "bg-slate-50" : ""}`}
           >
             <div className="min-w-0">
-              <div className="font-semibold text-slate-900">{f.producto}</div>
+              <div className="font-semibold text-slate-900">
+                {f.producto}
+                {f.lados && <span className="font-normal text-slate-600"> · {f.modelo}</span>}
+              </div>
               <div className="cifra text-xs text-slate-500">
                 {detalle}
                 {f.codigo && (

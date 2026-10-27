@@ -259,52 +259,73 @@ export async function llenar(
     maquinistaId: number;
     moldesLlenados: number | null;
     confirmoLavado: boolean;
+    /** Solo productos en par: la estanteria del otro modelo y sus moldes. */
+    estanteriaParId?: number | null;
+    moldesParLlenados?: number | null;
   },
 ) {
   return db.transaction(async (tx) => {
-    // Bloquear la estanteria primero: dos llenados simultaneos sobre la misma
-    // esperan uno al otro y el segundo encuentra que ya esta llena.
-    //
-    // El bloqueo va sobre la tabla sola y los nombres se leen aparte: un
-    // `FOR UPDATE OF` con join y esquema propio lo rechaza Postgres ("must specify
-    // unqualified relation names").
-    const [bloqueada] = await tx
-      .select()
-      .from(estanterias)
-      .where(eq(estanterias.id, datos.estanteriaId))
-      .for("update");
-    if (!bloqueada) fallar("Esa estantería no existe.");
-    const [nombres] = await tx
-      .select({ modelo: modelos.nombre, familia: familias.nombre })
-      .from(modelos)
-      .innerJoin(familias, eq(familias.id, bloqueada.familiaId))
-      .where(eq(modelos.id, bloqueada.modeloId));
-    const est = { e: bloqueada, modelo: nombres.modelo, familia: nombres.familia };
-    const etiqueta = etiquetaPlaca(est.modelo, est.familia, est.e.numero, est.e.cemento);
-    if (!est.e.activa) fallar(`La estantería ${etiqueta} está dada de baja.`);
-
-    const ocupante = await tandaQueRetiene(tx, est.e.id);
-    if (ocupante) {
-      fallar(
-        `La estantería ${etiqueta} todavía tiene la maquinada ${nombreTanda(ocupante)} ` +
-          `sin desmoldar. Si en el patio está vacía, falta registrar el desmolde.`,
-      );
-    }
-
     const [prod] = await tx.select().from(productos).where(eq(productos.id, datos.productoId));
     if (!prod) fallar("Ese producto no existe.");
     if (!prod.activo) fallar(`El producto ${prod.nombre} está dado de baja.`);
 
-    // La regla central: modelo, familia y cemento tienen que coincidir.
-    if (prod.modeloId !== est.e.modeloId || prod.familiaId !== est.e.familiaId) {
-      fallar(`${prod.nombre} no va en la estantería ${etiqueta}: es de otro modelo o de otra familia.`);
+    // Producto en par (la Irregular): una estanteria de cada modelo, juntas.
+    const enPar = prod.modeloParId !== null;
+    if (enPar && !datos.estanteriaParId) {
+      fallar(`${prod.nombre} se llena en dos estanterías a la vez: elegí también la del otro modelo.`);
     }
-    if (prod.cemento !== est.e.cemento) {
-      fallar(
-        `¡OJO! La estantería ${etiqueta} es de ${ETIQUETA_CEMENTO[est.e.cemento].toUpperCase()} ` +
-          `y ${prod.nombre} es de ${ETIQUETA_CEMENTO[prod.cemento]}. No se pueden mezclar.`,
-      );
+    if (!enPar && datos.estanteriaParId) fallar(`${prod.nombre} se llena en una sola estantería.`);
+    if (enPar && datos.estanteriaParId === datos.estanteriaId) {
+      fallar("Elegiste la misma estantería dos veces: va una de cada modelo.");
     }
+
+    // Bloquear las estanterias primero, siempre en el mismo orden (por id):
+    // dos llenados simultaneos sobre la misma esperan uno al otro y el segundo
+    // encuentra que ya esta llena.
+    const ids = [datos.estanteriaId, ...(enPar ? [datos.estanteriaParId!] : [])];
+    const bloqueadas = await tx
+      .select()
+      .from(estanterias)
+      .where(inArray(estanterias.id, [...ids].sort((x, y) => x - y)))
+      .for("update");
+
+    const verificar = async (id: number, modeloId: number) => {
+      // El bloqueo va sobre la tabla sola y los nombres se leen aparte: un
+      // `FOR UPDATE OF` con join y esquema propio lo rechaza Postgres ("must
+      // specify unqualified relation names").
+      const e = bloqueadas.find((x) => x.id === id);
+      if (!e) fallar("Esa estantería no existe.");
+      const [nombres] = await tx
+        .select({ modelo: modelos.nombre, familia: familias.nombre })
+        .from(modelos)
+        .innerJoin(familias, eq(familias.id, e.familiaId))
+        .where(eq(modelos.id, e.modeloId));
+      const etiqueta = etiquetaPlaca(nombres.modelo, nombres.familia, e.numero, e.cemento);
+      if (!e.activa) fallar(`La estantería ${etiqueta} está dada de baja.`);
+
+      const ocupante = await tandaQueRetiene(tx, e.id);
+      if (ocupante) {
+        fallar(
+          `La estantería ${etiqueta} todavía tiene la maquinada ${nombreTanda(ocupante)} ` +
+            `sin desmoldar. Si en el patio está vacía, falta registrar el desmolde.`,
+        );
+      }
+
+      // La regla central: modelo, familia y cemento tienen que coincidir.
+      if (modeloId !== e.modeloId || prod.familiaId !== e.familiaId) {
+        fallar(`${prod.nombre} no va en la estantería ${etiqueta}: es de otro modelo o de otra familia.`);
+      }
+      if (prod.cemento !== e.cemento) {
+        fallar(
+          `¡OJO! La estantería ${etiqueta} es de ${ETIQUETA_CEMENTO[e.cemento].toUpperCase()} ` +
+            `y ${prod.nombre} es de ${ETIQUETA_CEMENTO[prod.cemento]}. No se pueden mezclar.`,
+        );
+      }
+      return { e, modelo: nombres.modelo, familia: nombres.familia, etiqueta };
+    };
+
+    const principal = await verificar(datos.estanteriaId, prod.modeloId);
+    const par = enPar ? await verificar(datos.estanteriaParId!, prod.modeloParId!) : null;
 
     const [maq] = await tx.select().from(maquinistas).where(eq(maquinistas.id, datos.maquinistaId));
     if (!maq) fallar("Ese maquinista no existe.");
@@ -324,88 +345,104 @@ export async function llenar(
       );
     }
 
-    const moldes = datos.moldesLlenados ?? est.e.moldes;
-    if (!Number.isInteger(moldes) || moldes < 1) {
-      fallar("Cargá cuántos moldes llenaste. Tiene que ser 1 o más.");
-    }
-    if (moldes > est.e.moldes) {
-      fallar(
-        `La estantería ${etiqueta} tiene ${est.e.moldes} moldes: no podés llenar ${moldes}. ` +
-          `Si el dato del sistema está mal, corregilo desde el panel.`,
-      );
-    }
+    const moldesDe = (est: typeof principal, cargados: number | null | undefined) => {
+      const moldes = cargados ?? est.e.moldes;
+      if (!Number.isInteger(moldes) || moldes < 1) {
+        fallar(`Cargá cuántos moldes llenaste en ${est.etiqueta}. Tiene que ser 1 o más.`);
+      }
+      if (moldes > est.e.moldes) {
+        fallar(
+          `La estantería ${est.etiqueta} tiene ${est.e.moldes} moldes: no podés llenar ${moldes}. ` +
+            `Si el dato del sistema está mal, corregilo desde el panel.`,
+        );
+      }
+      return moldes;
+    };
+    const moldes = moldesDe(principal, datos.moldesLlenados);
+    const moldesPar = par ? moldesDe(par, datos.moldesParLlenados) : 0;
 
     const ahora = new Date();
     const letra = letraDelDia(ahora);
-    const tarjeta = await primeraTarjetaLibre(tx, letra);
 
-    const [creada] = await tx
-      .insert(tandas)
-      .values({
-        // Placeholder: el codigo definitivo sale del id, que recien existe
-        // despues del insert. Se corrige abajo, dentro de la misma transaccion.
-        codigo: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        estanteriaId: est.e.id,
-        estanteriaEtiqueta: etiqueta,
-        productoId: prod.id,
+    const crear = async (est: typeof principal, n: number) => {
+      const tarjeta = await primeraTarjetaLibre(tx, letra);
+      const [creada] = await tx
+        .insert(tandas)
+        .values({
+          // Placeholder: el codigo definitivo sale del id, que recien existe
+          // despues del insert. Se corrige abajo, dentro de la misma transaccion.
+          codigo: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          estanteriaId: est.e.id,
+          estanteriaEtiqueta: est.etiqueta,
+          productoId: prod.id,
+          productoNombre: prod.nombre,
+          modeloNombre: est.modelo,
+          familiaNombre: est.familia,
+          cemento: prod.cemento,
+          arido: prod.arido,
+          unidad: prod.unidad,
+          piezasPorMolde: prod.piezasPorMolde,
+          piezasPorPaquete: prod.piezasPorPaquete,
+          m2PorPaquete: prod.m2PorPaquete,
+          trompo: datos.trompo,
+          maquinistaId: maq.id,
+          maquinistaNombre: maq.nombre,
+          moldesNominal: est.e.moldes,
+          moldesLlenados: n,
+          peso: enPar ? "0.5" : "1",
+          tarjetaId: tarjeta?.id ?? null,
+          tarjetaPalabra: tarjeta?.palabra ?? null,
+          tarjetaLetra: tarjeta?.letra ?? null,
+          tarjetaOrden: tarjeta?.orden ?? null,
+          estado: "patio",
+          estadoDesde: ahora,
+          creadaEn: ahora,
+        })
+        .returning();
+
+      const codigo = `E-${String(creada.id).padStart(5, "0")}`;
+      await tx.update(tandas).set({ codigo }).where(eq(tandas.id, creada.id));
+
+      await tx.insert(movimientos).values({
+        tandaId: creada.id,
+        tandaCodigo: codigo,
+        tandaPalabra: tarjeta?.palabra ?? null,
         productoNombre: prod.nombre,
-        modeloNombre: est.modelo,
-        familiaNombre: est.familia,
-        cemento: prod.cemento,
-        arido: prod.arido,
-        unidad: prod.unidad,
-        piezasPorMolde: prod.piezasPorMolde,
-        piezasPorPaquete: prod.piezasPorPaquete,
-        m2PorPaquete: prod.m2PorPaquete,
+        tipo: "llenado",
+        estadoDesde: null,
+        estadoHasta: "patio",
+        usuarioId: sesion.id,
+        usuarioNombre: sesion.nombre,
+        // El llenado no mide nada anterior: la tanda no existia.
+        duracionMin: null,
         trompo: datos.trompo,
-        maquinistaId: maq.id,
-        maquinistaNombre: maq.nombre,
-        moldesNominal: est.e.moldes,
-        moldesLlenados: moldes,
-        tarjetaId: tarjeta?.id ?? null,
-        tarjetaPalabra: tarjeta?.palabra ?? null,
-        tarjetaLetra: tarjeta?.letra ?? null,
-        tarjetaOrden: tarjeta?.orden ?? null,
-        estado: "patio",
-        estadoDesde: ahora,
-        creadaEn: ahora,
-      })
-      .returning();
+        moldesLlenados: n,
+        nota:
+          ultima && ultima.cemento !== prod.cemento
+            ? `Trompo con cambio de cemento: se confirmó el lavado.`
+            : null,
+        creadoEn: ahora,
+      });
 
-    const codigo = `E-${String(creada.id).padStart(5, "0")}`;
-    await tx.update(tandas).set({ codigo }).where(eq(tandas.id, creada.id));
-
-    await tx.insert(movimientos).values({
-      tandaId: creada.id,
-      tandaCodigo: codigo,
-      tandaPalabra: tarjeta?.palabra ?? null,
-      productoNombre: prod.nombre,
-      tipo: "llenado",
-      estadoDesde: null,
-      estadoHasta: "patio",
-      usuarioId: sesion.id,
-      usuarioNombre: sesion.nombre,
-      // El llenado no mide nada anterior: la tanda no existia.
-      duracionMin: null,
-      trompo: datos.trompo,
-      moldesLlenados: moldes,
-      nota:
-        ultima && ultima.cemento !== prod.cemento
-          ? `Trompo con cambio de cemento: se confirmó el lavado.`
-          : null,
-      creadoEn: ahora,
-    });
-
-    return {
-      tandaId: creada.id,
-      codigo,
-      etiqueta,
-      moldes,
-      palabra: tarjeta?.palabra ?? null,
-      letra,
-      orden: tarjeta?.orden ?? null,
-      dia: DIA_DE_LETRA[letra].dia,
+      return {
+        tandaId: creada.id,
+        codigo,
+        etiqueta: est.etiqueta,
+        moldes: n,
+        palabra: tarjeta?.palabra ?? null,
+        letra,
+        orden: tarjeta?.orden ?? null,
+        dia: DIA_DE_LETRA[letra].dia,
+      };
     };
+
+    const r = await crear(principal, moldes);
+    if (!par) return [r];
+    // La segunda mitad toma la tarjeta siguiente: la primera ya esta en uso.
+    const r2 = await crear(par, moldesPar);
+    await tx.update(tandas).set({ parTandaId: r2.tandaId }).where(eq(tandas.id, r.tandaId));
+    await tx.update(tandas).set({ parTandaId: r.tandaId }).where(eq(tandas.id, r2.tandaId));
+    return [r, r2];
   });
 }
 

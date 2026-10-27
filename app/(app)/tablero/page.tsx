@@ -10,7 +10,7 @@ import {
 } from "@/lib/consultas";
 import { capacidadHorno } from "@/lib/acciones/motor";
 import { ESPERA_ESTADO, ORDEN_ESTADOS, TITULO_ESTADO } from "@/lib/estados";
-import { haceCuanto, numero } from "@/lib/formato";
+import { haceCuanto, maquinadas, numero } from "@/lib/formato";
 import type { Estado } from "@/lib/db/schema";
 import { ChipCemento } from "@/components/tanda";
 import { ESTADOS_CIRCUITO, TableroPorModelo } from "@/components/tablero-modelos";
@@ -50,7 +50,8 @@ export default async function Tablero({
     : null;
   const detalle = abierto ? await detallePorProducto(abierto) : null;
 
-  const totalEnCurso = resumen.enCurso.reduce((a, r) => a + Number(r.n), 0);
+  // Maquinadas (un lado de la Irregular vale media); el horno, en estanterias.
+  const totalEnCurso = resumen.enCurso.reduce((a, r) => a + Number(r.maquinadas), 0);
   const enHorno = Number(enCurso.get("horno")?.n ?? 0);
 
   const totalEstanterias = moldes.reduce((a, m) => a + m.total, 0);
@@ -64,8 +65,8 @@ export default async function Tablero({
       titulo="Tablero"
       bajada={
         <>
-          {numero(totalEnCurso)} maquinadas en el circuito ·{" "}
-          {numero(resumen.listasSemana)} terminadas en los últimos 7 días
+          {maquinadas(totalEnCurso)} maquinadas en el circuito ·{" "}
+          {maquinadas(resumen.listasSemana)} terminadas en los últimos 7 días
         </>
       }
     >
@@ -112,7 +113,7 @@ export default async function Tablero({
                     estado={e}
                     href={abierto === e ? "/tablero" : `/tablero?ver=${e}`}
                     titulo={TITULO_ESTADO[e]}
-                    valor={numero(Number(r?.n ?? 0))}
+                    valor={maquinadas(r?.maquinadas ?? 0)}
                     pie={
                       r?.masVieja
                         ? `la más vieja, ${haceCuanto(r.masVieja)}`
@@ -164,7 +165,7 @@ export default async function Tablero({
                           <td className="px-4 py-2 font-medium text-slate-800">
                             {d.producto}
                           </td>
-                          <td className="cifra px-4 py-2 text-right">{d.n}</td>
+                          <td className="cifra px-4 py-2 text-right">{maquinadas(d.n)}</td>
                           <td className="cifra px-4 py-2 text-right text-slate-600">
                             {numero(Number(d.moldes))}
                           </td>

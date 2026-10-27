@@ -271,6 +271,13 @@ export const productos = esq.table(
       .references(() => familias.id),
     /** Formula de color (ver gruposColor). Null: todavia sin asignar. */
     grupoColorId: integer("grupo_color_id").references(() => gruposColor.id),
+    /**
+     * Producto en par (la Irregular): el segundo modelo, complementario de
+     * `modeloId`. Cada llenado usa una estanteria de cada modelo con el mismo
+     * paston y crea dos tandas de media maquinada cada una. Null: producto
+     * comun, de un solo modelo. Ver migracion 0018.
+     */
+    modeloParId: integer("modelo_par_id").references(() => modelos.id),
     piezasPorMolde: integer("piezas_por_molde").notNull().default(1),
     piezasPorPaquete: integer("piezas_por_paquete").notNull().default(1),
     /** Ver `unidadSalidaEnum`. */
@@ -510,6 +517,16 @@ export const tandas = esq.table(
      * habitual es que no alcanzo la mezcla.
      */
     moldesLlenados: integer("moldes_llenados").notNull(),
+
+    /**
+     * Cuanto vale como maquinada: 1, o 0,5 cada lado de un producto en par
+     * (la Irregular llena dos estanterias con un mismo paston). Todo lo que
+     * cuenta maquinadas suma esto, no filas: un llenado de Irregular es 1.
+     * Las estanterias, el horno y las tarjetas siguen contandose de a una.
+     */
+    peso: numeric("peso", { precision: 3, scale: 1 }).notNull().default("1"),
+    /** La otra mitad de un producto en par: la tanda del otro modelo. */
+    parTandaId: integer("par_tanda_id").references((): AnyPgColumn => tandas.id),
 
     /**
      * Se completa recien en el empaquetado. Antes es `null`, que significa
